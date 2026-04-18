@@ -88,7 +88,6 @@ dependencies {
     // Git
     implementation(libs.jgit)
     implementation(libs.jgit.ssh.apache)
-    implementation(libs.mina.sshd.core)
 
     // OpenPGP
     implementation(libs.pgpainless.core)
