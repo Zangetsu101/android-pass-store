@@ -23,6 +23,9 @@ minaSshd = "2.13.2"
 pgpainless = "1.6.7"
 commonsText = "1.12.0"
 serializationJson = "1.7.3"
+robolectric = "4.13"
+coroutinesTest = "1.9.0"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -77,6 +80,11 @@ commons-text = { group = "org.apache.commons", name = "commons-text", version.re
 
 # Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serializationJson" }
+
+# Testing
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
