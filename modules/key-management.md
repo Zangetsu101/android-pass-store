@@ -1,0 +1,35 @@
+# Key Management Module
+
+## Responsibility
+Secure storage and lifecycle management for all cryptographic key material on the device: the GPG private key and the SSH private key.
+
+## Key Storage Model
+Both keys follow the same pattern:
+
+```
+[Key blob] ← encrypted with AES-256-GCM
+     ↑
+[Wrapping key] ← stored in Android Keystore (hardware-backed TEE)
+                  bound to: device unlock + biometric confirmation
+```
+
+- Key blobs live in app-private internal storage (`/data/data/<pkg>/files/keys/`)
+- Wrapping keys live in Android Keystore — never exposed to userspace
+- GPG ops (decryption) happen in userspace after unwrapping the key
+- SSH ops (git transport) happen in userspace after unwrapping the key
+
+## Session Lock
+- App session: inactivity timeout (default 5 min, configurable). After timeout, wrapping key requires re-auth to use.
+- Autofill fills: always trigger a biometric prompt regardless of session state.
+
+## Interfaces
+- `importGpgKey(armoredKey: String, passphrase: String?)` — import, decrypt, re-encrypt under Keystore-backed wrapping key
+- `generateSshKey(): PublicKey` — generate Ed25519 keypair, store encrypted, return public key for user to register on remote
+- `getGpgKey(biometricPrompt): GpgPrivateKey` — unlock and return decrypted GPG key for a single operation
+- `getSshKey(biometricPrompt): SshPrivateKey` — unlock and return decrypted SSH key for git transport
+- `clearAllKeys()` — wipe both key blobs and Keystore entries (factory reset / sign-out)
+
+## Non-Goals (v1)
+- Hardware security key (YubiKey/OpenPGP card) support
+- Multiple GPG keys / subkeys
+- Key rotation
