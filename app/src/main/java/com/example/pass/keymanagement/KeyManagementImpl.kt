@@ -2,6 +2,7 @@ package com.example.pass.keymanagement
 
 import android.content.Context
 import android.util.Base64
+import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
 import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
@@ -31,6 +32,7 @@ internal const val BLOB_SSH_KEY = "ssh_key"
 @Singleton
 class KeyManagementImpl @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val sessionManager: SessionManager,
 ) : KeyManagement {
 
     internal val blobStore = KeyBlobStore(context)
@@ -52,7 +54,6 @@ class KeyManagementImpl @Inject constructor(
             SecretKeyRingProtector.unprotectedKeys()
         }
 
-        // Strip passphrase — key is protected by the Keystore-backed AES blob instead
         val strippedKeys: PGPSecretKeyRing = try {
             PGPainless.modifyKeyRing(keys)
                 .changePassphrase(null, oldProtector, SecretKeyRingProtector.unprotectedKeys())
@@ -62,12 +63,6 @@ class KeyManagementImpl @Inject constructor(
         }
 
         blobStore.encrypt(BLOB_GPG_KEY, strippedKeys.encoded)
-    }
-
-    override fun getGpgKey(): PGPSecretKeyRing {
-        val bytes = blobStore.decrypt(BLOB_GPG_KEY)
-        return PGPainless.readKeyRing().secretKeyRing(bytes)
-            ?: error("Corrupted GPG key blob")
     }
 
     override fun generateSshKey(): String {
@@ -82,7 +77,15 @@ class KeyManagementImpl @Inject constructor(
         return openSshPublicKey(publicParams.encoded)
     }
 
-    override fun getSshKey(): KeyPair {
+    override suspend fun getGpgKey(activity: FragmentActivity): PGPSecretKeyRing {
+        ensureAuthenticated(activity)
+        val bytes = blobStore.decrypt(BLOB_GPG_KEY)
+        return PGPainless.readKeyRing().secretKeyRing(bytes)
+            ?: error("Corrupted GPG key blob")
+    }
+
+    override suspend fun getSshKey(activity: FragmentActivity): KeyPair {
+        ensureAuthenticated(activity)
         val privateBytes = blobStore.decrypt(BLOB_SSH_KEY)
         val privateParams = Ed25519PrivateKeyParameters(privateBytes, 0)
         val publicParams = privateParams.generatePublicKey()
@@ -99,7 +102,15 @@ class KeyManagementImpl @Inject constructor(
     }
 
     override fun clearAllKeys() {
+        sessionManager.invalidate()
         blobStore.deleteAll()
+    }
+
+    private suspend fun ensureAuthenticated(activity: FragmentActivity) {
+        if (!sessionManager.isSessionActive()) {
+            showBiometricPrompt(activity)
+            sessionManager.recordAuth()
+        }
     }
 
     private fun openSshPublicKey(rawPublicBytes: ByteArray): String {

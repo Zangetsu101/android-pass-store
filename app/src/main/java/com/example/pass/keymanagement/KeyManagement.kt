@@ -1,5 +1,6 @@
 package com.example.pass.keymanagement
 
+import androidx.fragment.app.FragmentActivity
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import java.security.KeyPair
 
@@ -14,12 +15,6 @@ interface KeyManagement {
     fun importGpgKey(armoredKey: String, passphrase: String? = null)
 
     /**
-     * Decrypts and returns the GPG secret key ring.
-     * The returned key has no PGP passphrase; it is protected only by the Keystore blob.
-     */
-    fun getGpgKey(): PGPSecretKeyRing
-
-    /**
      * Generates an Ed25519 SSH keypair, stores the private key as an encrypted blob,
      * and returns the public key formatted as an OpenSSH string ready to be registered
      * on the remote git server.
@@ -27,9 +22,14 @@ interface KeyManagement {
     fun generateSshKey(): String
 
     /**
-     * Decrypts and returns the SSH keypair from the encrypted blob.
+     * Prompts biometric if the session is not active, then returns the GPG secret key ring.
      */
-    fun getSshKey(): KeyPair
+    suspend fun getGpgKey(activity: FragmentActivity): PGPSecretKeyRing
+
+    /**
+     * Prompts biometric if the session is not active, then returns the SSH keypair.
+     */
+    suspend fun getSshKey(activity: FragmentActivity): KeyPair
 
     fun clearAllKeys()
 }
