@@ -1,6 +1,7 @@
 package com.example.pass.keymanagement
 
 import org.bouncycastle.openpgp.PGPSecretKeyRing
+import java.security.KeyPair
 
 interface KeyManagement {
     /**
@@ -17,6 +18,18 @@ interface KeyManagement {
      * The returned key has no PGP passphrase; it is protected only by the Keystore blob.
      */
     fun getGpgKey(): PGPSecretKeyRing
+
+    /**
+     * Generates an Ed25519 SSH keypair, stores the private key as an encrypted blob,
+     * and returns the public key formatted as an OpenSSH string ready to be registered
+     * on the remote git server.
+     */
+    fun generateSshKey(): String
+
+    /**
+     * Decrypts and returns the SSH keypair from the encrypted blob.
+     */
+    fun getSshKey(): KeyPair
 
     fun clearAllKeys()
 }

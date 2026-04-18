@@ -1,12 +1,27 @@
 package com.example.pass.keymanagement
 
 import android.content.Context
+import android.util.Base64
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
+import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
+import org.bouncycastle.crypto.util.PrivateKeyInfoFactory
+import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.pgpainless.PGPainless
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.security.KeyFactory
+import java.security.KeyPair
+import java.security.SecureRandom
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,7 +70,48 @@ class KeyManagementImpl @Inject constructor(
             ?: error("Corrupted GPG key blob")
     }
 
+    override fun generateSshKey(): String {
+        val gen = Ed25519KeyPairGenerator()
+        gen.init(Ed25519KeyGenerationParameters(SecureRandom()))
+        val asymPair = gen.generateKeyPair()
+        val privateParams = asymPair.private as Ed25519PrivateKeyParameters
+        val publicParams = asymPair.public as Ed25519PublicKeyParameters
+
+        blobStore.encrypt(BLOB_SSH_KEY, privateParams.encoded)
+
+        return openSshPublicKey(publicParams.encoded)
+    }
+
+    override fun getSshKey(): KeyPair {
+        val privateBytes = blobStore.decrypt(BLOB_SSH_KEY)
+        val privateParams = Ed25519PrivateKeyParameters(privateBytes, 0)
+        val publicParams = privateParams.generatePublicKey()
+
+        val provider = BouncyCastleProvider()
+        val keyFactory = KeyFactory.getInstance("Ed25519", provider)
+        val privateKey = keyFactory.generatePrivate(
+            PKCS8EncodedKeySpec(PrivateKeyInfoFactory.createPrivateKeyInfo(privateParams).encoded)
+        )
+        val publicKey = keyFactory.generatePublic(
+            X509EncodedKeySpec(SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(publicParams).encoded)
+        )
+        return KeyPair(publicKey, privateKey)
+    }
+
     override fun clearAllKeys() {
         blobStore.deleteAll()
+    }
+
+    private fun openSshPublicKey(rawPublicBytes: ByteArray): String {
+        val keyType = "ssh-ed25519"
+        val keyTypeBytes = keyType.toByteArray(Charsets.UTF_8)
+        val buf = ByteArrayOutputStream()
+        val out = DataOutputStream(buf)
+        out.writeInt(keyTypeBytes.size)
+        out.write(keyTypeBytes)
+        out.writeInt(rawPublicBytes.size)
+        out.write(rawPublicBytes)
+        out.flush()
+        return "$keyType ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
     }
 }
