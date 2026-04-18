@@ -1,5 +1,11 @@
 # Git Sync Module
 
+## Implementation
+- **Git:** `org.eclipse.jgit:org.eclipse.jgit` (pure JVM, no native binaries)
+- **SSH transport:** `org.apache.sshd:sshd-core` (MINA sshd, replaces deprecated JSch)
+- **Scoping:** Hilt `@Singleton`
+- **Async:** `Dispatchers.IO` — JGit operations are blocking; always called from a coroutine scope
+
 ## Responsibility
 Clone and pull the pass git repository from a remote over SSH. Manages the local git working copy that all other modules read from.
 

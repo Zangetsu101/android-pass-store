@@ -1,5 +1,11 @@
 # Key Management Module
 
+## Implementation
+- **Keystore ops:** `android.security.keystore.KeyStore` + `KeyGenerator` (AES-256-GCM wrapping key)
+- **Biometric:** `androidx.biometric.BiometricPrompt` + `BiometricManager`
+- **Scoping:** Hilt `@Singleton` — single instance shared across UI and `AutofillService`
+- **Async:** Coroutines (`Dispatchers.IO` for key unwrap/wrap operations)
+
 ## Responsibility
 Secure storage and lifecycle management for all cryptographic key material on the device: the GPG private key and the SSH private key.
 

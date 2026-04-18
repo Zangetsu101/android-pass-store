@@ -1,5 +1,11 @@
 # Autofill Module
 
+## Implementation
+- **AutofillService:** `android.service.autofill.AutofillService` — `@AndroidEntryPoint` (Hilt), `minSdk` 26
+- **Credential Manager:** `androidx.credentials:credentials` + `androidx.credentials:credentials-play-services-auth`, gated behind `Build.VERSION.SDK_INT >= 34`
+- **`BiometricPromptData` integration:** gated behind `Build.VERSION.SDK_INT >= 36`
+- **Async:** Coroutines via `lifecycleScope` on the service; fill requests handled on `Dispatchers.Default`
+
 ## Responsibility
 Expose pass credentials to Android's autofill surfaces: `AutofillService` (Android 8+) and Credential Manager (Android 14+).
 

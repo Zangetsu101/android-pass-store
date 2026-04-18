@@ -2,6 +2,25 @@
 
 > Read-only Android client for the `pass` password store with autofill integration.
 
+## Implementation Stack
+
+| Concern | Choice |
+|---|---|
+| Language | Kotlin |
+| UI | Jetpack Compose |
+| Architecture | MVVM + StateFlow |
+| Dependency injection | Hilt |
+| Navigation | Navigation Compose (type-safe routes, Navigation 2.8+) |
+| Git | JGit + Apache MINA sshd |
+| OpenPGP | PGPainless (Bouncy Castle wrapper) |
+| Local persistence | Preferences DataStore |
+| Concurrency | Kotlin Coroutines + Flow (`Dispatchers.IO` for blocking ops) |
+| Min SDK | API 26 (Android 8) |
+| Target SDK | API 36 (Android 16) |
+| Testing | Unit tests for pure logic (PassStore matching, path parsing, fuzzy search) |
+
+---
+
 ## Design Decisions (TL;DR)
 
 | Concern | Decision |

@@ -1,5 +1,11 @@
 # Decryption Module
 
+## Implementation
+- **OpenPGP:** `org.pgpainless:pgpainless-core` (Bouncy Castle wrapper)
+- **Scoping:** Hilt `@Singleton`
+- **Async:** `Dispatchers.IO` — decryption is CPU+I/O bound; never called on main thread
+- **Memory safety:** `Credentials` fields are `CharArray` not `String` where possible, zeroed after use
+
 ## Responsibility
 Decrypt a single `.gpg` file using the imported GPG private key and extract structured credentials.
 

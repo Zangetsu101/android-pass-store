@@ -1,5 +1,11 @@
 # Pass Store Module
 
+## Implementation
+- **Index:** In-memory `List<PassEntry>`, rebuilt on each sync via `Dispatchers.Default`
+- **Fuzzy match:** Apache Commons Text `LevenshteinDistance` or a token-overlap heuristic — no external ML dependency
+- **Scoping:** Hilt `@Singleton` — index shared between UI ViewModel and `AutofillService`
+- **Exposed as:** `StateFlow<List<PassEntry>>` so UI and autofill react to index rebuilds after sync
+
 ## Responsibility
 Index the local git working copy into a searchable entry list. Resolve autofill queries (app package name or web domain) to candidate entries. Parse entry paths into structured metadata.
 

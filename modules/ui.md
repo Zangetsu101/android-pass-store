@@ -1,5 +1,12 @@
 # UI Module
 
+## Implementation
+- **UI:** Jetpack Compose (`androidx.compose.ui`, `material3`)
+- **Navigation:** Navigation Compose 2.8+ with type-safe Kotlin serialization routes
+- **State:** one `ViewModel` per screen, `StateFlow<UiState>` collected via `collectAsStateWithLifecycle()`
+- **DI:** `@HiltViewModel` + `hiltViewModel()` at each NavGraph destination
+- **Clipboard clear:** `ClipboardManager` + coroutine `delay(45_000)` then `clearPrimaryClip()`
+
 ## Responsibility
 The user-facing app: onboarding, entry browser, sync status, and settings.
 
