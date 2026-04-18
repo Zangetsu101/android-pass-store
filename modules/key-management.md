@@ -29,7 +29,12 @@ Both keys follow the same pattern:
 - `getSshKey(biometricPrompt): SshPrivateKey` — unlock and return decrypted SSH key for git transport
 - `clearAllKeys()` — wipe both key blobs and Keystore entries (factory reset / sign-out)
 
+## Android 16 Notes
+- **Identity Check:** On Android 16+, the OS enforces biometric-only auth for accessing credentials outside trusted locations at the platform level. This reinforces our biometric gate without requiring app-side changes.
+- **Restore Credentials (v2 candidate):** `CreateRestoreCredentialRequest` (API 36) enables encrypted cross-device key transfer via Google's backup infrastructure. A future version could use this to restore the GPG/SSH key blobs to a new device during setup, replacing the manual re-import flow.
+
 ## Non-Goals (v1)
 - Hardware security key (YubiKey/OpenPGP card) support
 - Multiple GPG keys / subkeys
 - Key rotation
+- Cross-device key restore (Restore Credentials API)

@@ -20,6 +20,8 @@ Expose pass credentials to Android's autofill surfaces: `AutofillService` (Andro
 ## Session / Biometric Gate
 - Autofill always prompts biometric before decrypting, regardless of app session state
 - Biometric result is valid for a single fill operation (not cached)
+- **Android 16+:** `BiometricPromptData` can be embedded directly into the Credential Manager `GetCredentialRequest`, replacing the separate `IntentSender` round-trip for the Credential Manager path. The `AutofillService` path is unchanged.
+- **Android 16+ Identity Check:** When the device is outside a user-defined trusted location, the OS enforces biometric-only auth for credential access — PIN/password fallback is disabled at the platform level. Our per-fill biometric requirement aligns with this automatically.
 
 ## Interfaces (internal)
 - `onFillRequest(request: FillRequest): FillResponse` — AutofillService callback

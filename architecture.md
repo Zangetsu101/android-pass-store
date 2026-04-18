@@ -120,6 +120,16 @@ App ready
 
 ---
 
+## Android 16 (API 36) Relevant Changes
+
+| Feature | Impact |
+|---|---|
+| **Identity Check** | OS enforces biometric-only auth (no PIN fallback) for credential access outside trusted locations — our per-fill biometric design is compliant automatically |
+| **`BiometricPromptData`** | Embeds biometric prompt directly into Credential Manager flow on Android 16+, removing the separate `IntentSender` round-trip (autofill module) |
+| **Restore Credentials** | `CreateRestoreCredentialRequest` enables encrypted cross-device GPG/SSH key transfer — v2 candidate to replace manual key re-import on new devices (key management module) |
+
+---
+
 ## Security Properties
 
 | Property | Mechanism |
