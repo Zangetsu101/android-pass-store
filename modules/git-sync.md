@@ -30,6 +30,22 @@ Clone and pull the pass git repository from a remote over SSH. Manages the local
 - `pull(): SyncResult` — fast-forward pull, returns `(newEntries, removedEntries, lastSyncTime)`
 - `syncStatus(): SyncStatus` — last sync time, local commit, remote reachable
 
+## Acceptance Checklist
+
+```
+[auto]   clone() creates working copy from local bare repo (file://)
+[auto]   pull() fast-forwards and returns correct SyncResult
+           → newEntries contains added .gpg files
+           → removedEntries contains deleted .gpg files
+[auto]   pull() with no changes returns empty SyncResult
+[auto]   pull() fails with SyncError.NotFastForward when remote diverged
+[auto]   syncStatus() reflects last successful pull timestamp
+[auto]   syncStatus() returns RemoteUnreachable when repo path invalid
+[manual] clone() succeeds over real SSH remote with generated keypair
+[manual] pull() succeeds after adding an entry on Linux and pushing
+[manual] SSH auth failure surfaces actionable error in UI
+```
+
 ## Non-Goals (v1)
 - HTTPS authentication
 - Multiple remotes

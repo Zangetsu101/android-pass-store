@@ -46,6 +46,23 @@ Decrypted credentials are **never written to disk**. Held in memory only for the
 - `decrypt(entry: PassEntry): Credentials` — triggers biometric if session locked, returns credentials
 - `decryptForAutofill(entry: PassEntry): AutofillCredentials` — same, optimized path for autofill service (returns only password + username from path)
 
+## Acceptance Checklist
+
+```
+[auto]   decrypt() returns password from line 1 of single-line file
+           (fixture: test keypair + pre-encrypted .gpg)
+[auto]   decrypt() returns password + notes from multi-line file
+[auto]   decrypt() throws DecryptionError for file encrypted to wrong key
+[auto]   decrypt() throws DecryptionError for corrupted/non-GPG file
+[auto]   decryptForAutofill() returns only password (no notes allocation)
+[auto]   Credentials.password is CharArray, zeroed after use
+           (assert array is all-zero after explicit clear call)
+[manual] decrypt() triggers biometric prompt on device when session locked
+[manual] decrypt() succeeds without biometric prompt within active session
+[manual] decrypted content never appears in app-private files/
+           (verify via adb shell after a decrypt operation)
+```
+
 ## Non-Goals (v1)
 - Symmetric encryption support (pass `-c`)
 - OTP parsing

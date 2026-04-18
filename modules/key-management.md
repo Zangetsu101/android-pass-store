@@ -35,6 +35,24 @@ Both keys follow the same pattern:
 - `getSshKey(biometricPrompt): SshPrivateKey` — unlock and return decrypted SSH key for git transport
 - `clearAllKeys()` — wipe both key blobs and Keystore entries (factory reset / sign-out)
 
+## Acceptance Checklist
+
+```
+[manual] importGpgKey() accepts armored key with passphrase
+[manual] importGpgKey() accepts armored key without passphrase
+[manual] importGpgKey() rejects malformed armored key with clear error
+[manual] imported GPG key survives app restart (blob persists, Keystore entry intact)
+[manual] generateSshKey() returns valid Ed25519 public key in OpenSSH format
+[manual] generated SSH key survives app restart
+[manual] getGpgKey() requires biometric when session is locked
+[manual] getGpgKey() skips biometric prompt within active session window
+[manual] getSshKey() requires biometric when session is locked
+[manual] clearAllKeys() removes both key blobs from app-private storage
+[manual] clearAllKeys() removes Keystore entries (verify via KeyStore.aliases())
+[manual] keys inaccessible after session timeout (app re-prompts biometric)
+[manual] app handles biometric not enrolled — degrades to device PIN gracefully
+```
+
 ## Android 16 Notes
 - **Identity Check:** On Android 16+, the OS enforces biometric-only auth for accessing credentials outside trusted locations at the platform level. This reinforces our biometric gate without requiring app-side changes.
 - **Restore Credentials (v2 candidate):** `CreateRestoreCredentialRequest` (API 36) enables encrypted cross-device key transfer via Google's backup infrastructure. A future version could use this to restore the GPG/SSH key blobs to a new device during setup, replacing the manual re-import flow.

@@ -43,6 +43,21 @@ Matching is done entirely against the index (filenames/paths) — no decryption 
 - `resolve(domain: String): List<PassEntry>` — ranked candidates for autofill
 - `resolve(packageName: String): List<PassEntry>` — autofill from app package name
 
+## Acceptance Checklist
+
+```
+[auto] buildIndex() parses web/github.com/alice.gpg → domain=github.com, username=alice
+[auto] buildIndex() handles 1-level path (github.com.gpg) → domain=null, username=github.com
+[auto] buildIndex() ignores non-.gpg files
+[auto] resolve(domain) exact match returns that entry first
+[auto] resolve(domain) subdomain match: github.com resolves gist.github.com query
+[auto] resolve(domain) fuzzy fallback: "githubb.com" still returns github.com entry
+[auto] resolve(domain) returns empty list when no candidates
+[auto] resolve(packageName) matches com.github.android → github.com entry
+[auto] search(query) is case-insensitive
+[auto] search(query) ranks closer matches higher
+```
+
 ## Non-Goals (v1)
 - URL field parsing from decrypted file content
 - OTP / pass-otp entries

@@ -33,6 +33,23 @@ Expose pass credentials to Android's autofill surfaces: `AutofillService` (Andro
 - `onFillRequest(request: FillRequest): FillResponse` — AutofillService callback
 - `onAuthentication(entry: PassEntry): Dataset` — called after user selects + biometric succeeds
 
+## Acceptance Checklist
+
+```
+[manual] PassDroid appears as option in Android Settings → Autofill service
+[manual] autofill suggestions appear in Chrome browser login form
+[manual] autofill suggestions appear in a native app login form
+           (test with at least one app matching a pass entry by package name)
+[manual] suggestion list is ranked (exact match above fuzzy)
+[manual] selecting a suggestion triggers biometric prompt
+[manual] correct username + password filled after biometric success
+[manual] no fill occurs if biometric cancelled or failed
+[manual] autofill works with device screen locked then unlocked (cold service start)
+[manual] on Android 14+: Credential Manager bottom sheet appears instead of dropdown
+[manual] on Android 16+: BiometricPromptData used (no separate IntentSender round-trip)
+[manual] on Android 16+: biometric-only enforced outside trusted location (Identity Check)
+```
+
 ## Non-Goals (v1)
 - Passkey / FIDO2 support
 - Save/update credential flow (read-only)

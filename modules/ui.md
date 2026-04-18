@@ -36,6 +36,40 @@ The user-facing app: onboarding, entry browser, sync status, and settings.
 - SSH public key display (for re-registration)
 - Clear all data / sign out
 
+## Acceptance Checklist
+
+```
+Onboarding
+[manual] fresh install lands on onboarding (not browser)
+[manual] SSH public key displayed in copyable format after generation
+[manual] GPG key import accepts pasted armored key
+[manual] GPG key import accepts file picked from storage
+[manual] progress indicator shown during initial clone
+[manual] clone error (bad URL, auth failure) shown with retry option
+[manual] completing onboarding lands on entry browser
+
+Entry Browser
+[manual] all entries visible after sync, directory structure preserved
+[manual] search filters entries in real time as user types
+[manual] search is case-insensitive
+[manual] tapping entry triggers biometric prompt
+[manual] password + notes displayed after biometric success
+[manual] copy button copies password to clipboard
+[manual] clipboard auto-cleared after 45 seconds
+
+Sync Panel
+[manual] last sync timestamp shown and updates after pull
+[manual] manual pull button triggers sync and refreshes entry list
+[manual] network error shown with last-known-good timestamp
+[manual] SSH auth failure shown with link to SSH key screen
+
+Settings
+[manual] autofill toggle deep-links to Android autofill system settings
+[manual] session timeout change takes effect immediately
+[manual] SSH public key viewable for re-registration
+[manual] "Clear all data" wipes keys, repo, and DataStore — lands on onboarding
+```
+
 ## Non-Goals (v1)
 - Create / edit / delete entries
 - Share sheet integration
