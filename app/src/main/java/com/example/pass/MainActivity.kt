@@ -1,9 +1,9 @@
 package com.example.pass
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import com.example.pass.navigation.PassDroidNavHost
 import com.example.pass.preferences.AppPreferences
 import com.example.pass.ui.theme.PassTheme
@@ -11,7 +11,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     @Inject lateinit var appPreferences: AppPreferences
 
