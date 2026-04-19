@@ -174,7 +174,7 @@ fun OnboardingGpgImportScreen(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { viewModel.importGpgKey() },
+                onClick = viewModel::importGpgKey,
                 modifier = Modifier.weight(1f),
                 enabled = state.gpgKeyText.isNotBlank(),
             ) {

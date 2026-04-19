@@ -10,11 +10,13 @@ import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.nio.file.Paths
 import javax.inject.Inject
 
@@ -63,10 +65,11 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun generateSshKeyIfNeeded() {
-        if (_state.value.sshPublicKey == null) {
-            val publicKey = keyManagement.generateSshKey()
+        if (_state.value.sshPublicKey != null) return
+        viewModelScope.launch {
+            val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
             _state.update { it.copy(sshPublicKey = publicKey) }
-            viewModelScope.launch { appPreferences.setSshPublicKey(publicKey) }
+            appPreferences.setSshPublicKey(publicKey)
         }
     }
 
@@ -78,15 +81,16 @@ class OnboardingViewModel @Inject constructor(
         _state.update { it.copy(gpgPassphrase = passphrase) }
     }
 
-    fun importGpgKey(): Boolean {
-        return try {
-            val passphrase = _state.value.gpgPassphrase.ifEmpty { null }
-            keyManagement.importGpgKey(_state.value.gpgKeyText, passphrase)
-            _state.update { it.copy(gpgImported = true, gpgImportError = null) }
-            true
-        } catch (e: KeyImportError) {
-            _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
-            false
+    fun importGpgKey() {
+        viewModelScope.launch {
+            try {
+                val passphrase = _state.value.gpgPassphrase.ifEmpty { null }
+                val text = _state.value.gpgKeyText
+                withContext(Dispatchers.IO) { keyManagement.importGpgKey(text, passphrase) }
+                _state.update { it.copy(gpgImported = true, gpgImportError = null) }
+            } catch (e: KeyImportError) {
+                _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
+            }
         }
     }
 

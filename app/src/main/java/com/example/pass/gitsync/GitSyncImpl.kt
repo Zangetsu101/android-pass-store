@@ -11,9 +11,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.MergeCommand.FastForwardMode
+import org.eclipse.jgit.api.TransportConfigCallback
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.lib.ObjectId
+import org.eclipse.jgit.transport.SshTransport
+import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
 import java.nio.file.Path
@@ -32,8 +35,6 @@ class GitSyncImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : GitSync {
 
-    private val sshTmpDir get() = File(context.filesDir, "tmp_ssh")
-
     override suspend fun clone(remoteUrl: String, localPath: Path, sshKeyPair: KeyPair?) {
         withContext(Dispatchers.IO) {
             try {
@@ -41,7 +42,7 @@ class GitSyncImpl @Inject constructor(
                     .setURI(remoteUrl)
                     .setDirectory(localPath.toFile())
                 if (sshKeyPair != null) {
-                    // TODO(task-14): wire Apache MINA sshd transport with sshKeyPair
+                    cmd.setTransportConfigCallback(makeSshCallback(sshKeyPair))
                 }
                 cmd.call().close()
                 context.gitSyncDataStore.edit {
@@ -70,7 +71,7 @@ class GitSyncImpl @Inject constructor(
             val cmd = git.pull()
                 .setFastForward(FastForwardMode.FF_ONLY)
             if (sshKeyPair != null) {
-                // TODO(task-14): wire Apache MINA sshd transport with sshKeyPair
+                cmd.setTransportConfigCallback(makeSshCallback(sshKeyPair))
             }
             val result = cmd.call()
 
@@ -137,6 +138,19 @@ class GitSyncImpl @Inject constructor(
     private suspend fun repoDir(): File {
         val path = context.gitSyncDataStore.data.first()[KEY_REPO_PATH]
         return if (path != null) File(path) else File(context.filesDir, "repo")
+    }
+
+    private fun makeSshCallback(keyPair: KeyPair): TransportConfigCallback {
+        val factory = object : SshdSessionFactory(null, null) {
+            // Return in-memory keypair; sshDir ignored since we don't use filesystem keys
+            override fun getDefaultKeys(sshDir: File): List<KeyPair> = listOf(keyPair)
+            override fun getDefaultPreferredAuthentications(): String = "publickey"
+        }
+        return TransportConfigCallback { transport ->
+            if (transport is SshTransport) {
+                transport.sshSessionFactory = factory
+            }
+        }
     }
 
     private fun openRepo(dir: File): Git = Git.open(dir)

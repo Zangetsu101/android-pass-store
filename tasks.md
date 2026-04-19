@@ -183,12 +183,12 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 14. Integration + Hardening
-- [ ] Audit all `Dispatchers` usage — no blocking calls on `Main`
-- [ ] Audit manifest permissions — request only what's needed
-- [ ] Verify ProGuard/R8 rules don't strip JGit, PGPainless, MINA sshd reflection paths
-- [ ] Verify `android:allowBackup="false"` in manifest (no key material in backups)
-- [ ] Review all `CharArray` zero paths — no dangling decrypted data
-- [ ] Wire Apache MINA sshd SSH transport into `GitSync.clone()` / `pull()`
+- [x] Audit all `Dispatchers` usage — no blocking calls on `Main`
+- [x] Audit manifest permissions — request only what's needed
+- [x] Verify ProGuard/R8 rules don't strip JGit, PGPainless, MINA sshd reflection paths
+- [x] Verify `android:allowBackup="false"` in manifest (no key material in backups)
+- [x] Review all `CharArray` zero paths — no dangling decrypted data
+- [x] Wire Apache MINA sshd SSH transport into `GitSync.clone()` / `pull()`
 
 **Commit:** `chore: integration hardening and manifest audit`
 

@@ -8,7 +8,9 @@ import com.example.pass.keymanagement.SessionManager
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,9 +51,11 @@ class SettingsViewModel @Inject constructor(
     fun clearAllData(onComplete: () -> Unit) {
         _state.update { it.copy(clearing = true) }
         viewModelScope.launch {
-            keyManagement.clearAllKeys()
+            withContext(Dispatchers.IO) {
+                keyManagement.clearAllKeys()
+                File(context.filesDir, "repo").deleteRecursively()
+            }
             appPreferences.clearAll()
-            File(context.filesDir, "repo").deleteRecursively()
             _state.update { it.copy(clearing = false) }
             onComplete()
         }

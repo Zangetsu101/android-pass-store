@@ -14,6 +14,7 @@ import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +53,7 @@ class EntryBrowserViewModel @Inject constructor(
                 updateDisplayedEntries(entries, _state.value.searchQuery)
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             passStore.buildIndex()
         }
     }
