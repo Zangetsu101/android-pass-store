@@ -16,11 +16,14 @@ import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.transport.SshTransport
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.eclipse.jgit.transport.sshd.ServerKeyDatabase
 import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
 import java.nio.file.Path
 import java.security.KeyPair
+import java.security.Security
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +37,15 @@ private val KEY_REPO_PATH = stringPreferencesKey("repo_path")
 class GitSyncImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : GitSync {
+
+    init {
+        // MINA SSHD's PathUtils rejects Android's empty "user.home". Set a valid path.
+        System.setProperty("user.home", context.filesDir.absolutePath)
+        // Android ships a stripped "BC" provider missing X25519/ECDH. Replace it with the
+        // full Bouncy Castle so MINA SSHD's key-exchange factories resolve their JCE algorithms.
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 1)
+    }
 
     override suspend fun clone(remoteUrl: String, localPath: Path, sshKeyPair: KeyPair?) {
         withContext(Dispatchers.IO) {
@@ -141,10 +153,28 @@ class GitSyncImpl @Inject constructor(
     }
 
     private fun makeSshCallback(keyPair: KeyPair): TransportConfigCallback {
+        val sshDir = File(context.cacheDir, "ssh")
         val factory = object : SshdSessionFactory(null, null) {
-            // Return in-memory keypair; sshDir ignored since we don't use filesystem keys
+            override fun getSshDirectory(): File = sshDir
             override fun getDefaultKeys(sshDir: File): List<KeyPair> = listOf(keyPair)
             override fun getDefaultPreferredAuthentications(): String = "publickey"
+            override fun getServerKeyDatabase(homeDir: File, sshDir: File): ServerKeyDatabase =
+                object : ServerKeyDatabase {
+                    override fun lookup(
+                        connectAddress: String,
+                        remoteAddress: java.net.InetSocketAddress,
+                        config: ServerKeyDatabase.Configuration,
+                    ): List<java.security.PublicKey> = emptyList()
+
+                    //@todo: check GitHub's host key against a known-hosts file
+                    override fun accept(
+                        connectAddress: String,
+                        remoteAddress: java.net.InetSocketAddress,
+                        serverKey: java.security.PublicKey,
+                        config: ServerKeyDatabase.Configuration,
+                        provider: org.eclipse.jgit.transport.CredentialsProvider?,
+                    ): Boolean = true
+                }
         }
         return TransportConfigCallback { transport ->
             if (transport is SshTransport) {
