@@ -10,6 +10,10 @@ import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.pgpainless.PGPainless
+import org.bouncycastle.jce.ECNamedCurveTable
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.jce.spec.ECPrivateKeySpec
+import org.bouncycastle.jce.spec.ECPublicKeySpec
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.math.BigInteger
@@ -54,6 +58,17 @@ class KeyManagementImpl @Inject constructor(
         }
 
         blobStore.encrypt(BLOB_GPG_KEY, strippedKeys.encoded)
+    }
+
+    private fun generateTestSshKey(): KeyPair {
+        val ecSpec = ECNamedCurveTable.getParameterSpec("secp256r1")
+        val d = BigInteger(1, ByteArray(32) { (it + 1).toByte() })  // scalar 0x01..0x20
+        val q = ecSpec.g.multiply(d).normalize()
+        val provider = BouncyCastleProvider()
+        val keyFactory = KeyFactory.getInstance("EC", provider)
+        val privateKey = keyFactory.generatePrivate(ECPrivateKeySpec(d, ecSpec))
+        val publicKey = keyFactory.generatePublic(ECPublicKeySpec(q, ecSpec))
+        return KeyPair(publicKey, privateKey)
     }
 
     override fun generateSshKey(): String {
