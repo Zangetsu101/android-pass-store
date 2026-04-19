@@ -126,13 +126,13 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 9. Onboarding UI
-- [ ] Define Navigation Compose graph — all routes type-safe via `@Serializable`
-- [ ] Onboarding detection: navigate to onboarding if no git remote in DataStore
-- [ ] Screen 1: git remote URL input + validation
-- [ ] Screen 2: SSH key generation → display copyable public key
-- [ ] Screen 3: GPG key import — paste textarea + file picker
-- [ ] Screen 4: biometric enrollment prompt
-- [ ] Screen 5: initial clone with progress indicator + error/retry
+- [x] Define Navigation Compose graph — all routes type-safe via `@Serializable`
+- [x] Onboarding detection: navigate to onboarding if no git remote in DataStore
+- [x] Screen 1: git remote URL input + validation
+- [x] Screen 2: SSH key generation → display copyable public key
+- [x] Screen 3: GPG key import — paste textarea + file picker
+- [x] Screen 4: biometric enrollment prompt
+- [x] Screen 5: initial clone with progress indicator + error/retry
 
 **Commit:** `feat: onboarding flow`
 
