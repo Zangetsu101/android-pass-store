@@ -48,18 +48,15 @@ class KeyManagementImpl @Inject constructor(
             throw KeyImportError("Malformed armored key: ${e.message}", e)
         }
 
-        val oldProtector = if (passphrase != null) {
-            SecretKeyRingProtector.unlockAnyKeyWith(Passphrase.fromPassword(passphrase))
-        } else {
-            SecretKeyRingProtector.unprotectedKeys()
-        }
+        val oldPassphrase: Passphrase? =
+            if (passphrase != null) Passphrase.fromPassword(passphrase) else null
 
         val strippedKeys: PGPSecretKeyRing = try {
             val editor = PGPainless.modifyKeyRing(keys)
             val noProtection = SecretKeyRingProtector.unprotectedKeys()
             for (subkey in keys.secretKeys) {
                 editor.changeSubKeyPassphraseFromOldPassphrase(
-                    subkey.keyID, oldProtector, noProtection
+                    subkey.keyID, oldPassphrase, noProtection
                 )
             }
             editor.done()
