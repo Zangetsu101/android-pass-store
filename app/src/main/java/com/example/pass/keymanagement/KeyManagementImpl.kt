@@ -55,9 +55,14 @@ class KeyManagementImpl @Inject constructor(
         }
 
         val strippedKeys: PGPSecretKeyRing = try {
-            PGPainless.modifyKeyRing(keys)
-                .changePassphrase(null, oldProtector, SecretKeyRingProtector.unprotectedKeys())
-                .done()
+            val editor = PGPainless.modifyKeyRing(keys)
+            val noProtection = SecretKeyRingProtector.unprotectedKeys()
+            for (subkey in keys.secretKeys) {
+                editor.changeSubKeyPassphraseFromOldPassphrase(
+                    subkey.keyID, oldProtector, noProtection
+                )
+            }
+            editor.done()
         } catch (e: PGPException) {
             throw KeyImportError("Wrong passphrase or unsupported key format: ${e.message}", e)
         }
