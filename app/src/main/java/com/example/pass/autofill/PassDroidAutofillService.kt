@@ -95,7 +95,7 @@ class PassDroidAutofillService : AutofillService() {
         return android.service.autofill.Dataset.Builder().apply {
             usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
             passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-            setAuthentication(sender)
+            setAuthentication(sender.intentSender)
         }.build()
     }
 

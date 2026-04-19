@@ -1,10 +1,8 @@
 package com.example.pass.credentialprovider
 
 import android.app.PendingIntent
-import android.os.Build
 import android.os.OutcomeReceiver
 import androidx.annotation.RequiresApi
-import androidx.biometric.BiometricManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.credentials.exceptions.CreateCredentialException
 import androidx.credentials.exceptions.CreateCredentialUnknownException
@@ -23,6 +21,8 @@ import com.example.pass.passstore.PassStore
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+// Note: BiometricPromptData / setBiometricPromptData require credentials >= 1.5.0-alpha01.
+// Upgrade the dependency when that version stabilises to enable inline biometric on API 35+.
 @RequiresApi(34)
 @AndroidEntryPoint
 class PassDroidCredentialProviderService : CredentialProviderService() {
@@ -81,25 +81,11 @@ class PassDroidCredentialProviderService : CredentialProviderService() {
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        val builder = PasswordCredentialEntry.Builder(
+        return PasswordCredentialEntry.Builder(
             context = this,
             username = label,
             pendingIntent = pendingIntent,
             beginGetPasswordOption = option,
-        )
-
-        if (Build.VERSION.SDK_INT >= 35) {
-            applyBiometricPromptData(builder)
-        }
-
-        return builder.build()
-    }
-
-    @RequiresApi(35)
-    private fun applyBiometricPromptData(builder: PasswordCredentialEntry.Builder) {
-        val biometricPromptData = androidx.credentials.provider.BiometricPromptData.Builder()
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .build()
-        builder.setBiometricPromptData(biometricPromptData)
+        ).build()
     }
 }
