@@ -24,6 +24,7 @@ android {
         resources {
             excludes += "OSGI-INF/**"
             excludes += "META-INF/ECLIPSE_.*"
+            excludes += "META-INF/DEPENDENCIES"
             excludes += "about_files/**"
             excludes += "plugin.properties"
         }
