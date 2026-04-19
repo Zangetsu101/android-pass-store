@@ -150,8 +150,8 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 11. Sync Panel + Settings UI
-- [ ] Sync panel: last sync time from DataStore, manual pull button, error display
-- [ ] Settings:
+- [x] Sync panel: last sync time from DataStore, manual pull button, error display
+- [x] Settings:
       — autofill toggle (deep-link to `ACTION_REQUEST_SET_AUTOFILL_SERVICE`)
       — session timeout picker (wired to DataStore)
       — SSH public key display

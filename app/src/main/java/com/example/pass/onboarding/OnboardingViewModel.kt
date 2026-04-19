@@ -66,6 +66,7 @@ class OnboardingViewModel @Inject constructor(
         if (_state.value.sshPublicKey == null) {
             val publicKey = keyManagement.generateSshKey()
             _state.update { it.copy(sshPublicKey = publicKey) }
+            viewModelScope.launch { appPreferences.setSshPublicKey(publicKey) }
         }
     }
 

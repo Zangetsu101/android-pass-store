@@ -24,6 +24,10 @@ import com.example.pass.onboarding.OnboardingRemoteUrlScreen
 import com.example.pass.onboarding.OnboardingSshKeyScreen
 import com.example.pass.onboarding.OnboardingViewModel
 import com.example.pass.preferences.AppPreferences
+import com.example.pass.settings.SettingsScreen
+import com.example.pass.settings.SettingsViewModel
+import com.example.pass.syncpanel.SyncPanelScreen
+import com.example.pass.syncpanel.SyncPanelViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable object Splash
@@ -97,9 +101,29 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
 
         composable<EntryBrowser> {
             val vm: EntryBrowserViewModel = hiltViewModel()
-            EntryBrowserScreen(vm)
+            EntryBrowserScreen(
+                viewModel = vm,
+                onNavigateToSync = { navController.navigate(SyncPanel) },
+                onNavigateToSettings = { navController.navigate(Settings) },
+            )
         }
-        composable<SyncPanel> { /* task 11 */ }
-        composable<Settings> { /* task 11 */ }
+
+        composable<SyncPanel> {
+            val vm: SyncPanelViewModel = hiltViewModel()
+            SyncPanelScreen(vm, onBack = { navController.popBackStack() })
+        }
+
+        composable<Settings> {
+            val vm: SettingsViewModel = hiltViewModel()
+            SettingsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onClearedData = {
+                    navController.navigate(OnboardingRoot) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+            )
+        }
     }
 }

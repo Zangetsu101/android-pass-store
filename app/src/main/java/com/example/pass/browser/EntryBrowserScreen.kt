@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,7 +48,11 @@ import com.example.pass.passstore.PassEntry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EntryBrowserScreen(viewModel: EntryBrowserViewModel) {
+fun EntryBrowserScreen(
+    viewModel: EntryBrowserViewModel,
+    onNavigateToSync: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val activity = LocalContext.current as FragmentActivity
     var searchActive by remember { mutableStateOf(false) }
@@ -60,11 +66,19 @@ fun EntryBrowserScreen(viewModel: EntryBrowserViewModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Pass", style = MaterialTheme.typography.titleLarge)
-            IconButton(onClick = { viewModel.toggleView() }) {
-                Icon(
-                    if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
-                    contentDescription = if (state.treeView) "Switch to flat" else "Switch to tree",
-                )
+            Row {
+                IconButton(onClick = { viewModel.toggleView() }) {
+                    Icon(
+                        if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
+                        contentDescription = if (state.treeView) "Switch to flat" else "Switch to tree",
+                    )
+                }
+                IconButton(onClick = onNavigateToSync) {
+                    Icon(Icons.Default.Sync, contentDescription = "Sync")
+                }
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                }
             }
         }
 

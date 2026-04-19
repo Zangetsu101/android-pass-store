@@ -22,13 +22,17 @@ class AppPreferences @Inject constructor(
     // null = not yet configured (onboarding needed); non-null = configured
     val remoteUrl: Flow<String?> = store.data.map { it[KEY_REMOTE_URL] }
     val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
+    val sshPublicKey: Flow<String?> = store.data.map { it[KEY_SSH_PUBLIC_KEY] }
 
     suspend fun setRemoteUrl(url: String) = store.edit { it[KEY_REMOTE_URL] = url }
     suspend fun clearRemoteUrl() = store.edit { it.remove(KEY_REMOTE_URL) }
     suspend fun setSessionTimeout(minutes: Int) = store.edit { it[KEY_SESSION_TIMEOUT] = minutes }
+    suspend fun setSshPublicKey(key: String) = store.edit { it[KEY_SSH_PUBLIC_KEY] = key }
+    suspend fun clearAll() = store.edit { it.clear() }
 
     companion object {
         private val KEY_REMOTE_URL = stringPreferencesKey("remote_url")
         private val KEY_SESSION_TIMEOUT = intPreferencesKey("session_timeout_minutes")
+        private val KEY_SSH_PUBLIC_KEY = stringPreferencesKey("ssh_public_key")
     }
 }
