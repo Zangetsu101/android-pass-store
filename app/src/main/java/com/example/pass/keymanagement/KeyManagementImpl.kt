@@ -11,7 +11,6 @@ import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.util.PrivateKeyInfoFactory
 import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
@@ -51,7 +50,7 @@ class KeyManagementImpl @Inject constructor(
         }
 
         val strippedKeys: PGPSecretKeyRing = try {
-            stripGpgPassphrase(keys, passphrase)
+            stripPassphrase(keys, passphrase)
         } catch (e: PGPException) {
             throw KeyImportError("Wrong passphrase or unsupported key format: ${e.message}", e)
         }
@@ -107,21 +106,13 @@ class KeyManagementImpl @Inject constructor(
         }
     }
 
-    @Throws(PGPException::class)
-    private fun stripGpgPassphrase(keys: PGPSecretKeyRing, passphrase: String?): PGPSecretKeyRing {
-        val digestProvider = BcPGPDigestCalculatorProvider()
-        val sha1 = digestProvider.get(HashAlgorithmTags.SHA1)
-        val newKeys = ArrayList<PGPSecretKey>()
-        for (secretKey in keys.secretKeys) {
-            val decryptor = if (passphrase != null) {
-                BcPBESecretKeyDecryptorBuilder(digestProvider).build(passphrase.toCharArray())
-            } else null
-            val privateKey = secretKey.extractPrivateKey(decryptor)
-                ?: throw PGPException("Cannot extract private key — wrong passphrase or unsupported format")
-            // null encryptor = no passphrase protection; security comes from the AES blob
-            newKeys.add(PGPSecretKey(privateKey, secretKey.publicKey, sha1, secretKey.isMasterKey, null))
-        }
-        return PGPSecretKeyRing(newKeys)
+    private fun stripPassphrase(keys: PGPSecretKeyRing, passphrase: String?): PGPSecretKeyRing {
+        val digestCalcProvider = BcPGPDigestCalculatorProvider()
+        val decryptor = BcPBESecretKeyDecryptorBuilder(digestCalcProvider)
+            .build(passphrase?.toCharArray() ?: charArrayOf())
+        return PGPSecretKeyRing(keys.map { secretKey ->
+            PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
+        })
     }
 
     private fun openSshPublicKey(rawPublicBytes: ByteArray): String {
