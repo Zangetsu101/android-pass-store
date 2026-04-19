@@ -132,6 +132,33 @@ fun OnboardingGpgImportScreen(
     }
 
     OnboardingScaffold(step = 3, total = 5, title = "Import your GPG key") {
+        Text(
+            text = "This is the key used to decrypt your pass store. It must be the same key that encrypted the .gpg files in your repository.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Export from desktop",
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "gpg --armor --export-secret-keys YOUR_KEY_ID > key.asc",
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Transfer key.asc to your phone, then tap \"Pick file\" below, or paste the contents directly.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "If your key has a passphrase, enter it below — it will be stripped and re-protected by the device Keystore so you won't need it again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = state.gpgKeyText,
             onValueChange = viewModel::setGpgKeyText,
