@@ -44,6 +44,20 @@
                 android:resource="@xml/autofill_service" />
         </service>
 
+        <activity
+            android:name=".credentialprovider.CredentialAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Pass" />
+
+        <service
+            android:name=".credentialprovider.PassDroidCredentialProviderService"
+            android:exported="true"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>

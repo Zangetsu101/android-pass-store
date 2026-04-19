@@ -173,10 +173,10 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 13. Credential Manager Provider (Android 14+)
-- [ ] Declare `PassDroidCredentialProviderService` in manifest
-- [ ] Implement `onBeginGetCredentialRequest()` → resolve candidates
-- [ ] Implement `onBeginCreateCredentialRequest()` → no-op (read-only)
-- [ ] On Android 16+: use `BiometricPromptData` in `GetCredentialRequest`
+- [x] Declare `PassDroidCredentialProviderService` in manifest
+- [x] Implement `onBeginGetCredentialRequest()` → resolve candidates
+- [x] Implement `onBeginCreateCredentialRequest()` → no-op (read-only)
+- [x] On Android 16+: use `BiometricPromptData` in `GetCredentialRequest`
 
 **Commit:** `feat: credential manager provider (Android 14+, BiometricPromptData on 16+)`
 
