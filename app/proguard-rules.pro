@@ -9,6 +9,9 @@
 -keep class org.apache.sshd.** { *; }
 -dontwarn org.apache.sshd.**
 
+# --- javax.management stubs (Android lacks JMX; stubs satisfy class loader) ---
+-keep class javax.management.** { *; }
+
 # --- BouncyCastle / PGPainless ---
 -keep class org.bouncycastle.** { *; }
 -dontwarn org.bouncycastle.**
