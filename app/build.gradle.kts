@@ -20,6 +20,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    packaging {
+        resources {
+            excludes += "OSGI-INF/**"
+            excludes += "META-INF/ECLIPSE_.*"
+            excludes += "about_files/**"
+            excludes += "plugin.properties"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
