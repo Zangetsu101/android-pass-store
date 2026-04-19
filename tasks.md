@@ -162,11 +162,11 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 12. AutofillService
-- [ ] Declare `PassDroidAutofillService` in `AndroidManifest.xml`
+- [x] Declare `PassDroidAutofillService` in `AndroidManifest.xml`
         with `<meta-data android:name="android.autofill" android:resource="@xml/autofill_service"/>`
-- [ ] Implement `onFillRequest()` — `PassStore.resolve()` → `FillResponse` with locked datasets
-- [ ] Implement auth `IntentSender` activity — biometric → `Decryption.decryptForAutofill()` → `Dataset`
-- [ ] Return null `FillResponse` when no candidates found
+- [x] Implement `onFillRequest()` — `PassStore.resolve()` → `FillResponse` with locked datasets
+- [x] Implement auth `IntentSender` activity — biometric → `Decryption.decryptForAutofill()` → `Dataset`
+- [x] Return null `FillResponse` when no candidates found
 
 **Commit:** `feat: autofill service`
 
