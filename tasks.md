@@ -139,11 +139,11 @@ Manual verification is consolidated at the end after full implementation.
 ---
 
 ## 10. Entry Browser UI
-- [ ] Entry list screen: `StateFlow<List<PassEntry>>` → lazy column
-- [ ] Real-time search bar wired to `PassStore.search()`
-- [ ] Entry detail: biometric prompt → `Decryption.decrypt()` → show password + notes
-- [ ] Copy button → clipboard → `delay(45_000)` → `clearPrimaryClip()`
-- [ ] Directory tree toggle (flat vs tree view)
+- [x] Entry list screen: `StateFlow<List<PassEntry>>` → lazy column
+- [x] Real-time search bar wired to `PassStore.search()`
+- [x] Entry detail: biometric prompt → `Decryption.decrypt()` → show password + notes
+- [x] Copy button → clipboard → `delay(45_000)` → `clearPrimaryClip()`
+- [x] Directory tree toggle (flat vs tree view)
 
 **Commit:** `feat: entry browser with search and clipboard`
 

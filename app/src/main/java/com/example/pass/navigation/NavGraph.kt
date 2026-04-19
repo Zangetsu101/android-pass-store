@@ -15,6 +15,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import com.example.pass.browser.EntryBrowserScreen
+import com.example.pass.browser.EntryBrowserViewModel
 import com.example.pass.onboarding.OnboardingBiometricScreen
 import com.example.pass.onboarding.OnboardingCloneScreen
 import com.example.pass.onboarding.OnboardingGpgImportScreen
@@ -93,7 +95,10 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
             }
         }
 
-        composable<EntryBrowser> { /* task 10 */ }
+        composable<EntryBrowser> {
+            val vm: EntryBrowserViewModel = hiltViewModel()
+            EntryBrowserScreen(vm)
+        }
         composable<SyncPanel> { /* task 11 */ }
         composable<Settings> { /* task 11 */ }
     }
