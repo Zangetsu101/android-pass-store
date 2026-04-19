@@ -4,13 +4,6 @@ import android.content.Context
 import android.util.Base64
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
-import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
-import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
-import org.bouncycastle.crypto.util.PrivateKeyInfoFactory
-import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
@@ -19,9 +12,13 @@ import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.pgpainless.PGPainless
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPair
+import java.security.KeyPairGenerator
 import java.security.SecureRandom
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.inject.Inject
@@ -29,6 +26,7 @@ import javax.inject.Singleton
 
 internal const val BLOB_GPG_KEY = "gpg_key"
 internal const val BLOB_SSH_KEY = "ssh_key"
+internal const val BLOB_SSH_PUB_KEY = "ssh_pub_key"
 
 @Singleton
 class KeyManagementImpl @Inject constructor(
@@ -59,15 +57,14 @@ class KeyManagementImpl @Inject constructor(
     }
 
     override fun generateSshKey(): String {
-        val gen = Ed25519KeyPairGenerator()
-        gen.init(Ed25519KeyGenerationParameters(SecureRandom()))
-        val asymPair = gen.generateKeyPair()
-        val privateParams = asymPair.private as Ed25519PrivateKeyParameters
-        val publicParams = asymPair.public as Ed25519PublicKeyParameters
+        val keyGen = KeyPairGenerator.getInstance("EC")
+        keyGen.initialize(ECGenParameterSpec("secp256r1"), SecureRandom())
+        val pair = keyGen.generateKeyPair()
 
-        blobStore.encrypt(BLOB_SSH_KEY, privateParams.encoded)
+        blobStore.encrypt(BLOB_SSH_KEY, pair.private.encoded)
+        blobStore.encrypt(BLOB_SSH_PUB_KEY, pair.public.encoded)
 
-        return openSshPublicKey(publicParams.encoded)
+        return openSshEcdsaPublicKey(pair.public as ECPublicKey)
     }
 
     override suspend fun getGpgKey(activity: FragmentActivity): PGPSecretKeyRing {
@@ -80,17 +77,10 @@ class KeyManagementImpl @Inject constructor(
     override suspend fun getSshKey(activity: FragmentActivity): KeyPair {
         ensureAuthenticated(activity)
         val privateBytes = blobStore.decrypt(BLOB_SSH_KEY)
-        val privateParams = Ed25519PrivateKeyParameters(privateBytes, 0)
-        val publicParams = privateParams.generatePublicKey()
-
-        val provider = BouncyCastleProvider()
-        val keyFactory = KeyFactory.getInstance("Ed25519", provider)
-        val privateKey = keyFactory.generatePrivate(
-            PKCS8EncodedKeySpec(PrivateKeyInfoFactory.createPrivateKeyInfo(privateParams).encoded)
-        )
-        val publicKey = keyFactory.generatePublic(
-            X509EncodedKeySpec(SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(publicParams).encoded)
-        )
+        val publicBytes = blobStore.decrypt(BLOB_SSH_PUB_KEY)
+        val keyFactory = KeyFactory.getInstance("EC")
+        val privateKey = keyFactory.generatePrivate(PKCS8EncodedKeySpec(privateBytes))
+        val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(publicBytes))
         return KeyPair(publicKey, privateKey)
     }
 
@@ -115,16 +105,40 @@ class KeyManagementImpl @Inject constructor(
         })
     }
 
-    private fun openSshPublicKey(rawPublicBytes: ByteArray): String {
-        val keyType = "ssh-ed25519"
-        val keyTypeBytes = keyType.toByteArray(Charsets.UTF_8)
+    private fun openSshEcdsaPublicKey(publicKey: ECPublicKey): String {
+        val keyType = "ecdsa-sha2-nistp256"
+        val curveName = "nistp256"
+        val x = publicKey.w.affineX.toUnsignedBytes(32)
+        val y = publicKey.w.affineY.toUnsignedBytes(32)
+        val point = byteArrayOf(0x04.toByte()) + x + y
+
         val buf = ByteArrayOutputStream()
         val out = DataOutputStream(buf)
-        out.writeInt(keyTypeBytes.size)
-        out.write(keyTypeBytes)
-        out.writeInt(rawPublicBytes.size)
-        out.write(rawPublicBytes)
+        out.writeSshString(keyType)
+        out.writeSshString(curveName)
+        out.writeSshBytes(point)
         out.flush()
+
         return "$keyType ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
+    }
+
+    private fun BigInteger.toUnsignedBytes(size: Int): ByteArray {
+        val raw = toByteArray()
+        return when {
+            raw.size > size -> raw.copyOfRange(raw.size - size, raw.size)
+            raw.size < size -> ByteArray(size - raw.size) + raw
+            else -> raw
+        }
+    }
+
+    private fun DataOutputStream.writeSshString(s: String) {
+        val bytes = s.toByteArray(Charsets.UTF_8)
+        writeInt(bytes.size)
+        write(bytes)
+    }
+
+    private fun DataOutputStream.writeSshBytes(bytes: ByteArray) {
+        writeInt(bytes.size)
+        write(bytes)
     }
 }
