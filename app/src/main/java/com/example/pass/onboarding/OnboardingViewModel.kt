@@ -1,6 +1,7 @@
 package com.example.pass.onboarding
 
 import android.content.Context
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pass.gitsync.GitSync
@@ -94,13 +95,16 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun startClone() {
+    fun startClone(activity: FragmentActivity) {
         val url = _state.value.remoteUrl.trim()
         _state.update { it.copy(cloning = true, cloneError = null, cloneComplete = false) }
         viewModelScope.launch {
             try {
                 val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
-                gitSync.clone(url, repoDir)
+                val sshKeyPair = if (url.startsWith("git@") || url.startsWith("ssh://")) {
+                    keyManagement.getSshKey(activity)
+                } else null
+                gitSync.clone(url, repoDir, sshKeyPair)
                 appPreferences.setRemoteUrl(url)
                 _state.update { it.copy(cloning = false, cloneComplete = true) }
             } catch (e: SyncError) {

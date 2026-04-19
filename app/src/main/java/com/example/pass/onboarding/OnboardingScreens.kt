@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -283,8 +284,9 @@ fun OnboardingCloneScreen(
     onSuccess: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
+    val activity = LocalContext.current as FragmentActivity
 
-    LaunchedEffect(Unit) { viewModel.startClone() }
+    LaunchedEffect(Unit) { viewModel.startClone(activity) }
 
     LaunchedEffect(state.cloneComplete) {
         if (state.cloneComplete) onSuccess()
@@ -303,13 +305,13 @@ fun OnboardingCloneScreen(
             }
             state.cloneError != null -> {
                 Text(
-                    "Clone failed: ${state.cloneError}",
+                    state.cloneError!!,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(24.dp))
                 Button(
-                    onClick = { viewModel.startClone() },
+                    onClick = { viewModel.startClone(activity) },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Retry")
