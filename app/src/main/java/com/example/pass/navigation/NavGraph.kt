@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,12 +46,12 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
     NavHost(navController = navController, startDestination = Splash) {
 
         composable<Splash> {
-            val remoteUrl: String? by appPreferences.remoteUrl.collectAsState(initial = null)
-            LaunchedEffect(remoteUrl) {
-                val url = remoteUrl ?: return@LaunchedEffect  // null = still loading
-                val dest = if (url.isEmpty()) OnboardingRoot else EntryBrowser
-                navController.navigate(dest) {
-                    popUpTo<Splash> { inclusive = true }
+            LaunchedEffect(Unit) {
+                appPreferences.remoteUrl.collect { url ->
+                    val dest = if (url.isEmpty()) OnboardingRoot else EntryBrowser
+                    navController.navigate(dest) {
+                        popUpTo<Splash> { inclusive = true }
+                    }
                 }
             }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

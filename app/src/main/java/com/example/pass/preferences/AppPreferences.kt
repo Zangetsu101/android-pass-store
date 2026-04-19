@@ -19,8 +19,8 @@ class AppPreferences @Inject constructor(
 ) {
     private val store = context.appPrefsDataStore
 
-    // null = not yet configured (onboarding needed); non-null = configured
-    val remoteUrl: Flow<String?> = store.data.map { it[KEY_REMOTE_URL] }
+    // empty string = not configured (onboarding needed); non-empty = configured
+    val remoteUrl: Flow<String> = store.data.map { it[KEY_REMOTE_URL] ?: "" }
     val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
     val sshPublicKey: Flow<String?> = store.data.map { it[KEY_SSH_PUBLIC_KEY] }
 
