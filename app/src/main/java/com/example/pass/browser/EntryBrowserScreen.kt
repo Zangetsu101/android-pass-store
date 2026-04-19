@@ -98,7 +98,7 @@ fun EntryBrowserScreen(
 
         if (state.entries.isEmpty() && state.searchQuery.isNotEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No results for "${state.searchQuery}"", style = MaterialTheme.typography.bodyMedium)
+                Text("No results for '${state.searchQuery}'", style = MaterialTheme.typography.bodyMedium)
             }
         } else if (state.treeView) {
             TreeView(
