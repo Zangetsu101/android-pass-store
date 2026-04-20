@@ -6,6 +6,7 @@ import com.example.pass.passstore.PassEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.bouncycastle.openpgp.PGPException
+import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
 import org.pgpainless.key.protection.SecretKeyRingProtector
@@ -19,26 +20,26 @@ class DecryptionImpl @Inject constructor(
     private val keyManagement: KeyManagement,
 ) : Decryption {
 
-    override suspend fun decrypt(entry: PassEntry, activity: FragmentActivity): Credentials =
-        withContext(Dispatchers.IO) {
-            val plaintext = decryptFile(entry, activity)
-            val lines = plaintext.lines()
-            val password = (lines.firstOrNull() ?: "").toCharArray()
-            val notes = lines.drop(1).joinToString("\n").trimEnd()
-            Credentials(password = password, notes = notes)
-        }
+    override suspend fun decrypt(entry: PassEntry, activity: FragmentActivity): Credentials {
+        val secretKeyRing = keyManagement.getGpgKey(activity)
+        val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
+        val lines = plaintext.lines()
+        val password = (lines.firstOrNull() ?: "").toCharArray()
+        val notes = lines.drop(1).joinToString("\n").trimEnd()
+        return Credentials(password = password, notes = notes)
+    }
 
     override suspend fun decryptForAutofill(
         entry: PassEntry,
         activity: FragmentActivity,
-    ): AutofillCredentials = withContext(Dispatchers.IO) {
-        val plaintext = decryptFile(entry, activity)
+    ): AutofillCredentials {
+        val secretKeyRing = keyManagement.getGpgKey(activity)
+        val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
         val password = (plaintext.lines().firstOrNull() ?: "").toCharArray()
-        AutofillCredentials(password = password, username = entry.username)
+        return AutofillCredentials(password = password, username = entry.username)
     }
 
-    private suspend fun decryptFile(entry: PassEntry, activity: FragmentActivity): String {
-        val secretKeyRing = keyManagement.getGpgKey(activity)
+    private fun decryptFile(entry: PassEntry, secretKeyRing: PGPSecretKeyRing): String {
         val protector = SecretKeyRingProtector.unprotectedKeys()
 
         return try {
