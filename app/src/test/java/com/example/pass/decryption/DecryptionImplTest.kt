@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -21,12 +22,11 @@ import org.pgpainless.encryption_signing.EncryptionOptions
 import org.pgpainless.encryption_signing.ProducerOptions
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
-import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 
-@RunWith(RobolectricTestRunner::class)
+@RunWith(JUnit4::class)
 class DecryptionImplTest {
 
     private lateinit var testKey: PGPSecretKeyRing

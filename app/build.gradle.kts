@@ -43,6 +43,12 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.jvmArgs(
+                "--add-opens", "java.base/java.security=ALL-UNNAMED",
+                "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            )
+        }
     }
 
     compileOptions {
@@ -52,6 +58,14 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+    }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.bouncycastle" && requested.name == "bcpg-jdk18on") {
+            useVersion("1.81")
+        }
     }
 }
 
@@ -98,7 +112,9 @@ dependencies {
 
     // Git
     implementation(libs.jgit)
-    implementation(libs.jgit.ssh.apache)
+    implementation(libs.jgit.ssh.apache) {
+        exclude(group = "org.apache.sshd", module = "sshd-sftp")
+    }
 
     // OpenPGP
     implementation(libs.pgpainless.core)

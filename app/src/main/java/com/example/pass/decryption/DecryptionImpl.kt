@@ -52,7 +52,12 @@ class DecryptionImpl @Inject constructor(
                         .addDecryptionKey(secretKeyRing, protector)
                 )
             stream.use { it.copyTo(output) }
+            if (!stream.metadata.isEncrypted) {
+                throw DecryptionError("Content is not PGP-encrypted")
+            }
             output.toString(Charsets.UTF_8.name())
+        } catch (e: DecryptionError) {
+            throw e
         } catch (e: PGPException) {
             throw DecryptionError("Decryption failed: ${e.message}", e)
         } catch (e: Exception) {
