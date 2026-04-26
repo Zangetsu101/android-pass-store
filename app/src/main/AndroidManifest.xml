@@ -30,6 +30,12 @@
         </activity>
 
         <activity
+            android:name=".session.SessionStartActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Pass"
+            tools:ignore="Instantiatable" />
+
+        <activity
             android:name=".autofill.AutofillAuthActivity"
             android:exported="false"
             android:theme="@style/Theme.Pass"

@@ -12,7 +12,9 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
+import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassStore
+import com.example.pass.session.SessionStartActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -59,14 +61,15 @@ class AutofillAuthActivity : FragmentActivity() {
                     putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
                 }
                 setResult(RESULT_OK, replyIntent)
+                finish()
+            } catch (e: SessionError.NoActiveSession) {
+                startActivity(Intent(this@AutofillAuthActivity, SessionStartActivity::class.java))
+                cancelAndFinish()
             } catch (e: DecryptionError) {
                 cancelAndFinish()
-                return@launch
             } catch (e: Exception) {
                 cancelAndFinish()
-                return@launch
             }
-            finish()
         }
     }
 
