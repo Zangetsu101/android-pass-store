@@ -23,6 +23,7 @@ android {
     packaging {
         resources {
             excludes += "OSGI-INF/**"
+            excludes += "META-INF/versions/9/OSGI-INF/**"
             excludes += "META-INF/ECLIPSE_.*"
             excludes += "META-INF/DEPENDENCIES"
             excludes += "about_files/**"
