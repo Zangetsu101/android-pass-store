@@ -103,6 +103,7 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                     viewModel = vm,
                     onNavigateToSync = { backStack.add(SyncPanel) },
                     onNavigateToSettings = { backStack.add(Settings) },
+                    onNavigateToSessionStart = { backStack.add(SessionStart) },
                 )
             }
 

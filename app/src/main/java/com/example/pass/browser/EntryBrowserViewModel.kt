@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.pass.decryption.Credentials
 import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
+import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +34,8 @@ data class EntryBrowserUiState(
     val credentials: Credentials? = null,
     val decryptError: String? = null,
     val clipboardCopied: Boolean = false,
+    val sessionStartNeeded: Boolean = false,
+    val pendingDecryptEntry: PassEntry? = null,
 )
 
 @HiltViewModel
@@ -84,13 +87,25 @@ class EntryBrowserViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val creds = decryption.decrypt(entry, activity)
-                _state.update { it.copy(credentials = creds) }
+                _state.update { it.copy(credentials = creds, pendingDecryptEntry = null) }
+            } catch (e: SessionError.NoActiveSession) {
+                _state.update { it.copy(decryptingEntry = null, pendingDecryptEntry = entry, sessionStartNeeded = true) }
             } catch (e: DecryptionError) {
                 _state.update { it.copy(decryptError = e.message ?: "Decryption failed", decryptingEntry = null) }
             } catch (e: Exception) {
                 _state.update { it.copy(decryptError = e.message ?: "Decryption failed", decryptingEntry = null) }
             }
         }
+    }
+
+    fun onSessionStartNavigated() {
+        _state.update { it.copy(sessionStartNeeded = false) }
+    }
+
+    fun consumePendingDecryptEntry(): PassEntry? {
+        val entry = _state.value.pendingDecryptEntry
+        _state.update { it.copy(pendingDecryptEntry = null) }
+        return entry
     }
 
     fun copyPassword() {
