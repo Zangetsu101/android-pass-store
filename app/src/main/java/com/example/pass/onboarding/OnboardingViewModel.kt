@@ -1,7 +1,6 @@
 package com.example.pass.onboarding
 
 import android.content.Context
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pass.gitsync.GitSync
@@ -26,7 +25,6 @@ data class OnboardingUiState(
     val remoteUrlError: String? = null,
     val sshPublicKey: String? = null,
     val gpgKeyText: String = "",
-    val gpgPassphrase: String = "",
     val gpgImportError: String? = null,
     val gpgImported: Boolean = false,
     val cloning: Boolean = false,
@@ -78,16 +76,11 @@ class OnboardingViewModel @Inject constructor(
         _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
     }
 
-    fun setGpgPassphrase(passphrase: String) {
-        _state.update { it.copy(gpgPassphrase = passphrase) }
-    }
-
     fun importGpgKey() {
         viewModelScope.launch {
             try {
-                val passphrase = _state.value.gpgPassphrase.ifEmpty { null }
                 val text = _state.value.gpgKeyText
-                withContext(Dispatchers.IO) { keyManagement.importGpgKey(text, passphrase) }
+                withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
                 _state.update { it.copy(gpgImported = true, gpgImportError = null) }
             } catch (e: KeyImportError) {
                 _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
@@ -95,14 +88,14 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun startClone(activity: FragmentActivity) {
+    fun startClone() {
         val url = _state.value.remoteUrl.trim()
         _state.update { it.copy(cloning = true, cloneError = null, cloneComplete = false) }
         viewModelScope.launch {
             try {
                 val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
                 val sshKeyPair = if (url.startsWith("git@") || url.startsWith("ssh://")) {
-                    keyManagement.getSshKey(activity)
+                    withContext(Dispatchers.IO) { keyManagement.getSshKey() }
                 } else null
                 gitSync.clone(url, repoDir, sshKeyPair)
                 appPreferences.setRemoteUrl(url)

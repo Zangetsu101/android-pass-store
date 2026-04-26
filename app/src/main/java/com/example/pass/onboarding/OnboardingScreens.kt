@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,11 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -164,7 +160,7 @@ fun OnboardingGpgImportScreen(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "If your key has a passphrase, enter it below — it will be stripped and re-protected by the device Keystore so you won't need it again.",
+            text = "Your key must be passphrase-protected. The passphrase stays with the key — you'll enter it when starting a session.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline,
         )
@@ -186,16 +182,6 @@ fun OnboardingGpgImportScreen(
         ) {
             Text("Pick file…")
         }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = state.gpgPassphrase,
-            onValueChange = viewModel::setGpgPassphrase,
-            label = { Text("Passphrase (leave blank if none)") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-        )
         state.gpgImportError?.let { err ->
             Spacer(Modifier.height(4.dp))
             Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -286,9 +272,8 @@ fun OnboardingCloneScreen(
     onSuccess: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
-    val activity = LocalContext.current as FragmentActivity
 
-    LaunchedEffect(Unit) { viewModel.startClone(activity) }
+    LaunchedEffect(Unit) { viewModel.startClone() }
 
     LaunchedEffect(state.cloneComplete) {
         if (state.cloneComplete) onSuccess()
@@ -313,7 +298,7 @@ fun OnboardingCloneScreen(
                 )
                 Spacer(Modifier.height(24.dp))
                 Button(
-                    onClick = { viewModel.startClone(activity) },
+                    onClick = { viewModel.startClone() },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Retry")
