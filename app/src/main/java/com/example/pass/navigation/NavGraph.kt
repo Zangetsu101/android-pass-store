@@ -9,10 +9,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.navigation
-import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import com.example.pass.browser.EntryBrowserScreen
 import com.example.pass.browser.EntryBrowserViewModel
 import com.example.pass.onboarding.OnboardingBiometricScreen
@@ -28,100 +30,94 @@ import com.example.pass.syncpanel.SyncPanelScreen
 import com.example.pass.syncpanel.SyncPanelViewModel
 import kotlinx.serialization.Serializable
 
-@Serializable object Splash
-@Serializable object OnboardingRoot
-@Serializable object OnboardingRemoteUrl
-@Serializable object OnboardingSshKey
-@Serializable object OnboardingGpgImport
-@Serializable object OnboardingBiometric
-@Serializable object OnboardingClone
-@Serializable object EntryBrowser
-@Serializable object SyncPanel
-@Serializable object Settings
+@Serializable data object Splash : NavKey
+@Serializable data object OnboardingRemoteUrl : NavKey
+@Serializable data object OnboardingSshKey : NavKey
+@Serializable data object OnboardingGpgImport : NavKey
+@Serializable data object OnboardingBiometric : NavKey
+@Serializable data object OnboardingClone : NavKey
+@Serializable data object EntryBrowser : NavKey
+@Serializable data object SyncPanel : NavKey
+@Serializable data object Settings : NavKey
 
 @Composable
 fun PassDroidNavHost(appPreferences: AppPreferences) {
-    val navController = rememberNavController()
+    val backStack = rememberNavBackStack(Splash)
+    val onboardingVm: OnboardingViewModel = hiltViewModel()
 
-    NavHost(navController = navController, startDestination = Splash) {
-
-        composable<Splash> {
-            LaunchedEffect(Unit) {
-                appPreferences.remoteUrl.collect { url ->
-                    val dest = if (url.isEmpty()) OnboardingRoot else EntryBrowser
-                    navController.navigate(dest) {
-                        popUpTo<Splash> { inclusive = true }
+    NavDisplay(
+        backStack = backStack,
+        onBack = { backStack.removeLastOrNull() },
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
+        entryProvider = entryProvider {
+            entry<Splash> {
+                LaunchedEffect(Unit) {
+                    appPreferences.remoteUrl.collect { url ->
+                        val dest = if (url.isEmpty()) OnboardingRemoteUrl else EntryBrowser
+                        backStack.clear()
+                        backStack.add(dest)
                     }
                 }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
 
-        navigation<OnboardingRoot>(startDestination = OnboardingRemoteUrl) {
-            composable<OnboardingRemoteUrl> { entry ->
-                val parentEntry = remember(entry) { navController.getBackStackEntry<OnboardingRoot>() }
-                val vm: OnboardingViewModel = hiltViewModel(parentEntry)
-                OnboardingRemoteUrlScreen(vm) {
-                    navController.navigate(OnboardingSshKey)
+            entry<OnboardingRemoteUrl> {
+                OnboardingRemoteUrlScreen(onboardingVm) {
+                    backStack.add(OnboardingSshKey)
                 }
             }
-            composable<OnboardingSshKey> { entry ->
-                val parentEntry = remember(entry) { navController.getBackStackEntry<OnboardingRoot>() }
-                val vm: OnboardingViewModel = hiltViewModel(parentEntry)
-                OnboardingSshKeyScreen(vm) {
-                    navController.navigate(OnboardingGpgImport)
+            entry<OnboardingSshKey> {
+                OnboardingSshKeyScreen(onboardingVm) {
+                    backStack.add(OnboardingGpgImport)
                 }
             }
-            composable<OnboardingGpgImport> { entry ->
-                val parentEntry = remember(entry) { navController.getBackStackEntry<OnboardingRoot>() }
-                val vm: OnboardingViewModel = hiltViewModel(parentEntry)
-                OnboardingGpgImportScreen(vm) {
-                    navController.navigate(OnboardingBiometric)
+            entry<OnboardingGpgImport> {
+                OnboardingGpgImportScreen(onboardingVm) {
+                    backStack.add(OnboardingBiometric)
                 }
             }
-            composable<OnboardingBiometric> {
+            entry<OnboardingBiometric> {
                 OnboardingBiometricScreen {
-                    navController.navigate(OnboardingClone)
+                    backStack.add(OnboardingClone)
                 }
             }
-            composable<OnboardingClone> { entry ->
-                val parentEntry = remember(entry) { navController.getBackStackEntry<OnboardingRoot>() }
-                val vm: OnboardingViewModel = hiltViewModel(parentEntry)
-                OnboardingCloneScreen(vm) {
-                    navController.navigate(EntryBrowser) {
-                        popUpTo<OnboardingRoot> { inclusive = true }
-                    }
+            entry<OnboardingClone> {
+                OnboardingCloneScreen(onboardingVm) {
+                    backStack.clear()
+                    backStack.add(EntryBrowser)
                 }
             }
-        }
 
-        composable<EntryBrowser> {
-            val vm: EntryBrowserViewModel = hiltViewModel()
-            EntryBrowserScreen(
-                viewModel = vm,
-                onNavigateToSync = { navController.navigate(SyncPanel) },
-                onNavigateToSettings = { navController.navigate(Settings) },
-            )
-        }
+            entry<EntryBrowser> {
+                val vm: EntryBrowserViewModel = hiltViewModel()
+                EntryBrowserScreen(
+                    viewModel = vm,
+                    onNavigateToSync = { backStack.add(SyncPanel) },
+                    onNavigateToSettings = { backStack.add(Settings) },
+                )
+            }
 
-        composable<SyncPanel> {
-            val vm: SyncPanelViewModel = hiltViewModel()
-            SyncPanelScreen(vm, onBack = { navController.popBackStack() })
-        }
+            entry<SyncPanel> {
+                val vm: SyncPanelViewModel = hiltViewModel()
+                SyncPanelScreen(vm, onBack = { backStack.removeLastOrNull() })
+            }
 
-        composable<Settings> {
-            val vm: SettingsViewModel = hiltViewModel()
-            SettingsScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() },
-                onClearedData = {
-                    navController.navigate(OnboardingRoot) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-            )
-        }
-    }
+            entry<Settings> {
+                val vm: SettingsViewModel = hiltViewModel()
+                SettingsScreen(
+                    viewModel = vm,
+                    onBack = { backStack.removeLastOrNull() },
+                    onClearedData = {
+                        backStack.clear()
+                        backStack.add(OnboardingRemoteUrl)
+                    },
+                )
+            }
+        },
+    )
 }
