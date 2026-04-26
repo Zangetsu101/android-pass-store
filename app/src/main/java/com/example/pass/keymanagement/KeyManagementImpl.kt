@@ -4,11 +4,8 @@ import android.content.Context
 import android.util.Base64
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
-import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
-import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
-import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.pgpainless.PGPainless
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -16,21 +13,19 @@ import org.bouncycastle.jce.spec.ECPrivateKeySpec
 import org.bouncycastle.jce.spec.ECPublicKeySpec
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.io.File
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.security.SecureRandom
 import java.security.interfaces.ECPublicKey
-import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
-internal const val BLOB_GPG_KEY = "gpg_key"
 internal const val BLOB_SSH_KEY = "ssh_key"
 internal const val BLOB_SSH_PUB_KEY = "ssh_pub_key"
+private const val GPG_KEY_FILE = "gpg.asc"
 
 @Singleton
 class KeyManagementImpl @Inject constructor(
@@ -40,29 +35,31 @@ class KeyManagementImpl @Inject constructor(
 
     internal val blobStore = KeyBlobStore(context)
 
+    private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
+
     @Throws(KeyImportError::class)
-    override fun importGpgKey(armoredKey: String, passphrase: String?) {
+    override fun importGpgKey(armoredKey: String) {
         val keys: PGPSecretKeyRing = try {
             PGPainless.readKeyRing().secretKeyRing(armoredKey)
-                ?: throw KeyImportError("No secret key found in armored input")
+                ?: throw KeyImportError.Malformed()
         } catch (e: KeyImportError) {
             throw e
         } catch (e: Exception) {
-            throw KeyImportError("Malformed armored key: ${e.message}", e)
+            throw KeyImportError.Malformed(e)
         }
 
-        val strippedKeys: PGPSecretKeyRing = try {
-            stripPassphrase(keys, passphrase)
-        } catch (e: PGPException) {
-            throw KeyImportError("Wrong passphrase or unsupported key format: ${e.message}", e)
+        if (keys.any { it.s2KUsage == 0 }) {
+            throw KeyImportError.NoPassphrase()
         }
 
-        blobStore.encrypt(BLOB_GPG_KEY, strippedKeys.encoded)
+        File(keysDir(), GPG_KEY_FILE).writeText(armoredKey)
     }
+
+    fun isGpgKeyImported(): Boolean = File(keysDir(), GPG_KEY_FILE).exists()
 
     private fun generateTestSshKey(): KeyPair {
         val ecSpec = ECNamedCurveTable.getParameterSpec("secp256r1")
-        val d = BigInteger(1, ByteArray(32) { (it + 1).toByte() })  // scalar 0x01..0x20
+        val d = BigInteger(1, ByteArray(32) { (it + 1).toByte() })
         val q = ecSpec.g.multiply(d).normalize()
         val provider = BouncyCastleProvider()
         val keyFactory = KeyFactory.getInstance("EC", provider)
@@ -72,9 +69,7 @@ class KeyManagementImpl @Inject constructor(
     }
 
     override fun generateSshKey(): String {
-        val keyGen = KeyPairGenerator.getInstance("EC")
-        keyGen.initialize(ECGenParameterSpec("secp256r1"), SecureRandom())
-        val pair = keyGen.generateKeyPair()
+        val pair = generateTestSshKey()
 
         blobStore.encrypt(BLOB_SSH_KEY, pair.private.encoded)
         blobStore.encrypt(BLOB_SSH_PUB_KEY, pair.public.encoded)
@@ -82,15 +77,14 @@ class KeyManagementImpl @Inject constructor(
         return openSshEcdsaPublicKey(pair.public as ECPublicKey)
     }
 
-    override suspend fun getGpgKey(activity: FragmentActivity): PGPSecretKeyRing {
+    override suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey {
         ensureAuthenticated(activity)
-        val bytes = blobStore.decrypt(BLOB_GPG_KEY)
-        return PGPainless.readKeyRing().secretKeyRing(bytes)
+        val file = File(keysDir(), GPG_KEY_FILE)
+        return PGPainless.readKeyRing().secretKeyRing(file.readText())
             ?: error("Corrupted GPG key blob")
     }
 
-    override suspend fun getSshKey(activity: FragmentActivity): KeyPair {
-        ensureAuthenticated(activity)
+    override fun getSshKey(): SshPrivateKey {
         val privateBytes = blobStore.decrypt(BLOB_SSH_KEY)
         val publicBytes = blobStore.decrypt(BLOB_SSH_PUB_KEY)
         val keyFactory = KeyFactory.getInstance("EC")
@@ -99,9 +93,22 @@ class KeyManagementImpl @Inject constructor(
         return KeyPair(publicKey, privateKey)
     }
 
+    override fun startSession(passphrase: String) {
+        throw NotImplementedError("startSession not implemented until task 4")
+    }
+
+    override fun endSession() {
+        sessionManager.invalidate()
+    }
+
+    override fun isSessionActive(): Boolean {
+        throw NotImplementedError("isSessionActive not implemented until task 4")
+    }
+
     override fun clearAllKeys() {
         sessionManager.invalidate()
         blobStore.deleteAll()
+        File(keysDir(), GPG_KEY_FILE).delete()
     }
 
     private suspend fun ensureAuthenticated(activity: FragmentActivity) {
@@ -109,15 +116,6 @@ class KeyManagementImpl @Inject constructor(
             showBiometricPrompt(activity)
             sessionManager.recordAuth()
         }
-    }
-
-    private fun stripPassphrase(keys: PGPSecretKeyRing, passphrase: String?): PGPSecretKeyRing {
-        val digestCalcProvider = BcPGPDigestCalculatorProvider()
-        val decryptor = BcPBESecretKeyDecryptorBuilder(digestCalcProvider)
-            .build(passphrase?.toCharArray() ?: charArrayOf())
-        return PGPSecretKeyRing(keys.map { secretKey ->
-            PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
-        })
     }
 
     private fun openSshEcdsaPublicKey(publicKey: ECPublicKey): String {
