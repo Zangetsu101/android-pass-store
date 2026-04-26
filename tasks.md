@@ -5,259 +5,221 @@ Manual verification is consolidated at the end after full implementation.
 
 ---
 
-## 1. Project Scaffold
-- [x] Create Android project (Kotlin, minSdk 26, targetSdk 36)
-- [x] Configure `build.gradle.kts` with all dependencies:
-      JGit, MINA sshd, PGPainless, Hilt, Navigation Compose,
-      DataStore, BiometricPrompt, Credentials, Material3
-- [x] Set up `@HiltAndroidApp` application class
-- [x] Set up empty `NavHost` with placeholder destinations
-- [x] Confirm project builds and empty app launches
+## 1. Key Management — Interface Redesign
 
-**Commit:** `chore: project scaffold with all dependencies`
+Rework `KeyManagement` to match the new session model. Previous implementation (Keystore-wrapped blobs for GPG) is replaced.
 
----
+- [ ] Redefine `KeyManagement` interface:
+      `importGpgKey(armoredKey: String)`
+      `startSession(passphrase: String)`
+      `endSession()`
+      `isSessionActive(): Boolean`
+      `getGpgKey(biometricPrompt): GpgPrivateKey`
+      `generateSshKey(): PublicKey`
+      `getSshKey(): SshPrivateKey`
+      `clearAllKeys()`
+- [ ] Update Hilt `@Singleton` binding
 
-## 2. Key Management — Storage Infrastructure
-- [x] Define `KeyManagement` interface
-- [x] Implement Keystore wrapping key generation (AES-256-GCM)
-- [x] Implement encrypt/decrypt blob helpers (app-private storage)
-- [x] Implement `clearAllKeys()` — wipes blobs + Keystore entries
-- [x] Hilt `@Singleton` binding
-
-**Commit:** `feat: keystore-backed key blob storage infrastructure`
+**Commit:** `refactor: redefine KeyManagement interface for new session model`
 
 ---
 
-## 3. Key Management — GPG Key Import
-- [x] Implement `importGpgKey(armoredKey, passphrase?)`
-        — parse armored key, decrypt if passphrase given, re-encrypt under wrapping key
-- [x] Implement `getGpgKey(): GpgPrivateKey` (unwrap blob, return in-memory key)
-- [x] Reject malformed armored key with `KeyImportError`
+## 2. Key Management — GPG Key Import
 
-**Commit:** `feat: GPG key import and retrieval`
+- [ ] Implement `importGpgKey(armoredKey: String)`:
+      — parse armored key structure, reject if passphrase-unprotected (throw `KeyImportError.NoPassphrase`)
+      — reject malformed key (throw `KeyImportError.Malformed`)
+      — store armored blob as-is to `files/keys/gpg.asc`
+- [ ] Implement `isGpgKeyImported(): Boolean` — check file exists
 
----
-
-## 4. Key Management — SSH Key Generation
-- [x] Implement `generateSshKey(): PublicKey` — Ed25519, store encrypted blob
-- [x] Implement `getSshKey(): SshPrivateKey` (unwrap blob, return in-memory key)
-- [x] Format public key as OpenSSH (`ssh-ed25519 AAAA...`)
-
-**Commit:** `feat: SSH key generation and retrieval`
+**Commit:** `feat: GPG key import (passphrase-protected only, store armored as-is)`
 
 ---
 
-## 5. Key Management — Session + Biometric
-- [x] Wire `BiometricPrompt` into `getGpgKey()` and `getSshKey()`
-- [x] Implement session inactivity timer (default 5 min, configurable via DataStore)
-- [x] Degrade gracefully when biometric not enrolled (fall back to device PIN)
+## 3. Key Management — SSH Key
 
-**Commit:** `feat: biometric unlock and session timeout`
+- [ ] Implement `generateSshKey(): PublicKey` — Ed25519, encrypt blob under **device-unlock-bound** Keystore key (no biometric required)
+- [ ] Implement `getSshKey(): SshPrivateKey` — unwrap from Keystore, no biometric prompt
+- [ ] Format public key as OpenSSH (`ssh-ed25519 AAAA...`)
+- [ ] Update `clearAllKeys()` to delete SSH blob + Keystore entry
 
----
-
-## 6. Git Sync Module
-- [x] Define `GitSync` interface + `SyncResult`, `SyncStatus`, `SyncError` sealed types
-- [x] Implement `clone(remoteUrl, localPath)` via JGit (SSH stubbed — wired in task 14)
-- [x] Implement `pull()` — fast-forward only (`--ff-only`), return `SyncResult`
-- [x] Implement `syncStatus()` — last sync time, remote reachable check
-- [x] Hilt `@Singleton` binding, all ops on `Dispatchers.IO`
-- [x] Add test fixtures: local bare git repo with sample `.gpg` files
-
-**Tests:**
-- [x] clone() creates working copy from `file://` bare repo
-- [x] pull() returns correct newEntries / removedEntries
-- [x] pull() with no changes returns empty SyncResult
-- [x] pull() returns `SyncError.NotFastForward` when remote diverged
-- [x] syncStatus() reflects last pull timestamp
-- [x] syncStatus() returns `RemoteUnreachable` for invalid path
-
-**Commit:** `feat: git sync module (JGit + MINA sshd)`
+**Commit:** `feat: SSH key generation (device-unlock-bound, no biometric)`
 
 ---
 
-## 7. Pass Store Module
-- [x] Define `PassStore` interface + `PassEntry` data class
-- [x] Implement `buildIndex()` — walk git working copy, parse all `.gpg` paths
-- [x] Implement path parsing: `web/github.com/alice.gpg` → domain + username
-- [x] Implement `resolve(domain)` — exact → subdomain → fuzzy (Levenshtein)
-- [x] Implement `resolve(packageName)` — strip prefix, map to domain
-- [x] Implement `search(query)` — case-insensitive ranked search
-- [x] Expose index as `StateFlow<List<PassEntry>>`
-- [x] Hilt `@Singleton` binding
+## 4. Key Management — Session
 
-**Tests:**
-- [x] buildIndex() parses `web/github.com/alice.gpg` → domain=github.com, username=alice
-- [x] buildIndex() handles 1-level path → domain=null
-- [x] buildIndex() ignores non-.gpg files
-- [x] resolve(domain) exact match returns entry first
-- [x] resolve(domain) subdomain: github.com resolves gist.github.com query
-- [x] resolve(domain) fuzzy: "githubb.com" returns github.com entry
-- [x] resolve(domain) returns empty list when no candidates
-- [x] resolve(packageName) maps com.github.android → github.com entry
-- [x] search() is case-insensitive
-- [x] search() ranks closer matches higher
+- [ ] Implement `startSession(passphrase: String)`:
+      — attempt to decrypt armored key with passphrase; throw `SessionError.WrongPassphrase` on failure
+      — on success: store passphrase encrypted under **biometric-bound** Keystore key (`passdroid_session_key`)
+- [ ] Implement `endSession()` — delete `passdroid_session_key` Keystore entry
+- [ ] Implement `isSessionActive(): Boolean` — check `passdroid_session_key` exists in Keystore
+- [ ] Implement inactivity timeout:
+      — DataStore-configurable duration (default 5 min)
+      — timer resets on each `getGpgKey()` call
+      — on expiry: call `endSession()`
+- [ ] Register `BroadcastReceiver` for `ACTION_BOOT_COMPLETED` → call `endSession()`
+- [ ] Update `clearAllKeys()` to call `endSession()` first
 
-**Commit:** `feat: pass store module (index, resolve, fuzzy search)`
+**Commit:** `feat: session lifecycle (biometric-bound passphrase, inactivity timeout, boot receiver)`
 
 ---
 
-## 8. Decryption Module
-- [x] Define `Decryption` interface + `Credentials`, `AutofillCredentials` types
-        (`password: CharArray`, `notes: String`)
-- [x] Add test resources: throwaway GPG keypair + pre-encrypted fixture `.gpg` files
-        (single-line, multi-line, wrong-key)
-- [x] Implement `decrypt(entry)` via PGPainless — calls `KeyManagement.getGpgKey()`
-- [x] Implement `decryptForAutofill(entry)` — password only, no notes
-- [x] Implement `CharArray.zero()` extension, call after use
-- [x] Hilt `@Singleton` binding, ops on `Dispatchers.IO`
+## 5. Key Management — GPG Key Access
 
-**Tests:**
-- [x] decrypt() returns password from line 1 (single-line fixture)
-- [x] decrypt() returns password + notes (multi-line fixture)
-- [x] decrypt() throws DecryptionError for wrong-key fixture
-- [x] decrypt() throws DecryptionError for corrupted file
-- [x] decryptForAutofill() returns only password
-- [x] CharArray is all-zero after explicit clear call
+- [ ] Implement `getGpgKey(biometricPrompt: BiometricPrompt): GpgPrivateKey`:
+      — throw `SessionError.NoActiveSession` if `isSessionActive()` is false
+      — show biometric prompt with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` fallback
+      — on success: unwrap passphrase from Keystore → decrypt armored key → return in-memory key
+      — reset inactivity timer
 
-**Commit:** `feat: decryption module (PGPainless + CharArray zeroing)`
+**Commit:** `feat: GPG key access (biometric → passphrase → decrypt armored key)`
 
 ---
 
-## 9. Onboarding UI
-- [x] Define Navigation Compose graph — all routes type-safe via `@Serializable`
-- [x] Onboarding detection: navigate to onboarding if no git remote in DataStore
-- [x] Screen 1: git remote URL input + validation
-- [x] Screen 2: SSH key generation → display copyable public key
-- [x] Screen 3: GPG key import — paste textarea + file picker
-- [x] Screen 4: biometric enrollment prompt
-- [x] Screen 5: initial clone with progress indicator + error/retry
+## 6. Onboarding — Remove Biometric Enrollment Screen
 
-**Commit:** `feat: onboarding flow`
+Session-start is not part of onboarding — it happens lazily when the user first tries to decrypt an entry.
+
+- [ ] Remove biometric enrollment prompt screen (biometric handled inline via `BiometricPrompt` on first decrypt)
+
+**Commit:** `refactor: remove biometric enrollment screen from onboarding`
 
 ---
 
-## 10. Entry Browser UI
-- [x] Entry list screen: `StateFlow<List<PassEntry>>` → lazy column
-- [x] Real-time search bar wired to `PassStore.search()`
-- [x] Entry detail: biometric prompt → `Decryption.decrypt()` → show password + notes
-- [x] Copy button → clipboard → `delay(45_000)` → `clearPrimaryClip()`
-- [x] Directory tree toggle (flat vs tree view)
+## 7. Session Start Screen
 
-**Commit:** `feat: entry browser with search and clipboard`
+Standalone screen used by both the entry browser (lazy session-start) and autofill redirect.
 
----
+- [ ] Implement `SessionStartScreen` — passphrase input field, submit button
+- [ ] On submit: call `startSession(passphrase)`, show inline error on `SessionError.WrongPassphrase`
+- [ ] On success: pop back to the previous destination (entry detail or wherever the redirect came from)
+- [ ] Add `SessionStart` route to the NavGraph
 
-## 11. Sync Panel + Settings UI
-- [x] Sync panel: last sync time from DataStore, manual pull button, error display
-- [x] Settings:
-      — autofill toggle (deep-link to `ACTION_REQUEST_SET_AUTOFILL_SERVICE`)
-      — session timeout picker (wired to DataStore)
-      — SSH public key display
-      — "Clear all data" → `KeyManagement.clearAllKeys()` + wipe DataStore + delete repo → onboarding
-
-**Commit:** `feat: sync panel and settings`
+**Commit:** `feat: session start screen`
 
 ---
 
-## 12. AutofillService
-- [x] Declare `PassDroidAutofillService` in `AndroidManifest.xml`
-        with `<meta-data android:name="android.autofill" android:resource="@xml/autofill_service"/>`
-- [x] Implement `onFillRequest()` — `PassStore.resolve()` → `FillResponse` with locked datasets
-- [x] Implement auth `IntentSender` activity — biometric → `Decryption.decryptForAutofill()` → `Dataset`
-- [x] Return null `FillResponse` when no candidates found
+## 8. Entry Browser — Lazy Session Start
 
-**Commit:** `feat: autofill service`
+- [ ] In entry detail ViewModel, catch `SessionError.NoActiveSession` from `getGpgKey()`
+- [ ] On catch: navigate to `SessionStartScreen`
+- [ ] On return from `SessionStartScreen` (session now active): re-attempt `getGpgKey()` → biometric prompt → show decrypted entry
 
----
-
-## 13. Credential Manager Provider (Android 14+)
-- [x] Declare `PassDroidCredentialProviderService` in manifest
-- [x] Implement `onBeginGetCredentialRequest()` → resolve candidates
-- [x] Implement `onBeginCreateCredentialRequest()` → no-op (read-only)
-- [x] On Android 16+: use `BiometricPromptData` in `GetCredentialRequest`
-
-**Commit:** `feat: credential manager provider (Android 14+, BiometricPromptData on 16+)`
+**Commit:** `feat: entry browser lazy session-start on inactive session`
 
 ---
 
-## 14. Integration + Hardening
-- [x] Audit all `Dispatchers` usage — no blocking calls on `Main`
-- [x] Audit manifest permissions — request only what's needed
-- [x] Verify ProGuard/R8 rules don't strip JGit, PGPainless, MINA sshd reflection paths
-- [x] Verify `android:allowBackup="false"` in manifest (no key material in backups)
-- [x] Review all `CharArray` zero paths — no dangling decrypted data
-- [x] Wire Apache MINA sshd SSH transport into `GitSync.clone()` / `pull()`
+## 9. AutofillService — Session State Check
 
-**Commit:** `chore: integration hardening and manifest audit`
+Candidates are always shown (not locked). Tapping a candidate when session is inactive redirects to session-start instead of showing biometric.
+
+- [ ] Show all resolved candidates unconditionally in `FillResponse` (no locked datasets)
+- [ ] Each dataset's `IntentSender` activity checks `isSessionActive()`:
+      — if active: show biometric prompt → `decryptForAutofill()` → return `Dataset` result
+      — if inactive: launch `SessionStartActivity` in the main app with a `PendingIntent`;
+      after passphrase entry succeeds, finish and return to the originating app —
+      user triggers autofill again (session now active, normal biometric flow)
+
+**Commit:** `feat: autofill session state check (inactive → session-start redirect)`
 
 ---
 
-## 15. Manual Verification (Final)
+## 10. Settings — Session Controls
 
-Run once after task 14 is complete. Sign off each item before shipping.
+- [ ] Add **manual lock** button → calls `endSession()`
+- [ ] Session timeout setting: toggle between inactivity timeout (with duration picker) and manual-lock-only mode
+- [ ] Both settings wired to DataStore, take effect immediately
+
+**Commit:** `feat: session settings (manual lock, timeout mode)`
+
+---
+
+## 11. Manual Verification (Final)
+
+Run once after task 10 is complete. Sign off each item before shipping.
 
 ### Key Management
-- [ ] importGpgKey() accepts armored key with passphrase
-- [ ] importGpgKey() accepts armored key without passphrase
+
+- [ ] importGpgKey() accepts passphrase-protected armored key
+- [ ] importGpgKey() rejects unprotected armored key with clear error
 - [ ] importGpgKey() rejects malformed armored key with clear error
-- [ ] imported GPG key survives app restart
+- [ ] imported GPG key survives app restart (blob persists)
+- [ ] startSession() succeeds with correct passphrase
+- [ ] startSession() fails with incorrect passphrase, shows clear error
 - [ ] generateSshKey() returns valid Ed25519 public key in OpenSSH format
 - [ ] generated SSH key survives app restart
-- [ ] getGpgKey() requires biometric when session is locked
-- [ ] getGpgKey() skips biometric within active session window
-- [ ] keys inaccessible after session timeout (app re-prompts biometric)
-- [ ] clearAllKeys() removes key blobs and Keystore entries
-- [ ] app handles biometric not enrolled — degrades to device PIN gracefully
+- [ ] getSshKey() accessible without biometric after device unlock
+- [ ] getGpgKey() requires biometric when session is active
+- [ ] getGpgKey() falls back to device PIN when biometric unavailable
+- [ ] getGpgKey() throws when session is inactive
+- [ ] session ends after inactivity timeout (passphrase required on next use)
+- [ ] manual lock immediately ends session
+- [ ] device reboot ends session (passphrase required on next open)
+- [ ] clearAllKeys() removes both key blobs from app-private storage
+- [ ] clearAllKeys() removes all Keystore entries
 
 ### Git Sync
+
 - [ ] clone() succeeds over real SSH remote with generated keypair
 - [ ] pull() picks up entry added on Linux and pushed
 - [ ] SSH auth failure surfaces actionable error in UI
 
 ### Decryption
-- [ ] decrypt() prompts biometric when session locked
-- [ ] decrypt() skips biometric within active session
+
+- [ ] decrypt() prompts biometric when session active
+- [ ] decrypt() shows "open app to unlock" when session inactive
 - [ ] no decrypted content in `adb shell run-as <pkg> ls files/`
 
 ### Onboarding
+
 - [ ] fresh install lands on onboarding (not browser)
 - [ ] SSH public key displayed in copyable format
 - [ ] GPG import works via paste
 - [ ] GPG import works via file picker
+- [ ] unprotected GPG key rejected at import with clear error
+- [ ] passphrase screen follows GPG import
+- [ ] wrong passphrase shows error, allows retry
+- [ ] correct passphrase starts session and advances onboarding
 - [ ] progress indicator shown during clone
 - [ ] bad URL → error + retry option
 - [ ] completing onboarding → entry browser
 
 ### Entry Browser
+
 - [ ] all entries visible after sync, directory structure preserved
 - [ ] search filters in real time, case-insensitive
-- [ ] tapping entry triggers biometric
+- [ ] tapping entry triggers biometric (session active)
+- [ ] tapping entry navigates to session-start screen (session inactive — e.g. after timeout)
+- [ ] after passphrase entry on session-start screen, returns to entry and triggers biometric
 - [ ] password + notes shown after biometric success
 - [ ] clipboard cleared after 45 seconds
 
 ### Sync Panel + Settings
+
 - [ ] last sync timestamp updates after pull
 - [ ] manual pull refreshes entry list
 - [ ] network error shows last-known-good timestamp
 - [ ] SSH auth failure shows link to SSH key screen
 - [ ] autofill toggle opens system autofill settings
 - [ ] session timeout change takes effect immediately
+- [ ] manual lock ends session immediately
 - [ ] SSH key viewable for re-registration
 - [ ] "Clear all data" → onboarding, no keys/repo/prefs remain
 
 ### AutofillService
+
 - [ ] PassDroid appears in Android Settings → Autofill service
 - [ ] suggestions appear in Chrome browser login form
 - [ ] suggestions appear in a native app login form
 - [ ] suggestions ranked (exact above fuzzy)
-- [ ] selecting suggestion triggers biometric
-- [ ] correct username + password filled after success
+- [ ] selecting suggestion triggers biometric (session active)
+- [ ] selecting suggestion shows "open PassDroid to unlock" (session inactive)
+- [ ] correct username + password filled after biometric success
 - [ ] no fill if biometric cancelled or failed
-- [ ] autofill works after cold service start (screen lock/unlock)
 
 ### Credential Manager (Android 14+)
+
 - [ ] Credential Manager bottom sheet appears on Android 14+
 - [ ] correct credentials filled via bottom sheet
 - [ ] on Android 16+: no separate auth activity launched (BiometricPromptData path)
@@ -269,11 +231,9 @@ Run once after task 14 is complete. Sign off each item before shipping.
 
 ```
 1 → 2 → 3 → 4 → 5        (Key Management, bottom-up)
-            5 → 6         (SSH key needed for Git Sync)
-            6 → 7         (git working copy needed for Pass Store)
-        3 → 8             (GPG key needed for Decryption)
-    7 + 8 → 9 → 10 → 11  (UI builds on all modules)
-    7 + 8 → 12            (Autofill parallel to UI)
-       12 → 13            (Credential Manager wraps Autofill)
-       11 + 13 → 14 → 15  (Hardening then manual verification last)
+            5 → 6          (session needed before SessionStartScreen)
+            6 → 7 → 8      (entry browser lazy session-start needs SessionStartScreen)
+            6 → 9          (autofill redirect needs SessionStartScreen, parallel to 7-8)
+            10             (settings session controls, parallel to 7-9)
+    7 + 8 + 9 + 10 → 11   (manual verification last)
 ```
