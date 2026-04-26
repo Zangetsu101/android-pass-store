@@ -4,32 +4,26 @@ import androidx.fragment.app.FragmentActivity
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import java.security.KeyPair
 
-interface KeyManagement {
-    /**
-     * Parses the armored GPG key, verifies the passphrase if provided, strips
-     * PGP-level password protection, and stores the key as an AES-256-GCM blob.
-     *
-     * @throws KeyImportError if the key is malformed or the passphrase is wrong
-     */
-    @Throws(KeyImportError::class)
-    fun importGpgKey(armoredKey: String, passphrase: String? = null)
+typealias GpgPrivateKey = PGPSecretKeyRing
+typealias SshPrivateKey = KeyPair
 
-    /**
-     * Generates an Ed25519 SSH keypair, stores the private key as an encrypted blob,
-     * and returns the public key formatted as an OpenSSH string ready to be registered
-     * on the remote git server.
-     */
+interface KeyManagement {
+    @Throws(KeyImportError::class)
+    fun importGpgKey(armoredKey: String)
+
+    @Throws(SessionError::class)
+    fun startSession(passphrase: String)
+
+    fun endSession()
+
+    fun isSessionActive(): Boolean
+
+    @Throws(SessionError::class)
+    suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey
+
     fun generateSshKey(): String
 
-    /**
-     * Prompts biometric if the session is not active, then returns the GPG secret key ring.
-     */
-    suspend fun getGpgKey(activity: FragmentActivity): PGPSecretKeyRing
-
-    /**
-     * Prompts biometric if the session is not active, then returns the SSH keypair.
-     */
-    suspend fun getSshKey(activity: FragmentActivity): KeyPair
+    fun getSshKey(): SshPrivateKey
 
     fun clearAllKeys()
 }
