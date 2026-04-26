@@ -23,6 +23,8 @@ import com.example.pass.onboarding.OnboardingRemoteUrlScreen
 import com.example.pass.onboarding.OnboardingSshKeyScreen
 import com.example.pass.onboarding.OnboardingViewModel
 import com.example.pass.preferences.AppPreferences
+import com.example.pass.session.SessionStartScreen
+import com.example.pass.session.SessionStartViewModel
 import com.example.pass.settings.SettingsScreen
 import com.example.pass.settings.SettingsViewModel
 import com.example.pass.syncpanel.SyncPanelScreen
@@ -34,6 +36,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object OnboardingSshKey : NavKey
 @Serializable data object OnboardingGpgImport : NavKey
 @Serializable data object OnboardingClone : NavKey
+@Serializable data object SessionStart : NavKey
 @Serializable data object EntryBrowser : NavKey
 @Serializable data object SyncPanel : NavKey
 @Serializable data object Settings : NavKey
@@ -84,6 +87,14 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                     backStack.clear()
                     backStack.add(EntryBrowser)
                 }
+            }
+
+            entry<SessionStart> {
+                val vm: SessionStartViewModel = hiltViewModel()
+                SessionStartScreen(
+                    viewModel = vm,
+                    onSuccess = { backStack.removeLastOrNull() },
+                )
             }
 
             entry<EntryBrowser> {
