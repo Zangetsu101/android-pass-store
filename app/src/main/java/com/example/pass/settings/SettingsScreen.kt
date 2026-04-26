@@ -3,6 +3,7 @@ package com.example.pass.settings
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -90,24 +92,44 @@ fun SettingsScreen(
             HorizontalDivider()
             Spacer(Modifier.height(24.dp))
 
-            // Session timeout
-            Text("Session timeout", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${sessionTimeout} minute${if (sessionTimeout == 1) "" else "s"}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Slider(
-                value = sessionTimeout.toFloat(),
-                onValueChange = { viewModel.setSessionTimeout(it.roundToInt()) },
-                valueRange = 1f..60f,
-                steps = 58,
+            // Session
+            Text("Session", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { viewModel.lockSession() },
                 modifier = Modifier.fillMaxWidth(),
-            )
-            Row {
-                Text("1 min", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.weight(1f))
-                Text("60 min", style = MaterialTheme.typography.labelSmall)
+            ) {
+                Text("Lock session")
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Inactivity timeout", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = sessionTimeout > 0,
+                    onCheckedChange = { viewModel.setSessionTimeoutEnabled(it) },
+                )
+            }
+            if (sessionTimeout > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "$sessionTimeout minute${if (sessionTimeout == 1) "" else "s"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Slider(
+                    value = sessionTimeout.toFloat(),
+                    onValueChange = { viewModel.setSessionTimeout(it.roundToInt()) },
+                    valueRange = 1f..60f,
+                    steps = 58,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row {
+                    Text("1 min", style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.weight(1f))
+                    Text("60 min", style = MaterialTheme.typography.labelSmall)
+                }
             }
 
             Spacer(Modifier.height(24.dp))

@@ -172,6 +172,7 @@ class KeyManagementImpl @Inject constructor(
         timeoutJob?.cancel()
         timeoutJob = scope.launch {
             val timeoutMs = sessionManager.getTimeoutMs()
+            if (timeoutMs <= 0L) return@launch  // 0 = manual lock only
             delay(timeoutMs)
             endSession()
         }

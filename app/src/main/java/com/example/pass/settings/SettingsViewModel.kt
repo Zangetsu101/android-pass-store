@@ -10,13 +10,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -38,6 +38,7 @@ class SettingsViewModel @Inject constructor(
     val sshPublicKey: StateFlow<String?> = appPreferences.sshPublicKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    // 0 = manual lock only; >0 = inactivity timeout in minutes
     val sessionTimeoutMinutes: StateFlow<Int> = appPreferences.sessionTimeoutMinutes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 5)
 
@@ -46,6 +47,20 @@ class SettingsViewModel @Inject constructor(
             appPreferences.setSessionTimeout(minutes)
             sessionManager.setTimeoutMs(minutes * 60_000L)
         }
+    }
+
+    fun setSessionTimeoutEnabled(enabled: Boolean) {
+        val minutes = if (enabled) {
+            val current = sessionTimeoutMinutes.value
+            if (current > 0) current else 5
+        } else {
+            0
+        }
+        setSessionTimeout(minutes)
+    }
+
+    fun lockSession() {
+        keyManagement.endSession()
     }
 
     fun clearAllData(onComplete: () -> Unit) {
