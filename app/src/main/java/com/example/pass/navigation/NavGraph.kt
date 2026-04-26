@@ -17,7 +17,6 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.example.pass.browser.EntryBrowserScreen
 import com.example.pass.browser.EntryBrowserViewModel
-import com.example.pass.onboarding.OnboardingBiometricScreen
 import com.example.pass.onboarding.OnboardingCloneScreen
 import com.example.pass.onboarding.OnboardingGpgImportScreen
 import com.example.pass.onboarding.OnboardingRemoteUrlScreen
@@ -34,7 +33,6 @@ import kotlinx.serialization.Serializable
 @Serializable data object OnboardingRemoteUrl : NavKey
 @Serializable data object OnboardingSshKey : NavKey
 @Serializable data object OnboardingGpgImport : NavKey
-@Serializable data object OnboardingBiometric : NavKey
 @Serializable data object OnboardingClone : NavKey
 @Serializable data object EntryBrowser : NavKey
 @Serializable data object SyncPanel : NavKey
@@ -78,11 +76,6 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
             }
             entry<OnboardingGpgImport> {
                 OnboardingGpgImportScreen(onboardingVm) {
-                    backStack.add(OnboardingBiometric)
-                }
-            }
-            entry<OnboardingBiometric> {
-                OnboardingBiometricScreen {
                     backStack.add(OnboardingClone)
                 }
             }

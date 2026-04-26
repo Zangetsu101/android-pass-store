@@ -1,13 +1,8 @@
 package com.example.pass.onboarding
 
-import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
-import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,16 +23,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -53,7 +41,7 @@ fun OnboardingRemoteUrlScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    OnboardingScaffold(step = 1, total = 5, title = "Connect your repository") {
+    OnboardingScaffold(step = 1, total = 4, title = "Connect your repository") {
         OutlinedTextField(
             value = state.remoteUrl,
             onValueChange = viewModel::setRemoteUrl,
@@ -84,7 +72,7 @@ fun OnboardingSshKeyScreen(
 
     LaunchedEffect(Unit) { viewModel.generateSshKeyIfNeeded() }
 
-    OnboardingScaffold(step = 2, total = 5, title = "Your SSH public key") {
+    OnboardingScaffold(step = 2, total = 4, title = "Your SSH public key") {
         Text(
             text = "Add this public key to your git server before continuing.",
             style = MaterialTheme.typography.bodyMedium,
@@ -137,7 +125,7 @@ fun OnboardingGpgImportScreen(
         }
     }
 
-    OnboardingScaffold(step = 3, total = 5, title = "Import your GPG key") {
+    OnboardingScaffold(step = 3, total = 4, title = "Import your GPG key") {
         Text(
             text = "This is the key used to decrypt your pass store. It must be the same key that encrypted the .gpg files in your repository.",
             style = MaterialTheme.typography.bodyMedium,
@@ -215,58 +203,6 @@ fun OnboardingGpgImportScreen(
 }
 
 @Composable
-fun OnboardingBiometricScreen(
-    onNext: () -> Unit,
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    fun checkEnrolled() = BiometricManager.from(context)
-        .canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
-
-    var enrolled by remember { mutableStateOf(checkEnrolled()) }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) enrolled = checkEnrolled()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    OnboardingScaffold(step = 4, total = 5, title = "Biometric unlock") {
-        if (enrolled) {
-            Text(
-                "Biometrics are set up. PassDroid will use them to protect your keys.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                Text("Next")
-            }
-        } else {
-            Text(
-                "No biometric or device credential is enrolled. Please set up a screen lock or fingerprint in your device settings.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Open Security Settings")
-            }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                Text("Skip for now")
-            }
-        }
-    }
-}
-
-@Composable
 fun OnboardingCloneScreen(
     viewModel: OnboardingViewModel,
     onSuccess: () -> Unit,
@@ -279,7 +215,7 @@ fun OnboardingCloneScreen(
         if (state.cloneComplete) onSuccess()
     }
 
-    OnboardingScaffold(step = 5, total = 5, title = "Cloning repository") {
+    OnboardingScaffold(step = 4, total = 4, title = "Cloning repository") {
         when {
             state.cloning -> {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
