@@ -3,9 +3,13 @@
 Tasks are ordered by dependency. Each task is complete when its automated tests pass.
 Manual verification is consolidated at the end after full implementation.
 
+> **Note:** Tasks 1–5 intentionally leave the build broken. The build is restored in task 6 (caller update).
+
 ---
 
 ## 1. Key Management — Interface Redesign
+
+> ⚠️ Build broken after this task until task 6.
 
 Rework `KeyManagement` to match the new session model. Previous implementation (Keystore-wrapped blobs for GPG) is replaced.
 
@@ -26,6 +30,8 @@ Rework `KeyManagement` to match the new session model. Previous implementation (
 
 ## 2. Key Management — GPG Key Import
 
+> ⚠️ Build broken until task 6.
+
 - [ ] Implement `importGpgKey(armoredKey: String)`:
       — parse armored key structure, reject if passphrase-unprotected (throw `KeyImportError.NoPassphrase`)
       — reject malformed key (throw `KeyImportError.Malformed`)
@@ -38,6 +44,8 @@ Rework `KeyManagement` to match the new session model. Previous implementation (
 
 ## 3. Key Management — SSH Key
 
+> ⚠️ Build broken until task 6.
+
 - [ ] Implement `generateSshKey(): PublicKey` — Ed25519, encrypt blob under **device-unlock-bound** Keystore key (no biometric required)
 - [ ] Implement `getSshKey(): SshPrivateKey` — unwrap from Keystore, no biometric prompt
 - [ ] Format public key as OpenSSH (`ssh-ed25519 AAAA...`)
@@ -48,6 +56,8 @@ Rework `KeyManagement` to match the new session model. Previous implementation (
 ---
 
 ## 4. Key Management — Session
+
+> ⚠️ Build broken until task 6.
 
 - [ ] Implement `startSession(passphrase: String)`:
       — attempt to decrypt armored key with passphrase; throw `SessionError.WrongPassphrase` on failure
@@ -67,6 +77,8 @@ Rework `KeyManagement` to match the new session model. Previous implementation (
 
 ## 5. Key Management — GPG Key Access
 
+> ⚠️ Build broken until task 6.
+
 - [ ] Implement `getGpgKey(biometricPrompt: BiometricPrompt): GpgPrivateKey`:
       — throw `SessionError.NoActiveSession` if `isSessionActive()` is false
       — show biometric prompt with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` fallback
@@ -77,17 +89,34 @@ Rework `KeyManagement` to match the new session model. Previous implementation (
 
 ---
 
-## 6. Onboarding — Remove Biometric Enrollment Screen
+## 6. Update All KeyManagement Callers
+
+Restores the build after tasks 1–5. Update every caller of the old `KeyManagement` interface across the codebase.
+
+- [ ] Update `DecryptionModule` — replace old `getGpgKey()` call with new signature
+- [ ] Update onboarding ViewModel — replace `importGpgKey(armoredKey, passphrase?)` with `importGpgKey(armoredKey)`
+- [ ] Update entry browser ViewModel — replace old `getGpgKey()` call
+- [ ] Update autofill `IntentSender` activity — replace old `getGpgKey()` call
+- [ ] Update settings ViewModel — replace old `clearAllKeys()` call if signature changed
+- [ ] Verify `./gradlew assembleDebug` passes cleanly
+
+**Commit:** `refactor: update all KeyManagement callers to new interface`
+
+---
+
+## 7. Onboarding — Remove Biometric Enrollment Screen
 
 Session-start is not part of onboarding — it happens lazily when the user first tries to decrypt an entry.
 
-- [ ] Remove biometric enrollment prompt screen (biometric handled inline via `BiometricPrompt` on first decrypt)
+- [ ] Remove all navigation calls to the biometric enrollment route **before** deleting the screen
+- [ ] Delete the biometric enrollment screen composable and route
+- [ ] Verify `./gradlew assembleDebug` passes cleanly
 
 **Commit:** `refactor: remove biometric enrollment screen from onboarding`
 
 ---
 
-## 7. Session Start Screen
+## 8. Session Start Screen
 
 Standalone screen used by both the entry browser (lazy session-start) and autofill redirect.
 
@@ -100,7 +129,7 @@ Standalone screen used by both the entry browser (lazy session-start) and autofi
 
 ---
 
-## 8. Entry Browser — Lazy Session Start
+## 9. Entry Browser — Lazy Session Start
 
 - [ ] In entry detail ViewModel, catch `SessionError.NoActiveSession` from `getGpgKey()`
 - [ ] On catch: navigate to `SessionStartScreen`
@@ -110,7 +139,7 @@ Standalone screen used by both the entry browser (lazy session-start) and autofi
 
 ---
 
-## 9. AutofillService — Session State Check
+## 10. AutofillService — Session State Check
 
 Candidates are always shown (not locked). Tapping a candidate when session is inactive redirects to session-start instead of showing biometric.
 
@@ -125,19 +154,20 @@ Candidates are always shown (not locked). Tapping a candidate when session is in
 
 ---
 
-## 10. Settings — Session Controls
+## 11. Settings — Session Controls
 
 - [ ] Add **manual lock** button → calls `endSession()`
 - [ ] Session timeout setting: toggle between inactivity timeout (with duration picker) and manual-lock-only mode
 - [ ] Both settings wired to DataStore, take effect immediately
+- [ ] Verify `./gradlew assembleDebug` passes cleanly
 
 **Commit:** `feat: session settings (manual lock, timeout mode)`
 
 ---
 
-## 11. Manual Verification (Final)
+## 12. Manual Verification (Final)
 
-Run once after task 10 is complete. Sign off each item before shipping.
+Run once after task 11 is complete. Sign off each item before shipping.
 
 ### Key Management
 
@@ -168,7 +198,7 @@ Run once after task 10 is complete. Sign off each item before shipping.
 ### Decryption
 
 - [ ] decrypt() prompts biometric when session active
-- [ ] decrypt() shows "open app to unlock" when session inactive
+- [ ] decrypt() navigates to session-start screen when session inactive
 - [ ] no decrypted content in `adb shell run-as <pkg> ls files/`
 
 ### Onboarding
@@ -178,9 +208,6 @@ Run once after task 10 is complete. Sign off each item before shipping.
 - [ ] GPG import works via paste
 - [ ] GPG import works via file picker
 - [ ] unprotected GPG key rejected at import with clear error
-- [ ] passphrase screen follows GPG import
-- [ ] wrong passphrase shows error, allows retry
-- [ ] correct passphrase starts session and advances onboarding
 - [ ] progress indicator shown during clone
 - [ ] bad URL → error + retry option
 - [ ] completing onboarding → entry browser
@@ -214,7 +241,8 @@ Run once after task 10 is complete. Sign off each item before shipping.
 - [ ] suggestions appear in a native app login form
 - [ ] suggestions ranked (exact above fuzzy)
 - [ ] selecting suggestion triggers biometric (session active)
-- [ ] selecting suggestion shows "open PassDroid to unlock" (session inactive)
+- [ ] selecting suggestion launches SessionStartActivity (session inactive)
+- [ ] after session-start, re-triggering autofill proceeds with biometric prompt
 - [ ] correct username + password filled after biometric success
 - [ ] no fill if biometric cancelled or failed
 
@@ -230,10 +258,11 @@ Run once after task 10 is complete. Sign off each item before shipping.
 ## Dependency Order
 
 ```
-1 → 2 → 3 → 4 → 5        (Key Management, bottom-up)
-            5 → 6          (session needed before SessionStartScreen)
-            6 → 7 → 8      (entry browser lazy session-start needs SessionStartScreen)
-            6 → 9          (autofill redirect needs SessionStartScreen, parallel to 7-8)
-            10             (settings session controls, parallel to 7-9)
-    7 + 8 + 9 + 10 → 11   (manual verification last)
+1 → 2 → 3 → 4 → 5 → 6   (Key Management + caller update, build restored at 6)
+                  6 → 7   (remove biometric screen after callers updated)
+                  7 → 8   (SessionStartScreen added to NavGraph)
+                  8 → 9   (entry browser lazy session-start needs SessionStartScreen)
+                  8 → 10  (autofill redirect needs SessionStartScreen, parallel to 9)
+                  11      (settings session controls, parallel to 9-10)
+    9 + 10 + 11 → 12      (manual verification last)
 ```
