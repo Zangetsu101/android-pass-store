@@ -50,13 +50,15 @@
             android:name=".credentialprovider.CredentialAuthActivity"
             android:exported="false"
             android:theme="@style/Theme.Pass"
-            tools:ignore="Instantiatable" />
+            tools:ignore="Instantiatable"
+            tools:targetApi="34" />
 
         <service
             android:name=".credentialprovider.PassDroidCredentialProviderService"
             android:exported="true"
             android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
-            tools:ignore="Instantiatable">
+            tools:ignore="Instantiatable"
+            tools:targetApi="34">
             <intent-filter>
                 <action android:name="android.service.credentials.CredentialProviderService" />
             </intent-filter>
