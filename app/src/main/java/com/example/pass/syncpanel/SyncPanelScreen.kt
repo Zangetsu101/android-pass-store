@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,7 +43,7 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
             },
         )
 
-        Column(Modifier.padding(24.dp)) {
+        Column(Modifier.padding(24.dp).navigationBarsPadding()) {
             Text("Last sync", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(4.dp))
             Text(
