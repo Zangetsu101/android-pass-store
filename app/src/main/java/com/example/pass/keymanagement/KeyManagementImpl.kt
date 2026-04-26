@@ -1,12 +1,23 @@
 package com.example.pass.keymanagement
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
+import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.pgpainless.PGPainless
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -14,14 +25,24 @@ import java.io.File
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.KeyStore
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
 internal const val BLOB_SSH_KEY = "ssh_key"
 internal const val BLOB_SSH_PUB_KEY = "ssh_pub_key"
 private const val GPG_KEY_FILE = "gpg.asc"
+private const val SESSION_PASSPHRASE_BLOB = "session.enc"
+private const val SESSION_KEY_ALIAS = "passdroid_session_key"
+private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
+private const val GCM_TAG_BITS = 128
+private const val GCM_IV_BYTES = 12
 
 @Singleton
 class KeyManagementImpl @Inject constructor(
@@ -30,6 +51,9 @@ class KeyManagementImpl @Inject constructor(
 ) : KeyManagement {
 
     internal val blobStore = KeyBlobStore(context)
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var timeoutJob: Job? = null
 
     private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
 
@@ -52,6 +76,47 @@ class KeyManagementImpl @Inject constructor(
     }
 
     fun isGpgKeyImported(): Boolean = File(keysDir(), GPG_KEY_FILE).exists()
+
+    @Throws(SessionError::class)
+    override fun startSession(passphrase: String) {
+        val gpgFile = File(keysDir(), GPG_KEY_FILE)
+        check(gpgFile.exists()) { "No GPG key imported" }
+
+        val keys = PGPainless.readKeyRing().secretKeyRing(gpgFile.readText())
+            ?: error("Corrupted GPG key file")
+
+        val decryptor = BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
+            .build(passphrase.toCharArray())
+        val primaryKey = keys.firstOrNull { it.isMasterKey } ?: keys.first()
+        try {
+            if (primaryKey.s2KUsage != 0) {
+                primaryKey.extractPrivateKey(decryptor)
+            }
+        } catch (e: PGPException) {
+            throw SessionError.WrongPassphrase()
+        }
+
+        val sessionKey = createSessionKey()
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, sessionKey)
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
+        File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(iv + ciphertext)
+    }
+
+    override fun endSession() {
+        timeoutJob?.cancel()
+        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        if (keyStore.containsAlias(SESSION_KEY_ALIAS)) {
+            keyStore.deleteEntry(SESSION_KEY_ALIAS)
+        }
+        File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
+    }
+
+    override fun isSessionActive(): Boolean {
+        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        return keyStore.containsAlias(SESSION_KEY_ALIAS)
+    }
 
     override fun generateSshKey(): String {
         val keyGen = KeyPairGenerator.getInstance("Ed25519", BouncyCastleProvider())
@@ -79,22 +144,50 @@ class KeyManagementImpl @Inject constructor(
             ?: error("Corrupted GPG key blob")
     }
 
-    override fun startSession(passphrase: String) {
-        throw NotImplementedError("startSession not implemented until task 4")
-    }
-
-    override fun endSession() {
-        sessionManager.invalidate()
-    }
-
-    override fun isSessionActive(): Boolean {
-        throw NotImplementedError("isSessionActive not implemented until task 4")
-    }
-
     override fun clearAllKeys() {
-        sessionManager.invalidate()
+        endSession()
         blobStore.deleteAll()
-        File(keysDir(), GPG_KEY_FILE).delete()
+    }
+
+    internal fun scheduleInactivityTimeout() {
+        timeoutJob?.cancel()
+        timeoutJob = scope.launch {
+            val timeoutMs = sessionManager.getTimeoutMs()
+            delay(timeoutMs)
+            endSession()
+        }
+    }
+
+    private fun createSessionKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        if (keyStore.containsAlias(SESSION_KEY_ALIAS)) {
+            keyStore.deleteEntry(SESSION_KEY_ALIAS)
+        }
+
+        val spec = KeyGenParameterSpec.Builder(
+            SESSION_KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setUserAuthenticationRequired(false)
+            .build()
+
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+            .apply { init(spec) }
+            .generateKey()
+    }
+
+    private fun decryptSessionPassphrase(): String {
+        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        val sessionKey = keyStore.getKey(SESSION_KEY_ALIAS, null) as SecretKey
+        val blob = File(keysDir(), SESSION_PASSPHRASE_BLOB).readBytes()
+        val iv = blob.copyOfRange(0, GCM_IV_BYTES)
+        val ciphertext = blob.copyOfRange(GCM_IV_BYTES, blob.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, sessionKey, GCMParameterSpec(GCM_TAG_BITS, iv))
+        return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
     private suspend fun ensureAuthenticated(activity: FragmentActivity) {
