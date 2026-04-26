@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.PGPException
+import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
@@ -137,11 +138,29 @@ class KeyManagementImpl @Inject constructor(
         return KeyPair(publicKey, privateKey)
     }
 
+    @Throws(SessionError::class)
     override suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey {
-        ensureAuthenticated(activity)
-        val file = File(keysDir(), GPG_KEY_FILE)
-        return PGPainless.readKeyRing().secretKeyRing(file.readText())
-            ?: error("Corrupted GPG key blob")
+        if (!isSessionActive()) throw SessionError.NoActiveSession()
+
+        showBiometricPrompt(activity)
+
+        val passphrase = decryptSessionPassphrase()
+        val armoredKey = File(keysDir(), GPG_KEY_FILE).readText()
+        val keys = PGPainless.readKeyRing().secretKeyRing(armoredKey)
+            ?: error("Corrupted GPG key file")
+
+        val decryptor = BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
+            .build(passphrase.toCharArray())
+        val unlockedKeys = PGPSecretKeyRing(keys.map { secretKey ->
+            if (secretKey.s2KUsage != 0) {
+                PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
+            } else {
+                secretKey
+            }
+        })
+
+        scheduleInactivityTimeout()
+        return unlockedKeys
     }
 
     override fun clearAllKeys() {
@@ -188,13 +207,6 @@ class KeyManagementImpl @Inject constructor(
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, sessionKey, GCMParameterSpec(GCM_TAG_BITS, iv))
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
-    }
-
-    private suspend fun ensureAuthenticated(activity: FragmentActivity) {
-        if (!sessionManager.isSessionActive()) {
-            showBiometricPrompt(activity)
-            sessionManager.recordAuth()
-        }
     }
 
     private fun openSshEd25519PublicKey(publicKey: java.security.PublicKey): String {
