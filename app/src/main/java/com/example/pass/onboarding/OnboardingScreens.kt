@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -29,11 +31,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.example.pass.R
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.components.PassSecondaryButton
@@ -49,30 +59,73 @@ fun WelcomeScreen(onStart: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.Center,
+                .padding(horizontal = 24.dp, vertical = 0.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("passdroid", style = PassType.Display)
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FeaturePill("gpg")
-                FeaturePill("git")
-                FeaturePill("pass")
+            Column(modifier = Modifier.padding(top = 40.dp)) {
+                // Logo mark
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(PassColorsDark.AccentDim, RoundedCornerShape(8.dp))
+                        .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = null,
+                        tint = PassColorsDark.Accent,
+                        modifier = Modifier.size(52.dp),
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    text = buildAnnotatedString {
+                        append("pass")
+                        withStyle(SpanStyle(color = PassColorsDark.TextDim, fontWeight = FontWeight.Light)) {
+                            append(".android")
+                        }
+                    },
+                    style = PassType.Display,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "the standard unix password\nmanager — on your phone",
+                    style = PassType.Body
+                )
+                Spacer(Modifier.height(32.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FeatureRow("gpg", "end-to-end encrypted with your gpg key")
+                    FeatureRow("git", "syncs with any git remote")
+                    FeatureRow("pass", "100% compatible with unix pass")
+                }
             }
-            Spacer(Modifier.height(56.dp))
-            PassPrimaryButton(onClick = onStart, label = "$ clone a store")
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                PassPrimaryButton(onClick = onStart, label = "$ clone a store")
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "requires git + gpg key",
+                    style = PassType.Caption,
+                    color = PassColorsDark.TextFaint,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun FeaturePill(label: String) {
-    Box(
-        modifier = Modifier
-            .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(label, style = PassType.Label, color = PassColorsDark.TextDim)
+private fun FeatureRow(tag: String, description: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            modifier = Modifier
+                .background(PassColorsDark.AccentDim, RoundedCornerShape(3.dp))
+                .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(3.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        ) {
+            Text(tag, style = PassType.Label)
+        }
+        Text(description, style = PassType.Body)
     }
 }
 
