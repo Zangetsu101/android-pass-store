@@ -3,6 +3,11 @@ package com.example.pass.onboarding
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -31,8 +36,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -129,6 +142,8 @@ private fun FeatureRow(tag: String, description: String) {
     }
 }
 
+private const val SSH_KEY_SHIMMER_MIN_MS = 2000L
+
 @Composable
 fun CloneRepoScreen(
     viewModel: OnboardingViewModel,
@@ -136,16 +151,26 @@ fun CloneRepoScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var showShimmer by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) { viewModel.generateSshKeyIfNeeded() }
+    LaunchedEffect(Unit) {
+        viewModel.generateSshKeyIfNeeded()
+        delay(SSH_KEY_SHIMMER_MIN_MS)
+        showShimmer = false
+    }
 
-    OnboardingScaffold(step = 1, total = 2, title = "clone a repository") {
-        Text("REMOTE URL", style = PassType.Label)
+    OnboardingScaffold(
+        step = 1,
+        total = 2,
+        title = "clone store",
+        subtitle = "point to your existing pass git repository",
+    ) {
+        Text("git remote url", style = PassType.Label)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = state.remoteUrl,
             onValueChange = viewModel::setRemoteUrl,
-            label = { Text("git remote url", style = PassType.Caption) },
             placeholder = { Text("git@github.com:user/pass.git", style = PassType.Caption) },
             singleLine = true,
             isError = state.remoteUrlError != null,
@@ -154,39 +179,68 @@ fun CloneRepoScreen(
             colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(24.dp))
-        Text("SSH PUBLIC KEY", style = PassType.Label)
-        Spacer(Modifier.height(4.dp))
-        Text("Add this key to your git server before cloning.", style = PassType.Caption)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
+        Text("ssh public key", style = PassType.Label)
+        Spacer(Modifier.height(6.dp))
         val key = state.sshPublicKey
-        if (key == null) {
-            Text("generating…", style = PassType.Caption, color = PassColorsDark.TextDim)
-        } else {
-            Text(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("ed25519 · generated on device", style = PassType.Caption, color = PassColorsDark.TextDim)
+            if (key == null || showShimmer) {
+              SshKeyShimmer()
+            } else {
+              Text(
                 text = key,
                 style = PassType.Caption,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PassColorsDark.Surface, PassShapes.small)
-                    .border(1.dp, PassColorsDark.Border, PassShapes.small)
-                    .padding(8.dp),
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PassSecondaryButton(
-                    onClick = { clipboard.setText(AnnotatedString(key)) },
-                    label = "copy",
-                    modifier = Modifier.weight(1f),
-                )
-                PassSecondaryButton(
-                    onClick = { viewModel.regenerateSshKey() },
-                    label = "regenerate",
-                    modifier = Modifier.weight(1f),
-                )
+                color = PassColorsDark.TextPrimary,
+                lineHeight = PassType.Caption.fontSize * 1.7,
+              )
             }
+            Text("pass-android@device", style = PassType.Caption, color = PassColorsDark.TextDim)
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PassPrimaryButton(
+                onClick = { if (key != null) clipboard.setText(AnnotatedString(key)) },
+                enabled = key != null,
+                label = "copy key",
+                modifier = Modifier.weight(1f),
+            )
+            PassSecondaryButton(
+                onClick = {
+                    scope.launch {
+                        showShimmer = true
+                        viewModel.regenerateSshKey()
+                        delay(SSH_KEY_SHIMMER_MIN_MS)
+                        showShimmer = false
+                    }
+                },
+                label = "regenerate",
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PassColorsDark.Warning.copy(alpha = 0.07f), PassShapes.small)
+                .border(1.dp, PassColorsDark.Warning.copy(alpha = 0.27f), PassShapes.small)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = "⚠ github → Settings → SSH and GPG Keys → New SSH Key",
+                style = PassType.Caption,
+                color = PassColorsDark.Warning.copy(alpha = 0.8f),
+                lineHeight = PassType.Caption.fontSize * 1.6,
+            )
+        }
+        Spacer(Modifier.height(20.dp))
         PassPrimaryButton(
             onClick = { if (viewModel.validateRemoteUrl()) onNext() },
             label = "$ next",
@@ -346,6 +400,7 @@ private fun OnboardingScaffold(
     step: Int,
     total: Int,
     title: String,
+    subtitle: String? = null,
     content: @Composable () -> Unit,
 ) {
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
@@ -356,14 +411,61 @@ private fun OnboardingScaffold(
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
         ) {
-            Text(
-                text = "SETUP · $step / $total",
-                style = PassType.Caption,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "SETUP · $step / $total", style = PassType.Caption)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(total) { i ->
+                        Box(
+                            modifier = Modifier
+                                .size(width = 20.dp, height = 3.dp)
+                                .background(
+                                    PassColorsDark.Accent.copy(alpha = if (i < step) 1f else 0.3f),
+                                    RoundedCornerShape(4.dp),
+                                ),
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(title, style = PassType.Title)
-            Spacer(Modifier.height(24.dp))
+            if (subtitle != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(subtitle, style = PassType.Caption, lineHeight = PassType.Caption.fontSize * 1.6)
+            }
+            Spacer(Modifier.height(20.dp))
             content()
         }
+    }
+}
+
+@Composable
+private fun SshKeyShimmer() {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val offsetX by transition.animateFloat(
+        initialValue = -600f,
+        targetValue = 600f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+        label = "shimmerOffset",
+    )
+    val shimmerBrush = Brush.linearGradient(
+        colors = listOf(PassColorsDark.Surface, PassColorsDark.Raised, PassColorsDark.Surface),
+        start = Offset(offsetX, 0f),
+        end = Offset(offsetX + 300f, 0f),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PassColorsDark.Surface, PassShapes.small)
+            .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(width = 140.dp, height = 9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
+        Box(Modifier.fillMaxWidth().height(9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(width = 100.dp, height = 9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
     }
 }
