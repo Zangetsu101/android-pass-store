@@ -28,6 +28,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
@@ -266,33 +270,66 @@ fun OnboardingGpgImportScreen(
         }
     }
 
-    OnboardingScaffold(step = 2, total = 2, title = "import gpg key") {
-        Text(
-            text = "This is the key used to decrypt your pass store. It must match the key that encrypted the .gpg files in your repository.",
-            style = PassType.Body,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(text = "EXPORT FROM DESKTOP", style = PassType.Label)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "gpg --armor --export-secret-keys YOUR_KEY_ID > key.asc",
-            style = PassType.Caption,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Transfer key.asc to your phone, then pick the file below or paste the contents directly.",
-            style = PassType.Caption,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Your key must be passphrase-protected. You'll enter it when starting a session.",
-            style = PassType.Caption,
-        )
-        Spacer(Modifier.height(16.dp))
+    OnboardingScaffold(
+        step = 2,
+        total = 2,
+        title = "gpg key",
+        subtitle = "provide the keypair used to encrypt/decrypt your store",
+    ) {
+        // Import from file row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                .clickable { filePicker.launch(arrayOf("*/*")) }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(PassColorsDark.AccentDim, PassShapes.small)
+                    .border(1.dp, PassColorsDark.AccentMid, PassShapes.small),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = PassColorsDark.Accent,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("import from file", style = PassType.Body)
+                Text(".asc / .gpg secret key file", style = PassType.Caption)
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = PassColorsDark.TextFaint,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        // "or" divider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(modifier = Modifier.weight(1f).height(1.dp).background(PassColorsDark.Border))
+            Text("or", style = PassType.Caption, color = PassColorsDark.TextFaint)
+            Box(modifier = Modifier.weight(1f).height(1.dp).background(PassColorsDark.Border))
+        }
+        Spacer(Modifier.height(8.dp))
+        // Paste area
+        Text("paste armored secret key", style = PassType.Label)
+        Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = state.gpgKeyText,
             onValueChange = viewModel::setGpgKeyText,
-            label = { Text("armored gpg private key", style = PassType.Caption) },
             placeholder = { Text("-----BEGIN PGP PRIVATE KEY BLOCK-----", style = PassType.Caption) },
             minLines = 5,
             maxLines = 10,
@@ -301,13 +338,19 @@ fun OnboardingGpgImportScreen(
             colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "exported via: gpg --armor --export-secret-keys your@email.com",
+            style = PassType.Caption,
+        )
         Spacer(Modifier.height(4.dp))
-        PassSecondaryButton(
-            onClick = { filePicker.launch(arrayOf("*/*")) },
-            label = "pick file…",
+        Text(
+            text = "Your key must be passphrase-protected. You'll enter it when starting a session.",
+            style = PassType.Caption,
+            color = PassColorsDark.TextFaint,
         )
         state.gpgImportError?.let { err ->
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
         }
         if (state.gpgImported) {
@@ -315,20 +358,17 @@ fun OnboardingGpgImportScreen(
             Text("Key imported successfully.", color = PassColorsDark.Accent, style = PassType.Caption)
         }
         Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PassPrimaryButton(
-                onClick = viewModel::importGpgKey,
-                label = "import",
-                enabled = state.gpgKeyText.isNotBlank(),
-                modifier = Modifier.weight(1f),
-            )
-            PassPrimaryButton(
-                onClick = onNext,
-                label = "$ next",
-                enabled = state.gpgImported,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        PassPrimaryButton(
+            onClick = viewModel::importGpgKey,
+            label = "import",
+            enabled = state.gpgKeyText.isNotBlank() && !state.gpgImported,
+        )
+        Spacer(Modifier.height(8.dp))
+        PassPrimaryButton(
+            onClick = onNext,
+            label = "$ git clone",
+            enabled = state.gpgImported,
+        )
     }
 }
 
@@ -423,7 +463,7 @@ private fun OnboardingScaffold(
                             modifier = Modifier
                                 .size(width = 20.dp, height = 3.dp)
                                 .background(
-                                    PassColorsDark.Accent.copy(alpha = if (i < step) 1f else 0.3f),
+                                    PassColorsDark.Accent.copy(alpha = if (i + 1 == step) 1f else 0.3f),
                                     RoundedCornerShape(4.dp),
                                 ),
                         )
