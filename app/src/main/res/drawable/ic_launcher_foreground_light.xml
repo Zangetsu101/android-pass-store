@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ic_launcher_foreground.xml
-  Adaptive icon foreground — dark theme (default)
-  Stroked padlock glyph in neon green #39FF6B with dim fill
-  Canvas: 108dp × 108dp (safe zone: 72dp centred, 18dp inset each side)
-  viewportWidth/Height: 108
+  ic_launcher_foreground_light.xml
+  Adaptive icon foreground — light theme
+  Same stroked padlock glyph, forest green accent #1A6B3C
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -15,18 +13,18 @@
     <!-- Lock body: dim accent fill + stroke -->
     <path
         android:pathData="M23,60 Q17,60 17,66 L17,99 Q17,106 23,106 L85,106 Q91,106 91,99 L91,66 Q91,60 85,60 Z"
-        android:fillColor="#39FF6B"
-        android:fillAlpha="0.13"/>
+        android:fillColor="#1A6B3C"
+        android:fillAlpha="0.10"/>
     <path
         android:pathData="M23,60 Q17,60 17,66 L17,99 Q17,106 23,106 L85,106 Q91,106 91,99 L91,66 Q91,60 85,60 Z"
-        android:strokeColor="#39FF6B"
+        android:strokeColor="#1A6B3C"
         android:strokeWidth="4.5"
         android:fillColor="@android:color/transparent"/>
 
-    <!-- Shackle: butt linecap so it meets body top cleanly -->
+    <!-- Shackle -->
     <path
         android:pathData="M30,60 L30,43 C30,22 78,22 78,43 L78,60"
-        android:strokeColor="#39FF6B"
+        android:strokeColor="#1A6B3C"
         android:strokeWidth="5"
         android:strokeLineCap="butt"
         android:fillColor="@android:color/transparent"/>
@@ -34,12 +32,12 @@
     <!-- Keyhole dot -->
     <path
         android:pathData="M54,72 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0"
-        android:fillColor="#39FF6B"/>
+        android:fillColor="#1A6B3C"/>
 
     <!-- Keyhole stem -->
     <path
         android:pathData="M54,79 L54,90"
-        android:strokeColor="#39FF6B"
+        android:strokeColor="#1A6B3C"
         android:strokeWidth="4.5"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent"/>
