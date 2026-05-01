@@ -3,6 +3,7 @@ package com.example.pass.onboarding
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,8 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.example.pass.ui.components.passTextFieldColors
+import com.example.pass.ui.theme.PassColorsDark
+import com.example.pass.ui.theme.PassType
 
 @Composable
 fun OnboardingRemoteUrlScreen(
@@ -41,24 +45,23 @@ fun OnboardingRemoteUrlScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    OnboardingScaffold(step = 1, total = 4, title = "Connect your repository") {
+    OnboardingScaffold(step = 1, total = 4, title = "connect your repository") {
         OutlinedTextField(
             value = state.remoteUrl,
             onValueChange = viewModel::setRemoteUrl,
-            label = { Text("Git remote URL") },
-            placeholder = { Text("git@github.com:user/pass.git") },
+            label = { Text("git remote url", style = PassType.Caption) },
+            placeholder = { Text("git@github.com:user/pass.git", style = PassType.Caption) },
             singleLine = true,
             isError = state.remoteUrlError != null,
-            supportingText = state.remoteUrlError?.let { { Text(it) } },
+            supportingText = state.remoteUrlError?.let { { Text(it, style = PassType.Caption) } },
+            colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(24.dp))
-        Button(
+        Spacer(Modifier.height(16.dp))
+        PassPrimaryButton(
             onClick = { if (viewModel.validateRemoteUrl()) onNext() },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Next")
-        }
+            label = "$ next",
+        )
     }
 }
 
@@ -72,37 +75,30 @@ fun OnboardingSshKeyScreen(
 
     LaunchedEffect(Unit) { viewModel.generateSshKeyIfNeeded() }
 
-    OnboardingScaffold(step = 2, total = 4, title = "Your SSH public key") {
+    OnboardingScaffold(step = 2, total = 4, title = "ssh public key") {
         Text(
             text = "Add this public key to your git server before continuing.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = PassType.Body,
         )
         Spacer(Modifier.height(16.dp))
         val key = state.sshPublicKey
         if (key == null) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = PassColorsDark.Accent)
         } else {
             Text(
                 text = key,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                style = PassType.Caption,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(
+            PassSecondaryButton(
                 onClick = { clipboard.setText(AnnotatedString(key)) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Copy to clipboard")
-            }
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = onNext,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Next")
-            }
+                label = "copy to clipboard",
+            )
+            Spacer(Modifier.height(8.dp))
+            PassPrimaryButton(onClick = onNext, label = "$ next")
         }
     }
 }
@@ -125,79 +121,67 @@ fun OnboardingGpgImportScreen(
         }
     }
 
-    OnboardingScaffold(step = 3, total = 4, title = "Import your GPG key") {
+    OnboardingScaffold(step = 3, total = 4, title = "import gpg key") {
         Text(
-            text = "This is the key used to decrypt your pass store. It must be the same key that encrypted the .gpg files in your repository.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "This is the key used to decrypt your pass store. It must match the key that encrypted the .gpg files in your repository.",
+            style = PassType.Body,
         )
         Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Export from desktop",
-            style = MaterialTheme.typography.labelMedium,
-        )
+        Text(text = "EXPORT FROM DESKTOP", style = PassType.Label)
         Spacer(Modifier.height(4.dp))
         Text(
             text = "gpg --armor --export-secret-keys YOUR_KEY_ID > key.asc",
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            style = PassType.Caption,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Transfer key.asc to your phone, then tap \"Pick file\" below, or paste the contents directly.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
+            text = "Transfer key.asc to your phone, then pick the file below or paste the contents directly.",
+            style = PassType.Caption,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Your key must be passphrase-protected. The passphrase stays with the key — you'll enter it when starting a session.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
+            text = "Your key must be passphrase-protected. You'll enter it when starting a session.",
+            style = PassType.Caption,
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = state.gpgKeyText,
             onValueChange = viewModel::setGpgKeyText,
-            label = { Text("Armored GPG private key") },
-            placeholder = { Text("-----BEGIN PGP PRIVATE KEY BLOCK-----") },
+            label = { Text("armored gpg private key", style = PassType.Caption) },
+            placeholder = { Text("-----BEGIN PGP PRIVATE KEY BLOCK-----", style = PassType.Caption) },
             minLines = 5,
             maxLines = 10,
             isError = state.gpgImportError != null,
+            colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(4.dp))
-        OutlinedButton(
+        PassSecondaryButton(
             onClick = { filePicker.launch(arrayOf("*/*")) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Pick file…")
-        }
+            label = "pick file…",
+        )
         state.gpgImportError?.let { err ->
             Spacer(Modifier.height(4.dp))
-            Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
         }
         if (state.gpgImported) {
             Spacer(Modifier.height(4.dp))
-            Text(
-                "Key imported successfully.",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("Key imported successfully.", color = PassColorsDark.Accent, style = PassType.Caption)
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            PassPrimaryButton(
                 onClick = viewModel::importGpgKey,
-                modifier = Modifier.weight(1f),
+                label = "import",
                 enabled = state.gpgKeyText.isNotBlank(),
-            ) {
-                Text("Import")
-            }
-            Button(
-                onClick = onNext,
                 modifier = Modifier.weight(1f),
+            )
+            PassPrimaryButton(
+                onClick = onNext,
+                label = "$ next",
                 enabled = state.gpgImported,
-            ) {
-                Text("Next")
-            }
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -215,33 +199,24 @@ fun OnboardingCloneScreen(
         if (state.cloneComplete) onSuccess()
     }
 
-    OnboardingScaffold(step = 4, total = 4, title = "Cloning repository") {
+    OnboardingScaffold(step = 4, total = 4, title = "cloning repository") {
         when {
             state.cloning -> {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = PassColorsDark.Accent)
                         Spacer(Modifier.height(16.dp))
-                        Text("Cloning…", style = MaterialTheme.typography.bodyMedium)
+                        Text("cloning…", style = PassType.Body)
                     }
                 }
             }
             state.cloneError != null -> {
-                Text(
-                    state.cloneError!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Text(state.cloneError!!, color = PassColorsDark.Danger, style = PassType.Body)
                 Spacer(Modifier.height(24.dp))
-                Button(
-                    onClick = { viewModel.startClone() },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Retry")
-                }
+                PassPrimaryButton(onClick = { viewModel.startClone() }, label = "$ retry")
             }
             else -> {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = PassColorsDark.Accent)
             }
         }
     }
@@ -260,16 +235,59 @@ private fun OnboardingScaffold(
             .safeDrawingPadding()
             .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(20.dp),
     ) {
         Text(
-            text = "Step $step of $total",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
+            text = "SETUP · $step / $total",
+            style = PassType.Caption,
         )
         Spacer(Modifier.height(8.dp))
-        Text(title, style = MaterialTheme.typography.headlineSmall)
+        Text(title, style = PassType.Title)
         Spacer(Modifier.height(24.dp))
         content()
     }
 }
+
+@Composable
+private fun PassPrimaryButton(
+    onClick: () -> Unit,
+    label: String,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = PassColorsDark.AccentDim,
+            contentColor = PassColorsDark.Accent,
+            disabledContainerColor = PassColorsDark.Border,
+            disabledContentColor = PassColorsDark.TextFaint,
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, MaterialTheme.shapes.small),
+    ) {
+        Text(label, style = PassType.Body.copy(color = if (enabled) PassColorsDark.Accent else PassColorsDark.TextFaint))
+    }
+}
+
+@Composable
+private fun PassSecondaryButton(
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = PassColorsDark.TextDim,
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PassColorsDark.Border2),
+        modifier = modifier.fillMaxWidth().height(40.dp),
+    ) {
+        Text(label, style = PassType.Body.copy(color = PassColorsDark.TextDim))
+    }
+}
+

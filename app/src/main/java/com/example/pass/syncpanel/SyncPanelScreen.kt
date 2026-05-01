@@ -1,5 +1,6 @@
 package com.example.pass.syncpanel
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,12 +20,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.pass.ui.theme.PassColorsDark
+import com.example.pass.ui.theme.PassType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -35,70 +40,91 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Sync") },
+            title = { Text("sync", style = PassType.Title) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = PassColorsDark.TextDim,
+                    )
                 }
             },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = PassColorsDark.Background,
+                titleContentColor = PassColorsDark.Accent,
+            ),
         )
 
-        Column(Modifier.padding(24.dp).navigationBarsPadding()) {
-            Text("Last sync", style = MaterialTheme.typography.labelMedium)
+        Column(
+            Modifier
+                .padding(16.dp)
+                .navigationBarsPadding(),
+        ) {
+            Text("LAST SYNC", style = PassType.Label)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = state.lastSyncTime?.format() ?: "Never",
-                style = MaterialTheme.typography.bodyLarge,
+                text = state.lastSyncTime?.format() ?: "never",
+                style = PassType.Body,
             )
 
             Spacer(Modifier.height(16.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Remote status: ", style = MaterialTheme.typography.labelMedium)
+                Text("REMOTE  ", style = PassType.Label)
                 Text(
                     text = when (state.remoteReachable) {
-                        true -> "Reachable"
-                        false -> "Unreachable"
-                        null -> "Unknown"
+                        true  -> "reachable"
+                        false -> "unreachable"
+                        null  -> "unknown"
                     },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = when (state.remoteReachable) {
-                        true -> MaterialTheme.colorScheme.primary
-                        false -> MaterialTheme.colorScheme.error
-                        null -> MaterialTheme.colorScheme.outline
-                    },
+                    style = PassType.Body.copy(
+                        color = when (state.remoteReachable) {
+                            true  -> PassColorsDark.Accent
+                            false -> PassColorsDark.Danger
+                            null  -> PassColorsDark.TextDim
+                        },
+                    ),
                 )
             }
 
             Spacer(Modifier.height(24.dp))
 
-            if (state.pullError != null) {
-                Text(
-                    "Error: ${state.pullError}",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            state.pullError?.let { err ->
+                Text("error: $err", color = PassColorsDark.Danger, style = PassType.Caption)
                 Spacer(Modifier.height(8.dp))
             }
 
             if (state.pullSuccess) {
-                Text(
-                    "Sync complete.",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text("sync complete.", color = PassColorsDark.Accent, style = PassType.Caption)
                 Spacer(Modifier.height(8.dp))
             }
 
             Button(
                 onClick = viewModel::pull,
                 enabled = !state.pulling,
-                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PassColorsDark.AccentDim,
+                    contentColor = PassColorsDark.Accent,
+                    disabledContainerColor = PassColorsDark.Border,
+                    disabledContentColor = PassColorsDark.TextFaint,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .border(1.dp, PassColorsDark.Accent, MaterialTheme.shapes.small),
             ) {
                 if (state.pulling) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = 8.dp).height(18.dp),
+                        strokeWidth = 2.dp,
+                        color = PassColorsDark.Accent,
+                    )
                 }
-                Text(if (state.pulling) "Pulling…" else "Pull now")
+                Text(
+                    if (state.pulling) "pulling…" else "$ pull now",
+                    style = PassType.Body.copy(color = PassColorsDark.Accent),
+                )
             }
         }
     }

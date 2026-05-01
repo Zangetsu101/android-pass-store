@@ -1,18 +1,31 @@
 package com.example.pass.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 
 @Composable
-fun PassTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun PassTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme(),
+        colorScheme = PassDarkColorScheme,
+        shapes = PassShapes,
+        typography = Typography(
+            bodyLarge    = PassType.Body.copy(fontSize = androidx.compose.ui.unit.TextUnit.Unspecified),
+            bodyMedium   = PassType.Body,
+            bodySmall    = PassType.Caption,
+            labelLarge   = PassType.Label,
+            labelMedium  = PassType.Label,
+            labelSmall   = PassType.Caption,
+            titleLarge   = PassType.Title,
+            titleMedium  = PassType.Title,
+            titleSmall   = PassType.Body,
+            headlineLarge  = PassType.Display,
+            headlineMedium = PassType.Display,
+            headlineSmall  = PassType.Title,
+            displayLarge   = PassType.Display,
+            displayMedium  = PassType.Display,
+            displaySmall   = PassType.Display,
+        ),
         content = content,
     )
 }
