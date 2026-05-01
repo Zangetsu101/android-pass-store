@@ -7,13 +7,13 @@
 - [x] Add `gpgImported` flag to `AppPreferences` (DataStore boolean)
 - [x] Update `NavGraph` routing: route to GPG screen if `remoteUrl` empty but `gpgImported` true; save `remoteUrl` only on clone success
 - [x] **Build check** — `assembleDebug` (NavGraph changes are high-risk)
-- [ ] Add `WelcomeScreen` — feature tag pills (gpg, git, pass), single CTA `$ clone a store`
-- [ ] Merge `OnboardingRemoteUrlScreen` + `OnboardingSshKeyScreen` → `CloneRepoScreen` — URL input + SSH key display with copy/regenerate, step indicator 1/2
-- [ ] **Build check** — `assembleDebug` (old screen files deleted, new one added)
-- [ ] Reorder onboarding: `Welcome → CloneRepo → GpgImport → CloneProgress`
-- [ ] Update `CloneProgressScreen` to terminal-style streaming output + progress bar + cancel button (design 02b)
-- [ ] Update `GpgImportScreen` step indicator to show 2/2
-- [ ] **Build check** — `assembleDebug`
+- [x] Add `WelcomeScreen` — feature tag pills (gpg, git, pass), single CTA `$ clone a store`
+- [x] Merge `OnboardingRemoteUrlScreen` + `OnboardingSshKeyScreen` → `CloneRepoScreen` — URL input + SSH key display with copy/regenerate, step indicator 1/2
+- [x] **Build check** — `assembleDebug` (old screen files deleted, new one added)
+- [x] Reorder onboarding: `Welcome → CloneRepo → GpgImport → CloneProgress`
+- [x] Update `CloneProgressScreen` to terminal-style streaming output + progress bar + cancel button (design 02b)
+- [x] Update `GpgImportScreen` step indicator to show 2/2
+- [x] **Build check** — `assembleDebug`
 
 ### Phase 2 — Home Screen Polish
 

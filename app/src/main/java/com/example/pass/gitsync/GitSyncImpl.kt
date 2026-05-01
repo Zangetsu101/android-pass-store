@@ -15,6 +15,7 @@ import org.eclipse.jgit.api.TransportConfigCallback
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.lib.ObjectId
+import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.SshTransport
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.eclipse.jgit.transport.sshd.ServerKeyDatabase
@@ -47,7 +48,12 @@ class GitSyncImpl @Inject constructor(
         Security.insertProviderAt(BouncyCastleProvider(), 1)
     }
 
-    override suspend fun clone(remoteUrl: String, localPath: Path, sshKeyPair: KeyPair?) {
+    override suspend fun clone(
+        remoteUrl: String,
+        localPath: Path,
+        sshKeyPair: KeyPair?,
+        progressMonitor: ProgressMonitor?,
+    ) {
         withContext(Dispatchers.IO) {
             try {
                 val cmd = Git.cloneRepository()
@@ -55,6 +61,9 @@ class GitSyncImpl @Inject constructor(
                     .setDirectory(localPath.toFile())
                 if (sshKeyPair != null) {
                     cmd.setTransportConfigCallback(makeSshCallback(sshKeyPair))
+                }
+                if (progressMonitor != null) {
+                    cmd.setProgressMonitor(progressMonitor)
                 }
                 cmd.call().close()
                 context.gitSyncDataStore.edit {

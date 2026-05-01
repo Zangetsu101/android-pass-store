@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -17,11 +16,11 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.example.pass.browser.EntryBrowserScreen
 import com.example.pass.browser.EntryBrowserViewModel
-import com.example.pass.onboarding.OnboardingCloneScreen
+import com.example.pass.onboarding.CloneProgressScreen
+import com.example.pass.onboarding.CloneRepoScreen
 import com.example.pass.onboarding.OnboardingGpgImportScreen
-import com.example.pass.onboarding.OnboardingRemoteUrlScreen
-import com.example.pass.onboarding.OnboardingSshKeyScreen
 import com.example.pass.onboarding.OnboardingViewModel
+import com.example.pass.onboarding.WelcomeScreen
 import com.example.pass.preferences.AppPreferences
 import com.example.pass.session.SessionStartScreen
 import com.example.pass.session.SessionStartViewModel
@@ -34,8 +33,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.Serializable
 
 @Serializable data object Splash : NavKey
-@Serializable data object OnboardingRemoteUrl : NavKey
-@Serializable data object OnboardingSshKey : NavKey
+@Serializable data object Welcome : NavKey
+@Serializable data object CloneRepo : NavKey
 @Serializable data object OnboardingGpgImport : NavKey
 @Serializable data object OnboardingClone : NavKey
 @Serializable data object SessionStart : NavKey
@@ -64,7 +63,7 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                         val dest = when {
                             url.isNotEmpty() -> EntryBrowser
                             gpgDone -> OnboardingGpgImport
-                            else -> OnboardingRemoteUrl
+                            else -> Welcome
                         }
                         backStack.clear()
                         backStack.add(dest)
@@ -77,23 +76,24 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                 }
             }
 
-            entry<OnboardingRemoteUrl> {
-                OnboardingRemoteUrlScreen(onboardingVm) {
-                    backStack.add(OnboardingSshKey)
-                }
+            entry<Welcome> {
+                WelcomeScreen(onStart = { backStack.add(CloneRepo) })
             }
-            entry<OnboardingSshKey> {
-                OnboardingSshKeyScreen(onboardingVm) {
+
+            entry<CloneRepo> {
+                CloneRepoScreen(onboardingVm) {
                     backStack.add(OnboardingGpgImport)
                 }
             }
+
             entry<OnboardingGpgImport> {
                 OnboardingGpgImportScreen(onboardingVm) {
                     backStack.add(OnboardingClone)
                 }
             }
+
             entry<OnboardingClone> {
-                OnboardingCloneScreen(onboardingVm) {
+                CloneProgressScreen(onboardingVm) {
                     backStack.clear()
                     backStack.add(EntryBrowser)
                 }
@@ -129,7 +129,7 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                     onBack = { backStack.removeLastOrNull() },
                     onClearedData = {
                         backStack.clear()
-                        backStack.add(OnboardingRemoteUrl)
+                        backStack.add(Welcome)
                     },
                 )
             }
