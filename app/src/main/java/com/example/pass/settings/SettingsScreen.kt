@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,7 +50,11 @@ import com.example.pass.ui.components.PassSecondaryButton
 import com.example.pass.ui.components.PassToggle
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+
+private val DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +65,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val sshKey by viewModel.sshPublicKey.collectAsState()
+    val remoteUrl by viewModel.remoteUrl.collectAsState()
     val sessionTimeout by viewModel.sessionTimeoutMinutes.collectAsState()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -75,6 +81,7 @@ fun SettingsScreen(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = PassColorsDark.TextDim,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 },
@@ -91,23 +98,47 @@ fun SettingsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            SettingsSection(label = "AUTOFILL") {
-                SettingsRow {
-                    Text("configure autofill service", style = PassType.Body, modifier = Modifier.weight(1f))
-                    TextButton(
-                        onClick = {
-                            context.startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
-                                data = android.net.Uri.parse("package:${context.packageName}")
-                            })
-                        },
-                    ) {
-                        Text("open →", style = PassType.Caption.copy(color = PassColorsDark.Accent))
+            // GIT
+            SettingsSection(label = "GIT") {
+                MetaRow("remote", if (remoteUrl.isNotEmpty()) remoteUrl else "not configured")
+                HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+                MetaRow(
+                    "last sync",
+                    state.lastSyncTime?.let { DATE_FMT.format(it) } ?: "never",
+                )
+                HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+                if (sshKey != null) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("SSH KEY", style = PassType.Label)
+                        Spacer(Modifier.height(6.dp))
+                        Text(sshKey!!, style = PassType.Caption, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        PassSecondaryButton(
+                            onClick = { clipboard.setText(AnnotatedString(sshKey!!)) },
+                            label = "copy ssh key",
+                        )
                     }
+                } else {
+                    MetaRow("ssh key", "none")
                 }
             }
 
+            // GPG
+            SettingsSection(label = "GPG") {
+                MetaRow("key", "imported (fingerprint not shown)")
+            }
+
+            // DISPLAY
+            SettingsSection(label = "DISPLAY") {
+                SettingsRow {
+                    Text("theme", style = PassType.Body, modifier = Modifier.weight(1f))
+                    Text("dark (light coming soon)", style = PassType.Caption.copy(color = PassColorsDark.TextDim))
+                }
+            }
+
+            // SESSION
             SettingsSection(label = "SESSION") {
                 SettingsRow {
                     Text("lock session", style = PassType.Body, modifier = Modifier.weight(1f))
@@ -150,38 +181,17 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection(label = "SSH KEY") {
-                if (sshKey != null) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            text = sshKey!!,
-                            style = PassType.Caption,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        PassSecondaryButton(
-                            onClick = { clipboard.setText(AnnotatedString(sshKey!!)) },
-                            label = "copy ssh key",
-                        )
-                    }
-                } else {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("no ssh key generated yet.", style = PassType.Caption)
-                    }
-                }
-            }
-
+            // STORE
             SettingsSection(label = "STORE") {
                 SettingsRow {
                     PassDangerButton(
                         onClick = { showClearConfirm = true },
                         enabled = !state.clearing,
-                        label = if (state.clearing) "clearing…" else "delete local store",
+                        label = if (state.clearing) "clearing…" else "clear all data",
                     )
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
             Text(
                 "pass.android · v0.1.0 · linux pass compatible",
                 style = PassType.Caption,
@@ -196,7 +206,7 @@ fun SettingsScreen(
             containerColor = PassColorsDark.Surface,
             titleContentColor = PassColorsDark.Danger,
             textContentColor = PassColorsDark.TextDim,
-            title = { Text("delete local store?", style = PassType.Title.copy(color = PassColorsDark.Danger)) },
+            title = { Text("clear all data?", style = PassType.Title.copy(color = PassColorsDark.Danger)) },
             text = {
                 Text(
                     "This will delete all keys, the cloned repository, and all preferences. You will need to go through onboarding again.",
@@ -209,7 +219,7 @@ fun SettingsScreen(
                         showClearConfirm = false
                         viewModel.clearAllData(onClearedData)
                     },
-                    label = "delete",
+                    label = "clear all",
                 )
             },
             dismissButton = {
@@ -217,6 +227,25 @@ fun SettingsScreen(
                     Text("cancel", style = PassType.Body.copy(color = PassColorsDark.TextDim))
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun MetaRow(key: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(key, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
+        Text(
+            value,
+            style = PassType.Caption,
+            modifier = Modifier.padding(start = 12.dp),
+            maxLines = 1,
         )
     }
 }

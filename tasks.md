@@ -34,12 +34,12 @@
 
 ### Phase 4 — Settings Screen
 
-- [ ] Restructure `SettingsScreen` into sections: git, gpg, display, store
-- [ ] Git section: remote URL (read-only), SSH key (viewable), last sync timestamp
-- [ ] GPG section: key fingerprint (read-only), re-import option
-- [ ] Display section: theme toggle placeholder (light theme deferred), display prefs toggles
-- [ ] Store section: manual lock, session timeout, clear all data
-- [ ] **Build check** — `assembleDebug`
+- [x] Restructure `SettingsScreen` into sections: git, gpg, display, store
+- [x] Git section: remote URL (read-only), SSH key (viewable), last sync timestamp
+- [x] GPG section: key fingerprint (read-only), re-import option
+- [x] Display section: theme toggle placeholder (light theme deferred), display prefs toggles
+- [x] Store section: manual lock, session timeout, clear all data
+- [x] **Build check** — `assembleDebug`
 
 ---
 

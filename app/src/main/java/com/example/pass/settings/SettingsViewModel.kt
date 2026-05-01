@@ -3,6 +3,7 @@ package com.example.pass.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pass.gitsync.GitSync
 import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.keymanagement.SessionManager
 import com.example.pass.preferences.AppPreferences
@@ -18,10 +19,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.Instant
 import javax.inject.Inject
 
 data class SettingsUiState(
     val clearing: Boolean = false,
+    val lastSyncTime: Instant? = null,
 )
 
 @HiltViewModel
@@ -30,6 +33,7 @@ class SettingsViewModel @Inject constructor(
     private val keyManagement: KeyManagement,
     private val appPreferences: AppPreferences,
     private val sessionManager: SessionManager,
+    private val gitSync: GitSync,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -38,9 +42,19 @@ class SettingsViewModel @Inject constructor(
     val sshPublicKey: StateFlow<String?> = appPreferences.sshPublicKey
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val remoteUrl: StateFlow<String> = appPreferences.remoteUrl
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
     // 0 = manual lock only; >0 = inactivity timeout in minutes
     val sessionTimeoutMinutes: StateFlow<Int> = appPreferences.sessionTimeoutMinutes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 5)
+
+    init {
+        viewModelScope.launch {
+            val status = runCatching { gitSync.syncStatus() }.getOrNull()
+            _state.update { it.copy(lastSyncTime = status?.lastSyncTime) }
+        }
+    }
 
     fun setSessionTimeout(minutes: Int) {
         viewModelScope.launch {
