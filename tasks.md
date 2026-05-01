@@ -17,9 +17,9 @@
 
 ### Phase 2 — Home Screen Polish
 
-- [ ] Sync state (04b): dim tree to 45% opacity during sync, add status banner showing git command, spinning sync chip
-- [ ] Visual pass on tree and flat list views — align spacing, typography, and active entry highlight (`AccentDim` background) to design tokens
-- [ ] **Build check** — `assembleDebug`
+- [x] Sync state (04b): dim tree to 45% opacity during sync, add status banner showing git command, spinning sync chip
+- [x] Visual pass on tree and flat list views — align spacing, typography, and active entry highlight (`AccentDim` background) to design tokens
+- [x] **Build check** — `assembleDebug`
 
 ### Phase 3 — Entry Detail Screen
 

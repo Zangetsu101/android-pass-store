@@ -1,5 +1,11 @@
 package com.example.pass.browser
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,8 +51,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -70,6 +77,17 @@ fun EntryBrowserScreen(
     val activity = LocalContext.current as FragmentActivity
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val syncRotation by if (state.syncing) {
+        rememberInfiniteTransition(label = "sync").animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing)),
+            label = "rotation",
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
     LaunchedEffect(state.sessionStartNeeded) {
         if (state.sessionStartNeeded) {
             onNavigateToSessionStart()
@@ -89,103 +107,124 @@ fun EntryBrowserScreen(
     }
 
     PassScaffold { padding ->
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(padding),
-    ) {
-        // Top bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
         ) {
-            Column {
-                Text("~/.password-store", style = PassType.Caption)
-                Text("pass.android", style = PassType.Title)
+            // Top bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text("~/.password-store", style = PassType.Caption)
+                    Text("pass.android", style = PassType.Title)
+                }
+                Row {
+                    IconButton(onClick = { viewModel.toggleView() }) {
+                        Icon(
+                            if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
+                            contentDescription = if (state.treeView) "flat view" else "tree view",
+                            tint = PassColorsDark.TextDim,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    IconButton(onClick = { viewModel.pull() }) {
+                        Icon(
+                            Icons.Default.Sync,
+                            contentDescription = "sync",
+                            tint = if (state.syncing) PassColorsDark.Accent else PassColorsDark.TextDim,
+                            modifier = Modifier.size(18.dp).rotate(syncRotation),
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "settings",
+                            tint = PassColorsDark.TextDim,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
             }
-            Row {
-                IconButton(onClick = { viewModel.toggleView() }) {
-                    Icon(
-                        if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
-                        contentDescription = if (state.treeView) "flat view" else "tree view",
-                        tint = PassColorsDark.TextDim,
-                        modifier = Modifier.size(18.dp),
+
+            // Sync status banner
+            if (state.syncMessage != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PassColorsDark.Surface)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "$ ${state.syncMessage}",
+                        style = PassType.Caption,
+                        color = PassColorsDark.TextDim,
                     )
                 }
-                IconButton(onClick = onNavigateToSync) {
-                    Icon(
-                        Icons.Default.Sync,
-                        contentDescription = "sync",
-                        tint = PassColorsDark.TextDim,
-                        modifier = Modifier.size(18.dp),
+            }
+
+            // Search bar
+            TextField(
+                value = state.searchQuery,
+                onValueChange = viewModel::setSearchQuery,
+                placeholder = {
+                    Text(
+                        "grep -r \"\"",
+                        style = PassType.Body.copy(color = PassColorsDark.TextDim),
                     )
-                }
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "settings",
-                        tint = PassColorsDark.TextDim,
-                        modifier = Modifier.size(18.dp),
-                    )
+                },
+                prefix = { Text("$ ", style = PassType.Body.copy(color = PassColorsDark.TextDim)) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = PassColorsDark.Surface,
+                    unfocusedContainerColor = PassColorsDark.Surface,
+                    focusedTextColor = PassColorsDark.TextPrimary,
+                    unfocusedTextColor = PassColorsDark.TextPrimary,
+                    cursorColor = PassColorsDark.Accent,
+                    focusedIndicatorColor = PassColorsDark.Accent,
+                    unfocusedIndicatorColor = PassColorsDark.Border2,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Box(modifier = Modifier.alpha(if (state.syncing) 0.45f else 1f)) {
+                when {
+                    state.entries.isEmpty() && state.searchQuery.isNotEmpty() -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("no results for '${state.searchQuery}'", style = PassType.Body)
+                        }
+                    }
+                    state.treeView -> {
+                        TreeView(
+                            entries = state.entries,
+                            collapsedDirs = state.collapsedDirs,
+                            activeEntry = state.decryptingEntry,
+                            onToggleDir = viewModel::toggleDir,
+                            onEntryClick = { viewModel.requestDecrypt(it, activity) },
+                        )
+                    }
+                    else -> {
+                        FlatView(
+                            entries = state.entries,
+                            activeEntry = state.decryptingEntry,
+                            onEntryClick = { viewModel.requestDecrypt(it, activity) },
+                        )
+                    }
                 }
             }
         }
-
-        // Search bar
-        TextField(
-            value = state.searchQuery,
-            onValueChange = viewModel::setSearchQuery,
-            placeholder = {
-                Text(
-                    if (state.treeView) "grep -r \"\"" else "grep -r \"\"",
-                    style = PassType.Body.copy(color = PassColorsDark.TextDim),
-                )
-            },
-            prefix = { Text("$ ", style = PassType.Body.copy(color = PassColorsDark.TextDim)) },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = PassColorsDark.Surface,
-                unfocusedContainerColor = PassColorsDark.Surface,
-                focusedTextColor = PassColorsDark.TextPrimary,
-                unfocusedTextColor = PassColorsDark.TextPrimary,
-                cursorColor = PassColorsDark.Accent,
-                focusedIndicatorColor = PassColorsDark.Accent,
-                unfocusedIndicatorColor = PassColorsDark.Border2,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        when {
-            state.entries.isEmpty() && state.searchQuery.isNotEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("no results for '${state.searchQuery}'", style = PassType.Body)
-                }
-            }
-            state.treeView -> {
-                TreeView(
-                    entries = state.entries,
-                    collapsedDirs = state.collapsedDirs,
-                    onToggleDir = viewModel::toggleDir,
-                    onEntryClick = { viewModel.requestDecrypt(it, activity) },
-                )
-            }
-            else -> {
-                FlatView(
-                    entries = state.entries,
-                    onEntryClick = { viewModel.requestDecrypt(it, activity) },
-                )
-            }
-        }
-    }
     }
 
     if (state.decryptingEntry != null || state.credentials != null || state.decryptError != null) {
@@ -198,10 +237,18 @@ fun EntryBrowserScreen(
 }
 
 @Composable
-private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit) {
+private fun FlatView(
+    entries: List<PassEntry>,
+    activeEntry: PassEntry?,
+    onEntryClick: (PassEntry) -> Unit,
+) {
     LazyColumn {
         items(entries, key = { it.path }) { entry ->
-            FlatEntryRow(entry, onClick = { onEntryClick(entry) })
+            FlatEntryRow(
+                entry = entry,
+                active = entry == activeEntry,
+                onClick = { onEntryClick(entry) },
+            )
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         }
     }
@@ -211,6 +258,7 @@ private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit
 private fun TreeView(
     entries: List<PassEntry>,
     collapsedDirs: Set<String>,
+    activeEntry: PassEntry?,
     onToggleDir: (String) -> Unit,
     onEntryClick: (PassEntry) -> Unit,
 ) {
@@ -230,7 +278,12 @@ private fun TreeView(
             }
             if (dir.isEmpty() || dir !in collapsedDirs) {
                 items(dirEntries, key = { it.path }) { entry ->
-                    TreeEntryRow(entry = entry, indent = dir.isNotEmpty(), onClick = { onEntryClick(entry) })
+                    TreeEntryRow(
+                        entry = entry,
+                        indent = dir.isNotEmpty(),
+                        active = entry == activeEntry,
+                        onClick = { onEntryClick(entry) },
+                    )
                     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 }
             }
@@ -244,46 +297,54 @@ private fun DirHeader(dir: String, collapsed: Boolean, onToggle: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(horizontal = 18.dp, vertical = 7.dp),
+            .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             if (collapsed) "▶" else "▼",
-            style = PassType.Body.copy(color = PassColorsDark.AccentMid),
-            modifier = Modifier.padding(end = 6.dp),
+            style = PassType.Caption.copy(color = PassColorsDark.AccentMid),
+            modifier = Modifier.padding(end = 8.dp),
         )
         Text(text = dir, style = PassType.Body.copy(color = PassColorsDark.Accent.copy(alpha = 0.75f)))
     }
 }
 
 @Composable
-private fun TreeEntryRow(entry: PassEntry, indent: Boolean, onClick: () -> Unit) {
+private fun TreeEntryRow(entry: PassEntry, indent: Boolean, active: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(if (active) PassColorsDark.AccentDim else PassColorsDark.Background)
             .clickable(onClick = onClick)
-            .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = entry.username, style = PassType.Body, modifier = Modifier.weight(1f))
-        Text("›", style = PassType.Body.copy(color = PassColorsDark.TextFaint))
+        Text(
+            text = entry.username,
+            style = PassType.Body,
+            modifier = Modifier.weight(1f),
+        )
+        Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
 
 @Composable
-private fun FlatEntryRow(entry: PassEntry, onClick: () -> Unit) {
+private fun FlatEntryRow(entry: PassEntry, active: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(if (active) PassColorsDark.AccentDim else PassColorsDark.Background)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 9.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(entry.username, style = PassType.Body)
-            entry.domain?.let { Text(it, style = PassType.Caption) }
+            entry.domain?.let {
+                Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
+            }
         }
-        Text("›", style = PassType.Body.copy(color = PassColorsDark.TextFaint))
+        Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
 
@@ -309,7 +370,7 @@ private fun EntryDetailSheet(
             val entry = state.decryptingEntry
             if (entry != null) {
                 Text(entry.username, style = PassType.Title)
-                entry.domain?.let { Text(it, style = PassType.Caption) }
+                entry.domain?.let { Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim)) }
                 Spacer(Modifier.height(16.dp))
             }
 

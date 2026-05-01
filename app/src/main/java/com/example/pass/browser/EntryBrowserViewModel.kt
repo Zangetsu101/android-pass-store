@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.pass.decryption.Credentials
 import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
+import com.example.pass.gitsync.GitSync
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
@@ -36,6 +37,8 @@ data class EntryBrowserUiState(
     val clipboardCopied: Boolean = false,
     val sessionStartNeeded: Boolean = false,
     val pendingDecryptEntry: PassEntry? = null,
+    val syncing: Boolean = false,
+    val syncMessage: String? = null,
 )
 
 @HiltViewModel
@@ -43,6 +46,7 @@ class EntryBrowserViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val passStore: PassStore,
     private val decryption: Decryption,
+    private val gitSync: GitSync,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EntryBrowserUiState())
@@ -79,6 +83,20 @@ class EntryBrowserViewModel @Inject constructor(
                 state.collapsedDirs + dir
             }
             state.copy(collapsedDirs = collapsed)
+        }
+    }
+
+    fun pull() {
+        if (_state.value.syncing) return
+        _state.update { it.copy(syncing = true, syncMessage = "git pull") }
+        viewModelScope.launch {
+            try {
+                gitSync.pull()
+                passStore.buildIndex()
+            } catch (_: Exception) {
+            } finally {
+                _state.update { it.copy(syncing = false, syncMessage = null) }
+            }
         }
     }
 
