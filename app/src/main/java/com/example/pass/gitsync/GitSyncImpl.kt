@@ -192,6 +192,22 @@ class GitSyncImpl @Inject constructor(
         }
     }
 
+    override suspend fun lastCommitForFile(repoRelativePath: String): FileCommitInfo? = withContext(Dispatchers.IO) {
+        val dir = repoDir()
+        if (!dir.exists()) return@withContext null
+        runCatching {
+            openRepo(dir).use { git ->
+                val commits = git.log().addPath(repoRelativePath).setMaxCount(1).call()
+                val commit = commits.iterator().let { if (it.hasNext()) it.next() else null }
+                    ?: return@withContext null
+                FileCommitInfo(
+                    commitHash = commit.name.take(7),
+                    commitTime = Instant.ofEpochSecond(commit.commitTime.toLong()),
+                )
+            }
+        }.getOrNull()
+    }
+
     private fun openRepo(dir: File): Git = Git.open(dir)
 
     private fun diffEntries(git: Git, before: ObjectId, after: ObjectId): List<DiffEntry> {

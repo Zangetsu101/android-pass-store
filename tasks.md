@@ -23,14 +23,14 @@
 
 ### Phase 3 — Entry Detail Screen
 
-- [ ] Extract `EntryDetailSheet` from `EntryBrowserScreen` → new `EntryDetailScreen` (full screen)
-- [ ] Wire `EntryDetailScreen` into `NavGraph` as a proper destination
-- [ ] **Build check** — `assembleDebug` (extraction + NavGraph wiring)
-- [ ] Add shimmer decrypting state (06a) — password spinner, notes shimmer skeleton, shimmer copy/reveal buttons
-- [ ] Add blur/reveal toggle — 5dp blur on password field, auto-blur after 45s on reveal
-- [ ] Add metadata table — path, modified date, commit hash
-- [ ] Verify 45s clipboard auto-clear timer is wired correctly in new screen
-- [ ] **Build check** — `assembleDebug`
+- [x] Extract `EntryDetailSheet` from `EntryBrowserScreen` → new `EntryDetailScreen` (full screen)
+- [x] Wire `EntryDetailScreen` into `NavGraph` as a proper destination
+- [x] **Build check** — `assembleDebug` (extraction + NavGraph wiring)
+- [x] Add shimmer decrypting state (06a) — password spinner, notes shimmer skeleton, shimmer copy/reveal buttons
+- [x] Add blur/reveal toggle — 5dp blur on password field, auto-blur after 45s on reveal
+- [x] Add metadata table — path, modified date, commit hash
+- [x] Verify 45s clipboard auto-clear timer is wired correctly in new screen
+- [x] **Build check** — `assembleDebug`
 
 ### Phase 4 — Settings Screen
 

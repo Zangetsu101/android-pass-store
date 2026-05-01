@@ -23,59 +23,38 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntryBrowserScreen(
     viewModel: EntryBrowserViewModel,
-    onNavigateToSync: () -> Unit = {},
+    onNavigateToEntryDetail: (PassEntry) -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToSessionStart: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
-    val activity = LocalContext.current as FragmentActivity
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     val syncRotation by if (state.syncing) {
         rememberInfiniteTransition(label = "sync").animateFloat(
@@ -86,24 +65,6 @@ fun EntryBrowserScreen(
         )
     } else {
         remember { mutableStateOf(0f) }
-    }
-
-    LaunchedEffect(state.sessionStartNeeded) {
-        if (state.sessionStartNeeded) {
-            onNavigateToSessionStart()
-            viewModel.onSessionStartNavigated()
-        }
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val pending = viewModel.consumePendingDecryptEntry()
-                if (pending != null) viewModel.requestDecrypt(pending, activity)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     PassScaffold { padding ->
@@ -210,45 +171,27 @@ fun EntryBrowserScreen(
                         TreeView(
                             entries = state.entries,
                             collapsedDirs = state.collapsedDirs,
-                            activeEntry = state.decryptingEntry,
                             onToggleDir = viewModel::toggleDir,
-                            onEntryClick = { viewModel.requestDecrypt(it, activity) },
+                            onEntryClick = onNavigateToEntryDetail,
                         )
                     }
                     else -> {
                         FlatView(
                             entries = state.entries,
-                            activeEntry = state.decryptingEntry,
-                            onEntryClick = { viewModel.requestDecrypt(it, activity) },
+                            onEntryClick = onNavigateToEntryDetail,
                         )
                     }
                 }
             }
         }
     }
-
-    if (state.decryptingEntry != null || state.credentials != null || state.decryptError != null) {
-        EntryDetailSheet(
-            state = state,
-            onCopy = viewModel::copyPassword,
-            onDismiss = viewModel::dismissDetail,
-        )
-    }
 }
 
 @Composable
-private fun FlatView(
-    entries: List<PassEntry>,
-    activeEntry: PassEntry?,
-    onEntryClick: (PassEntry) -> Unit,
-) {
+private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit) {
     LazyColumn {
         items(entries, key = { it.path }) { entry ->
-            FlatEntryRow(
-                entry = entry,
-                active = entry == activeEntry,
-                onClick = { onEntryClick(entry) },
-            )
+            FlatEntryRow(entry = entry, onClick = { onEntryClick(entry) })
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         }
     }
@@ -258,7 +201,6 @@ private fun FlatView(
 private fun TreeView(
     entries: List<PassEntry>,
     collapsedDirs: Set<String>,
-    activeEntry: PassEntry?,
     onToggleDir: (String) -> Unit,
     onEntryClick: (PassEntry) -> Unit,
 ) {
@@ -278,12 +220,7 @@ private fun TreeView(
             }
             if (dir.isEmpty() || dir !in collapsedDirs) {
                 items(dirEntries, key = { it.path }) { entry ->
-                    TreeEntryRow(
-                        entry = entry,
-                        indent = dir.isNotEmpty(),
-                        active = entry == activeEntry,
-                        onClick = { onEntryClick(entry) },
-                    )
+                    TreeEntryRow(entry = entry, indent = dir.isNotEmpty(), onClick = { onEntryClick(entry) })
                     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 }
             }
@@ -310,30 +247,24 @@ private fun DirHeader(dir: String, collapsed: Boolean, onToggle: () -> Unit) {
 }
 
 @Composable
-private fun TreeEntryRow(entry: PassEntry, indent: Boolean, active: Boolean, onClick: () -> Unit) {
+private fun TreeEntryRow(entry: PassEntry, indent: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (active) PassColorsDark.AccentDim else PassColorsDark.Background)
             .clickable(onClick = onClick)
             .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = entry.username,
-            style = PassType.Body,
-            modifier = Modifier.weight(1f),
-        )
+        Text(text = entry.username, style = PassType.Body, modifier = Modifier.weight(1f))
         Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
 
 @Composable
-private fun FlatEntryRow(entry: PassEntry, active: Boolean, onClick: () -> Unit) {
+private fun FlatEntryRow(entry: PassEntry, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (active) PassColorsDark.AccentDim else PassColorsDark.Background)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -345,83 +276,5 @@ private fun FlatEntryRow(entry: PassEntry, active: Boolean, onClick: () -> Unit)
             }
         }
         Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EntryDetailSheet(
-    state: EntryBrowserUiState,
-    onCopy: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = PassColorsDark.Surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            val entry = state.decryptingEntry
-            if (entry != null) {
-                Text(entry.username, style = PassType.Title)
-                entry.domain?.let { Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim)) }
-                Spacer(Modifier.height(16.dp))
-            }
-
-            when {
-                state.decryptError != null -> {
-                    Text("error: ${state.decryptError}", color = PassColorsDark.Danger, style = PassType.Body)
-                }
-                state.credentials == null -> {
-                    Text("authenticating…", style = PassType.Body)
-                }
-                else -> {
-                    val creds = state.credentials
-                    Text("PASSWORD", style = PassType.Label)
-                    Spacer(Modifier.height(4.dp))
-                    Text(text = String(creds.password), style = PassType.Body.copy(color = PassColorsDark.Accent))
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onCopy,
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.TextDim,
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.Border2,
-                        ),
-                        modifier = Modifier.fillMaxWidth().height(40.dp),
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Text(
-                            text = if (state.clipboardCopied) "copied · clears in 45s" else "copy password",
-                            style = PassType.Body,
-                            modifier = Modifier.padding(start = 6.dp),
-                        )
-                    }
-                    if (creds.notes.isNotEmpty()) {
-                        Spacer(Modifier.height(16.dp))
-                        Text("NOTES", style = PassType.Label)
-                        Spacer(Modifier.height(4.dp))
-                        Text(creds.notes, style = PassType.Body)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text("close", style = PassType.Caption.copy(color = PassColorsDark.TextDim))
-            }
-            Spacer(Modifier.height(16.dp))
-        }
     }
 }

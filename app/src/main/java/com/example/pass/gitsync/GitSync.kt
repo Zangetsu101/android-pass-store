@@ -13,4 +13,5 @@ interface GitSync {
     )
     suspend fun pull(sshKeyPair: KeyPair? = null): SyncResult
     suspend fun syncStatus(): SyncStatus
+    suspend fun lastCommitForFile(repoRelativePath: String): FileCommitInfo?
 }

@@ -16,6 +16,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.example.pass.browser.EntryBrowserScreen
 import com.example.pass.browser.EntryBrowserViewModel
+import com.example.pass.browser.EntryDetailScreen
+import com.example.pass.browser.EntryDetailViewModel
 import com.example.pass.onboarding.CloneProgressScreen
 import com.example.pass.onboarding.CloneRepoScreen
 import com.example.pass.onboarding.OnboardingGpgImportScreen
@@ -39,6 +41,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object OnboardingClone : NavKey
 @Serializable data object SessionStart : NavKey
 @Serializable data object EntryBrowser : NavKey
+@Serializable data class EntryDetail(val entryPath: String) : NavKey
 @Serializable data object SyncPanel : NavKey
 @Serializable data object Settings : NavKey
 
@@ -111,9 +114,18 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                 val vm: EntryBrowserViewModel = hiltViewModel()
                 EntryBrowserScreen(
                     viewModel = vm,
-                    onNavigateToSync = { backStack.add(SyncPanel) },
+                    onNavigateToEntryDetail = { entry -> backStack.add(EntryDetail(entry.path)) },
                     onNavigateToSettings = { backStack.add(Settings) },
+                )
+            }
+
+            entry<EntryDetail> {
+                val vm: EntryDetailViewModel = hiltViewModel()
+                EntryDetailScreen(
+                    entryPath = it.entryPath,
+                    viewModel = vm,
                     onNavigateToSessionStart = { backStack.add(SessionStart) },
+                    onBack = { backStack.removeLastOrNull() },
                 )
             }
 

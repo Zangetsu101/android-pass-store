@@ -1,24 +1,14 @@
 package com.example.pass.browser
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.os.Build
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.pass.decryption.Credentials
-import com.example.pass.decryption.Decryption
-import com.example.pass.decryption.DecryptionError
 import com.example.pass.gitsync.GitSync
-import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,12 +21,6 @@ data class EntryBrowserUiState(
     val searchQuery: String = "",
     val treeView: Boolean = false,
     val collapsedDirs: Set<String> = emptySet(),
-    val decryptingEntry: PassEntry? = null,
-    val credentials: Credentials? = null,
-    val decryptError: String? = null,
-    val clipboardCopied: Boolean = false,
-    val sessionStartNeeded: Boolean = false,
-    val pendingDecryptEntry: PassEntry? = null,
     val syncing: Boolean = false,
     val syncMessage: String? = null,
 )
@@ -45,14 +29,11 @@ data class EntryBrowserUiState(
 class EntryBrowserViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val passStore: PassStore,
-    private val decryption: Decryption,
     private val gitSync: GitSync,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EntryBrowserUiState())
     val state: StateFlow<EntryBrowserUiState> = _state.asStateFlow()
-
-    private var clipClearJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -98,62 +79,6 @@ class EntryBrowserViewModel @Inject constructor(
                 _state.update { it.copy(syncing = false, syncMessage = null) }
             }
         }
-    }
-
-    fun requestDecrypt(entry: PassEntry, activity: FragmentActivity) {
-        _state.update { it.copy(decryptingEntry = entry, credentials = null, decryptError = null) }
-        viewModelScope.launch {
-            try {
-                val creds = decryption.decrypt(entry, activity)
-                _state.update { it.copy(credentials = creds, pendingDecryptEntry = null) }
-            } catch (e: SessionError.NoActiveSession) {
-                _state.update { it.copy(decryptingEntry = null, pendingDecryptEntry = entry, sessionStartNeeded = true) }
-            } catch (e: DecryptionError) {
-                _state.update { it.copy(decryptError = e.message ?: "Decryption failed", decryptingEntry = null) }
-            } catch (e: Exception) {
-                _state.update { it.copy(decryptError = e.message ?: "Decryption failed", decryptingEntry = null) }
-            }
-        }
-    }
-
-    fun onSessionStartNavigated() {
-        _state.update { it.copy(sessionStartNeeded = false) }
-    }
-
-    fun consumePendingDecryptEntry(): PassEntry? {
-        val entry = _state.value.pendingDecryptEntry
-        _state.update { it.copy(pendingDecryptEntry = null) }
-        return entry
-    }
-
-    fun copyPassword() {
-        val creds = _state.value.credentials ?: return
-        val password = String(creds.password)
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
-        _state.update { it.copy(clipboardCopied = true) }
-
-        clipClearJob?.cancel()
-        clipClearJob = viewModelScope.launch {
-            delay(45_000)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                clipboard.clearPrimaryClip()
-            } else {
-                clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
-            }
-            _state.update { it.copy(clipboardCopied = false) }
-        }
-    }
-
-    fun dismissDetail() {
-        _state.value.credentials?.zero()
-        _state.update { it.copy(decryptingEntry = null, credentials = null, decryptError = null, clipboardCopied = false) }
-        clipClearJob?.cancel()
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        _state.value.credentials?.zero()
     }
 
     private fun updateDisplayedEntries(entries: List<PassEntry>, query: String) {

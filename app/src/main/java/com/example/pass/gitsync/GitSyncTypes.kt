@@ -2,6 +2,8 @@ package com.example.pass.gitsync
 
 import java.time.Instant
 
+data class FileCommitInfo(val commitHash: String, val commitTime: Instant)
+
 data class SyncResult(
     val newEntries: List<String>,
     val removedEntries: List<String>,
