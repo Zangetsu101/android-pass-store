@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,11 +21,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -46,6 +44,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.example.pass.ui.components.PassScaffold
+import com.example.pass.ui.components.PassSecondaryButton
 import com.example.pass.ui.components.PassToggle
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
@@ -65,28 +65,30 @@ fun SettingsScreen(
     val clipboard = LocalClipboardManager.current
     var showClearConfirm by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("settings", style = PassType.Title) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = PassColorsDark.TextDim,
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = PassColorsDark.Background,
-                titleContentColor = PassColorsDark.Accent,
-            ),
-        )
-
+    PassScaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("settings", style = PassType.Title) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PassColorsDark.TextDim,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = PassColorsDark.Background,
+                    titleContentColor = PassColorsDark.Accent,
+                ),
+            )
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .navigationBarsPadding()
+                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -157,14 +159,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
+                        PassSecondaryButton(
                             onClick = { clipboard.setText(AnnotatedString(sshKey!!)) },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PassColorsDark.TextDim),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PassColorsDark.Border2),
-                            modifier = Modifier.fillMaxWidth().height(36.dp),
-                        ) {
-                            Text("copy ssh key", style = PassType.Caption.copy(color = PassColorsDark.TextDim))
-                        }
+                            label = "copy ssh key",
+                        )
                     }
                 } else {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -175,25 +173,11 @@ fun SettingsScreen(
 
             SettingsSection(label = "STORE") {
                 SettingsRow {
-                    Button(
+                    PassDangerButton(
                         onClick = { showClearConfirm = true },
                         enabled = !state.clearing,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PassColorsDark.AccentDim.copy(alpha = 0.12f),
-                            contentColor = PassColorsDark.Danger,
-                            disabledContainerColor = PassColorsDark.Border,
-                            disabledContentColor = PassColorsDark.TextFaint,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .border(1.dp, PassColorsDark.Danger, MaterialTheme.shapes.small),
-                    ) {
-                        Text(
-                            if (state.clearing) "clearing…" else "delete local store",
-                            style = PassType.Body.copy(color = PassColorsDark.Danger),
-                        )
-                    }
+                        label = if (state.clearing) "clearing…" else "delete local store",
+                    )
                 }
             }
 
@@ -220,19 +204,13 @@ fun SettingsScreen(
                 )
             },
             confirmButton = {
-                Button(
+                PassDangerButton(
                     onClick = {
                         showClearConfirm = false
                         viewModel.clearAllData(onClearedData)
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PassColorsDark.AccentDim.copy(alpha = 0.12f),
-                        contentColor = PassColorsDark.Danger,
-                    ),
-                    modifier = Modifier.border(1.dp, PassColorsDark.Danger, MaterialTheme.shapes.small),
-                ) {
-                    Text("delete", style = PassType.Body.copy(color = PassColorsDark.Danger))
-                }
+                    label = "delete",
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
@@ -254,6 +232,32 @@ private fun SettingsSection(label: String, content: @Composable () -> Unit) {
                 .background(PassColorsDark.Surface)
                 .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
         ) { content() }
+    }
+}
+
+@Composable
+private fun PassDangerButton(
+    onClick: () -> Unit,
+    label: String,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.extraSmall,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = PassColorsDark.AccentDim.copy(alpha = 0.12f),
+            contentColor = PassColorsDark.Danger,
+            disabledContainerColor = PassColorsDark.Border,
+            disabledContentColor = PassColorsDark.TextFaint,
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .border(1.dp, if (enabled) PassColorsDark.Danger else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
+    ) {
+        Text(label, style = PassType.Body.copy(color = if (enabled) PassColorsDark.Danger else PassColorsDark.TextFaint))
     }
 }
 

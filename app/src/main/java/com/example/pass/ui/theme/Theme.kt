@@ -10,7 +10,7 @@ fun PassTheme(content: @Composable () -> Unit) {
         colorScheme = PassDarkColorScheme,
         shapes = PassShapes,
         typography = Typography(
-            bodyLarge    = PassType.Body.copy(fontSize = androidx.compose.ui.unit.TextUnit.Unspecified),
+            bodyLarge    = PassType.Body,
             bodyMedium   = PassType.Body,
             bodySmall    = PassType.Caption,
             labelLarge   = PassType.Label,

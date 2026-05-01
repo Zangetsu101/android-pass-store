@@ -1,6 +1,5 @@
 package com.example.pass.browser
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,15 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.pass.passstore.PassEntry
+import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
 
@@ -92,11 +88,11 @@ fun EntryBrowserScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    PassScaffold { padding ->
     Column(
         Modifier
             .fillMaxSize()
-            .background(PassColorsDark.Background)
-            .statusBarsPadding(),
+            .padding(padding),
     ) {
         // Top bar
         Row(
@@ -190,6 +186,7 @@ fun EntryBrowserScreen(
             }
         }
     }
+    }
 
     if (state.decryptingEntry != null || state.credentials != null || state.decryptError != null) {
         EntryDetailSheet(
@@ -202,7 +199,7 @@ fun EntryBrowserScreen(
 
 @Composable
 private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit) {
-    LazyColumn(contentPadding = WindowInsets.navigationBars.asPaddingValues()) {
+    LazyColumn {
         items(entries, key = { it.path }) { entry ->
             FlatEntryRow(entry, onClick = { onEntryClick(entry) })
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -224,7 +221,7 @@ private fun TreeView(
         }
     }
 
-    LazyColumn(contentPadding = WindowInsets.navigationBars.asPaddingValues()) {
+    LazyColumn {
         grouped.forEach { (dir, dirEntries) ->
             if (dir.isNotEmpty()) {
                 item(key = "dir_$dir") {

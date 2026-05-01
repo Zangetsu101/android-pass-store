@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
 import java.time.Instant
@@ -38,28 +38,30 @@ import java.time.format.DateTimeFormatter
 fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsState()
 
-    Column(Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("sync", style = PassType.Title) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = PassColorsDark.TextDim,
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = PassColorsDark.Background,
-                titleContentColor = PassColorsDark.Accent,
-            ),
-        )
-
+    PassScaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("sync", style = PassType.Title) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PassColorsDark.TextDim,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = PassColorsDark.Background,
+                    titleContentColor = PassColorsDark.Accent,
+                ),
+            )
+        },
+    ) { padding ->
         Column(
             Modifier
-                .padding(16.dp)
-                .navigationBarsPadding(),
+                .padding(padding)
+                .padding(16.dp),
         ) {
             Text("LAST SYNC", style = PassType.Label)
             Spacer(Modifier.height(4.dp))

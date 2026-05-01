@@ -3,25 +3,20 @@ package com.example.pass.onboarding
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +29,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.example.pass.ui.components.PassPrimaryButton
+import com.example.pass.ui.components.PassScaffold
+import com.example.pass.ui.components.PassSecondaryButton
 import com.example.pass.ui.components.passTextFieldColors
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
@@ -54,6 +52,7 @@ fun OnboardingRemoteUrlScreen(
             singleLine = true,
             isError = state.remoteUrlError != null,
             supportingText = state.remoteUrlError?.let { { Text(it, style = PassType.Caption) } },
+            textStyle = PassType.Body,
             colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -152,6 +151,7 @@ fun OnboardingGpgImportScreen(
             minLines = 5,
             maxLines = 10,
             isError = state.gpgImportError != null,
+            textStyle = PassType.Body,
             colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -229,65 +229,24 @@ private fun OnboardingScaffold(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-    ) {
-        Text(
-            text = "SETUP · $step / $total",
-            style = PassType.Caption,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(title, style = PassType.Title)
-        Spacer(Modifier.height(24.dp))
-        content()
+    PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+        ) {
+            Text(
+                text = "SETUP · $step / $total",
+                style = PassType.Caption,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(title, style = PassType.Title)
+            Spacer(Modifier.height(24.dp))
+            content()
+        }
     }
 }
 
-@Composable
-private fun PassPrimaryButton(
-    onClick: () -> Unit,
-    label: String,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = PassColorsDark.AccentDim,
-            contentColor = PassColorsDark.Accent,
-            disabledContainerColor = PassColorsDark.Border,
-            disabledContentColor = PassColorsDark.TextFaint,
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, MaterialTheme.shapes.small),
-    ) {
-        Text(label, style = PassType.Body.copy(color = if (enabled) PassColorsDark.Accent else PassColorsDark.TextFaint))
-    }
-}
-
-@Composable
-private fun PassSecondaryButton(
-    onClick: () -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    OutlinedButton(
-        onClick = onClick,
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = PassColorsDark.TextDim,
-        ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PassColorsDark.Border2),
-        modifier = modifier.fillMaxWidth().height(40.dp),
-    ) {
-        Text(label, style = PassType.Body.copy(color = PassColorsDark.TextDim))
-    }
-}
 

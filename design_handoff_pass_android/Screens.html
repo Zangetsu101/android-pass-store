@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pass Store — Screens</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: 'JetBrains Mono', monospace; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  @keyframes scanline { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes loading-bar { 0%{transform:translateX(-100%)} 60%{transform:translateX(200%)} 100%{transform:translateX(200%)} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// ── Theme tokens ─────────────────────────────────────────────────────────────
+const DARK_T = {
+  bg:       "#0b0d0b",
+  surface:  "#0f120f",
+  raised:   "#131a13",
+  border:   "#1d2b1d",
+  border2:  "#243324",
+  accent:   "#39ff6b",
+  accentDim:"#39ff6b20",
+  accentMid:"#39ff6b44",
+  text:     "#c8e6c9",
+  textDim:  "#527a52",
+  textFaint:"#2e4a2e",
+  danger:   "#ff5555",
+  warn:     "#ffcc44",
+  mono:     "'JetBrains Mono', monospace",
+  r:        4,
+};
+
+const LIGHT_T = {
+  bg:       "#f5f2eb",
+  surface:  "#ede9e0",
+  raised:   "#e8e4db",
+  border:   "#d4cfc4",
+  border2:  "#c8c2b5",
+  accent:   "#1a6b3c",
+  accentDim:"#1a6b3c18",
+  accentMid:"#1a6b3c35",
+  text:     "#1c1a16",
+  textDim:  "#7a7265",
+  textFaint:"#b0a898",
+  danger:   "#c0392b",
+  warn:     "#b7791f",
+  mono:     "'JetBrains Mono', monospace",
+  r:        4,
+};
+
+const ThemeContext = React.createContext(DARK_T);
+
+// shorthand used throughout components
+let T = DARK_T;
+
+// ── Shared Phone shell ────────────────────────────────────────────────────────
+function Phone({ children, footer }) {
+  const T = React.useContext(ThemeContext);
+  return (
+    <div style={{
+      width: 320, height: 680,
+      borderRadius: 38,
+      background: "#161616",
+      boxShadow: "0 0 0 1.5px #2a2a2a, 0 0 0 3px #111, 0 40px 100px rgba(0,0,0,0.8)",
+      display: "flex", flexDirection: "column",
+      overflow: "hidden", position: "relative",
+      fontFamily: T.mono,
+    }}>
+      {/* punch hole */}
+      <div style={{ position:"absolute", top:12, left:"50%", transform:"translateX(-50%)", width:10, height:10, borderRadius:"50%", background:"#0a0a0a", zIndex:30 }} />
+      {/* status bar */}
+      <div style={{
+        height:36, background:T.bg, flexShrink:0, zIndex:10,
+        display:"flex", alignItems:"flex-end", paddingBottom:5, paddingInline:18,
+        justifyContent:"space-between",
+      }}>
+        <span style={{color:T.textDim, fontSize:10}}>9:41</span>
+        <div style={{display:"flex", gap:4, alignItems:"center"}}>
+          {[3,5,7].map(h=><div key={h} style={{width:3,height:h,background:T.textDim,borderRadius:1}}/>)}
+          <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+            <path d="M5.5 7.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" fill={T.textDim}/>
+            <path d="M2 4.5C3 3.4 4.2 3 5.5 3s2.5.4 3.5 1.5" stroke={T.textDim} strokeWidth="1.1" strokeLinecap="round" fill="none"/>
+            <path d="M0 2C1.6.5 3.4 0 5.5 0s3.9.5 5.5 2" stroke={T.textDim} strokeWidth="1.1" strokeLinecap="round" fill="none" opacity=".4"/>
+          </svg>
+          <div style={{display:"flex",alignItems:"center",gap:1}}>
+            <div style={{width:18,height:9,border:`1.2px solid ${T.textDim}`,borderRadius:2,padding:1.5}}>
+              <div style={{width:"65%",height:"100%",background:T.textDim,borderRadius:1}}/>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* content */}
+      <div style={{flex:1, background:T.bg, overflowY:"auto", overflowX:"hidden", position:"relative"}}>
+        {children}
+      </div>
+      {/* nav bar */}
+      {footer || (
+        <div style={{height:28, background:T.bg, flexShrink:0, display:"flex", justifyContent:"center", alignItems:"center", gap:24, borderTop:`1px solid ${T.border}`}}>
+          <div style={{width:16,height:16,border:`1.2px solid ${T.textFaint}`,borderRadius:3}}/>
+          <div style={{width:28,height:3,background:T.textFaint,borderRadius:4}}/>
+          <div style={{width:12,height:12,borderRadius:"50%",border:`1.2px solid ${T.textFaint}`}}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Shared primitives ─────────────────────────────────────────────────────────
+const Btn = ({children, full, dim, danger, style:s={}}) => {
+  const T = React.useContext(ThemeContext);
+  return (
+  <div style={{
+    background: danger ? "#ff555520" : dim ? "transparent" : T.accentDim,
+    border: `1px solid ${danger ? T.danger : dim ? T.border2 : T.accent}`,
+    color: danger ? T.danger : dim ? T.textDim : T.accent,
+    borderRadius: T.r,
+    padding: "10px 16px",
+    fontSize: 11, fontFamily: T.mono, fontWeight: 600,
+    textAlign: "center", cursor: "pointer",
+    letterSpacing: "0.05em",
+    width: full ? "100%" : "auto",
+    boxShadow: (!dim && !danger) ? `0 0 12px ${T.accentDim}` : "none",
+    ...s,
+  }}>{children}</div>
+  );
+};
+
+const Input = ({label, value, mono=true, multiline, style:s={}}) => {
+  const T = React.useContext(ThemeContext);
+  return (
+  <div style={{marginBottom:12}}>
+    {label && <div style={{color:T.textDim, fontSize:9, marginBottom:5, letterSpacing:"0.1em"}}>{label}</div>}
+    <div style={{
+      background: T.surface,
+      border: `1px solid ${T.border2}`,
+      borderRadius: T.r,
+      padding: "9px 12px",
+      color: T.text,
+      fontSize: mono ? 11 : 12,
+      fontFamily: mono ? T.mono : "'DM Sans', sans-serif",
+      minHeight: multiline ? 60 : "auto",
+      display:"flex", alignItems: multiline ? "flex-start" : "center", gap:6,
+      ...s,
+    }}>
+      {value || <span style={{color:T.textFaint}}>{label || "…"}</span>}
+    </div>
+  </div>
+  );
+};
+
+const Label = ({children, dim}) => {
+  const T = React.useContext(ThemeContext);
+  return (<div style={{color: dim ? T.textDim : T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600}}>
+    {children}
+  </div>);
+};
+
+const Divider = () => {
+  const T = React.useContext(ThemeContext);
+  return <div style={{height:1, background:T.border, margin:"4px 0"}}/>;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 00 · SPLASH
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenSplash() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        height:"100%", gap:0,
+        background: T.bg,
+        position:"relative", overflow:"hidden",
+      }}>
+        {/* subtle scanline texture */}
+        <div style={{
+          position:"absolute", inset:0, pointerEvents:"none",
+          backgroundImage:`repeating-linear-gradient(0deg, transparent, transparent 3px, ${T.border}22 3px, ${T.border}22 4px)`,
+          opacity:0.4,
+        }}/>
+        {/* glow behind icon */}
+        <div style={{
+          position:"absolute",
+          width:180, height:180,
+          borderRadius:"50%",
+          background:`radial-gradient(circle, ${T.accentDim} 0%, transparent 70%)`,
+          pointerEvents:"none",
+        }}/>
+        {/* icon */}
+        <div style={{
+          width:64, height:64, borderRadius:14,
+          background:T.accentDim, border:`1px solid ${T.accentMid}`,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          marginBottom:20,
+          boxShadow:`0 0 40px ${T.accentMid}`,
+          position:"relative",
+        }}>
+          <svg width="32" height="32" viewBox="0 0 26 26" fill="none">
+            <rect x="3" y="11" width="20" height="13" rx="2" stroke={T.accent} strokeWidth="1.5"/>
+            <path d="M8 11V8a5 5 0 0 1 10 0v3" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="13" cy="17" r="2" fill={T.accent}/>
+            <line x1="13" y1="19" x2="13" y2="21" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        {/* wordmark */}
+        <div style={{
+          color:T.accent, fontSize:26, fontWeight:700,
+          letterSpacing:"-0.02em", lineHeight:1, marginBottom:6,
+          position:"relative",
+        }}>
+          pass<span style={{color:T.textDim, fontWeight:300}}>.android</span>
+        </div>
+        <div style={{ color:T.textFaint, fontSize:10, letterSpacing:"0.15em", textTransform:"uppercase", position:"relative" }}>
+          the unix password manager
+        </div>
+
+        {/* bottom loading indicator */}
+        <div style={{
+          position:"absolute", bottom:52,
+          display:"flex", flexDirection:"column", alignItems:"center", gap:10,
+        }}>
+          <div style={{
+            width:120, height:2, background:T.border2, borderRadius:2, overflow:"hidden",
+          }}>
+            <div style={{
+              width:"60%", height:"100%",
+              background:`linear-gradient(90deg, ${T.accentMid}, ${T.accent})`,
+              borderRadius:2,
+              boxShadow:`0 0 6px ${T.accent}`,
+              animation:"loading-bar 1.8s ease-in-out infinite",
+            }}/>
+          </div>
+          <div style={{ color:T.textFaint, fontSize:9 }}>initialising…</div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 01 · WELCOME
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenWelcome() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{padding:"0 24px", display:"flex", flexDirection:"column", height:"100%", justifyContent:"space-between", paddingBottom:24}}>
+        {/* top */}
+        <div style={{paddingTop:40}}>
+          {/* logo mark */}
+          <div style={{marginBottom:32}}>
+            <div style={{
+              width:52, height:52, borderRadius:8,
+              background: T.accentDim, border:`1px solid ${T.accentMid}`,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              marginBottom:20,
+              boxShadow:`0 0 24px ${T.accentDim}`,
+            }}>
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                <rect x="3" y="11" width="20" height="13" rx="2" stroke={T.accent} strokeWidth="1.5"/>
+                <path d="M8 11V8a5 5 0 0 1 10 0v3" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="13" cy="17" r="2" fill={T.accent}/>
+                <line x1="13" y1="19" x2="13" y2="21" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{color:T.accent, fontSize:22, fontWeight:700, letterSpacing:"-0.02em"}}>pass<span style={{color:T.textDim, fontWeight:300}}>.android</span></div>
+            <div style={{color:T.textDim, fontSize:11, marginTop:6, lineHeight:1.6}}>
+              the standard unix password<br/>manager — on your phone
+            </div>
+          </div>
+
+          {/* feature list */}
+          <div style={{display:"flex", flexDirection:"column", gap:10}}>
+            {[
+              ["gpg", "end-to-end encrypted with your gpg key"],
+              ["git", "syncs with any git remote"],
+              ["pass", "100% compatible with unix pass"],
+            ].map(([tag, desc]) => (
+              <div key={tag} style={{display:"flex", alignItems:"flex-start", gap:10}}>
+                <div style={{
+                  background:T.accentDim, border:`1px solid ${T.accentMid}`,
+                  borderRadius:3, padding:"2px 6px",
+                  color:T.accent, fontSize:9, fontWeight:700,
+                  letterSpacing:"0.1em", flexShrink:0, marginTop:1,
+                }}>{tag}</div>
+                <div style={{color:T.textDim, fontSize:11, lineHeight:1.5}}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* actions */}
+        <div style={{display:"flex", flexDirection:"column", gap:8}}>
+          <Btn full>$ clone a store</Btn>
+          <div style={{textAlign:"center", color:T.textFaint, fontSize:9, marginTop:4}}>
+            requires git + gpg key
+          </div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 02 · CLONE REPO
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenClone() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{padding:"16px 20px 20px", display:"flex", flexDirection:"column", gap:0}}>
+        {/* step */}
+        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
+          <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>SETUP  ·  1 / 2</div>
+          <div style={{display:"flex", gap:4}}>
+            {[1,2].map(i => (
+              <div key={i} style={{
+                width: 20, height:3, borderRadius:4,
+                background: T.accent,
+                opacity: i===1 ? 1 : 0.3,
+              }}/>
+            ))}
+          </div>
+        </div>
+
+        <div style={{color:T.accent, fontSize:16, fontWeight:700, marginBottom:4}}>clone store</div>
+        <div style={{color:T.textDim, fontSize:10, marginBottom:20, lineHeight:1.6}}>
+          point to your existing pass git repository
+        </div>
+
+        {/* git url */}
+        <Label>git remote url</Label>
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"10px 12px", marginBottom:16,
+          display:"flex", alignItems:"center", gap:6,
+        }}>
+          <span style={{color:T.textDim, fontSize:10}}>git@</span>
+          <span style={{color:T.text, fontSize:11}}>github.com:user/pass-store</span>
+          <span style={{width:6,height:13,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite"}}/>
+        </div>
+
+        {/* ssh key section */}
+        <Label>ssh public key</Label>
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"10px 12px", marginBottom:8,
+        }}>
+          <div style={{color:T.textDim, fontSize:9, marginBottom:6}}>ed25519 · generated on device</div>
+          <div style={{
+            color:T.text, fontSize:9, lineHeight:1.7,
+            wordBreak:"break-all", letterSpacing:"0.02em",
+          }}>
+            ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI<br/>
+            Hk9mXvP2qR8wLnJdKoT7yBcAeUfGiMsNpQrV<br/>
+            <span style={{color:T.textDim}}>pass-android@device</span>
+          </div>
+        </div>
+        <div style={{display:"flex", gap:6, marginBottom:20}}>
+          <Btn style={{flex:1, fontSize:9}}>copy key</Btn>
+          <Btn dim style={{flex:1, fontSize:9}}>regenerate</Btn>
+        </div>
+
+        <div style={{
+          background:`${T.warn}12`, border:`1px solid ${T.warn}44`,
+          borderRadius:T.r, padding:"8px 12px", marginBottom:20,
+          color:`${T.warn}cc`, fontSize:9, lineHeight:1.6,
+        }}>
+          ⚠ github → Settings → SSH and GPG Keys → New SSH Key
+        </div>
+
+        <Btn full>$ git clone</Btn>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 03 · GPG KEY
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenGpg() {
+  const T = React.useContext(ThemeContext);
+  const keys = [
+    { id:"A3F9 2B1C", uid:"alice@example.com", exp:"2026-01", bits:"4096" },
+    { id:"D71E 0FA8", uid:"alice@work.io", exp:"2025-08", bits:"3072" },
+  ];
+  return (
+    <Phone>
+      <div style={{padding:"16px 20px 20px"}}>
+        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
+          <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>SETUP  ·  2 / 2</div>
+          <div style={{display:"flex", gap:4}}>
+            {[1,2].map(i=>(
+              <div key={i} style={{width:20,height:3,borderRadius:4,background:T.accent,opacity:i<2?0.6:1}}/>
+            ))}
+          </div>
+        </div>
+
+        <div style={{color:T.accent, fontSize:16, fontWeight:700, marginBottom:4}}>gpg key</div>
+        <div style={{color:T.textDim, fontSize:10, marginBottom:20, lineHeight:1.6}}>
+          provide the keypair used to encrypt/decrypt your store
+        </div>
+
+        {/* import from file */}
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"12px 14px", marginBottom:10,
+          display:"flex", alignItems:"center", gap:10, cursor:"pointer",
+        }}>
+          <div style={{
+            width:28, height:28, borderRadius:T.r,
+            background:T.accentDim, border:`1px solid ${T.accentMid}`,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            flexShrink:0,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="1" width="10" height="12" rx="1.5" stroke={T.accent} strokeWidth="1.2"/>
+              <line x1="4.5" y1="5" x2="9.5" y2="5" stroke={T.accent} strokeWidth="1.1" strokeLinecap="round"/>
+              <line x1="4.5" y1="7.5" x2="9.5" y2="7.5" stroke={T.accent} strokeWidth="1.1" strokeLinecap="round"/>
+              <line x1="4.5" y1="10" x2="7.5" y2="10" stroke={T.accent} strokeWidth="1.1" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <div style={{color:T.text, fontSize:11}}>import from file</div>
+            <div style={{color:T.textDim, fontSize:9, marginTop:2}}>.asc / .gpg secret key file</div>
+          </div>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{marginLeft:"auto"}}>
+            <path d="M3.5 8L6.5 5L3.5 2" stroke={T.textFaint} strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        </div>
+
+        {/* divider */}
+        <div style={{display:"flex", alignItems:"center", gap:8, margin:"4px 0 10px"}}>
+          <div style={{flex:1, height:1, background:T.border}}/>
+          <span style={{color:T.textFaint, fontSize:9}}>or</span>
+          <div style={{flex:1, height:1, background:T.border}}/>
+        </div>
+
+        {/* paste armored key */}
+        <Label>paste armored secret key</Label>
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"10px 12px", marginBottom:6,
+          minHeight:80,
+        }}>
+          <div style={{color:T.textFaint, fontSize:10, lineHeight:1.7}}>
+            -----BEGIN PGP PRIVATE KEY BLOCK-----<br/>
+            <span style={{color:T.textFaint, opacity:0.4}}>paste key here…</span>
+          </div>
+        </div>
+        <div style={{color:T.textFaint, fontSize:9, marginBottom:20}}>
+          exported via: gpg --armor --export-secret-keys your@email.com
+        </div>
+
+        <Btn full>finish setup →</Btn>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 04 · HOME — FOLDER TREE
+// ─────────────────────────────────────────────────────────────────────────────
+const storeData = [
+  { folder:"email",   entries:["gmail","proton","hey"] },
+  { folder:"dev",     entries:["github","npm","pypi"] },
+  { folder:"finance", entries:["revolut","wise"] },
+  { folder:"social",  entries:["twitter","mastodon"] },
+];
+
+function ScreenHomeTree() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          flexShrink:0,
+        }}>
+          <div>
+            <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>~/.password-store</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700, marginTop:1}}>pass<span style={{color:T.textDim,fontWeight:300}}>.android</span></div>
+          </div>
+          <div style={{display:"flex", gap:10, alignItems:"center"}}>
+            {/* git sync */}
+            <div style={{
+              display:"flex", alignItems:"center", gap:5,
+              background:T.surface, border:`1px solid ${T.border2}`,
+              borderRadius:T.r, padding:"5px 9px",
+            }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M9.5 5.5A4 4 0 1 1 7 2" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M7 2l1 2.5-2.5.5" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{color:T.textDim, fontSize:9}}>sync</span>
+            </div>
+            {/* view toggle */}
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <rect x="0.5" y="0.5" width="5" height="5" rx="1" stroke={T.accent} strokeWidth="1.1"/>
+              <rect x="7.5" y="0.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="0.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="7.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+            {/* settings */}
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5.5 1.5h3l.4 1.4c.3.1.6.3.9.5l1.4-.4 1.5 2.5-1 1c0 .3.1.6.1.9s0 .6-.1.9l1 1-1.5 2.5-1.4-.4c-.3.2-.6.4-.9.5l-.4 1.4h-3l-.4-1.4a4 4 0 0 1-.9-.5l-1.4.4L1.2 9.4l1-.9a4 4 0 0 1-.1-.9c0-.3 0-.6.1-.9l-1-1 1.5-2.5 1.4.4c.3-.2.6-.4.9-.5l.5-1.6z" stroke={T.textDim} strokeWidth="1.1" strokeLinejoin="round"/>
+              <circle cx="7" cy="7" r="1.8" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* search */}
+        <div style={{padding:"8px 18px", borderBottom:`1px solid ${T.border}`, flexShrink:0}}>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"7px 12px",
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span style={{color:T.textDim, fontSize:11}}>$</span>
+            <span style={{color:T.textDim, fontSize:11}}>grep -r ""</span>
+            <span style={{width:6,height:12,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite", opacity:0.8}}/>
+          </div>
+        </div>
+
+        {/* tree */}
+        <div style={{flex:1, overflowY:"auto", padding:"6px 0"}}>
+          {storeData.map(({folder, entries}) => (
+            <div key={folder}>
+              {/* folder row */}
+              <div style={{
+                display:"flex", alignItems:"center", gap:8,
+                padding:"7px 18px",
+              }}>
+                <span style={{color:T.accentMid, fontSize:10}}>▼</span>
+                <span style={{color:T.accent, fontSize:11, opacity:0.75}}>{folder}/</span>
+                <span style={{color:T.textFaint, fontSize:9, marginLeft:"auto"}}>{entries.length}</span>
+              </div>
+              {/* entries */}
+              {entries.map((e, i) => (
+                <div key={e} style={{
+                  display:"flex", alignItems:"center",
+                  padding:"8px 18px 8px 40px",
+                  borderBottom:`1px solid ${T.border}`,
+                  cursor:"pointer",
+                  background: e==="gmail" ? T.accentDim : "transparent",
+                }}>
+                  <span style={{color:T.textFaint, fontSize:10, marginRight:8, fontFamily:T.mono}}>
+                    {i < entries.length-1 ? "├─" : "└─"}
+                  </span>
+                  <span style={{color: e==="gmail" ? T.accent : T.text, fontSize:11, flex:1}}>{e}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M3.5 8L6.5 5L3.5 2" stroke={T.textFaint} strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 05 · HOME — FLAT LIST
+// ─────────────────────────────────────────────────────────────────────────────
+const flatEntries = [
+  {name:"github",   path:"dev/github",   time:"3d"},
+  {name:"gmail",    path:"email/gmail",  time:"2h"},
+  {name:"hey",      path:"email/hey",    time:"1w"},
+  {name:"mastodon", path:"social/mastodon",time:"2w"},
+  {name:"npm",      path:"dev/npm",      time:"5d"},
+  {name:"proton",   path:"email/proton", time:"1d"},
+  {name:"pypi",     path:"dev/pypi",     time:"1mo"},
+  {name:"revolut",  path:"finance/revolut",time:"2w"},
+  {name:"twitter",  path:"social/twitter",time:"3w"},
+  {name:"wise",     path:"finance/wise", time:"1mo"},
+];
+
+function ScreenHomeFlat() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          flexShrink:0,
+        }}>
+          <div>
+            <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>~/.password-store</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700, marginTop:1}}>pass<span style={{color:T.textDim,fontWeight:300}}>.android</span></div>
+          </div>
+          <div style={{display:"flex", gap:10, alignItems:"center"}}>
+            <div style={{
+              display:"flex", alignItems:"center", gap:5,
+              background:T.surface, border:`1px solid ${T.border2}`,
+              borderRadius:T.r, padding:"5px 9px",
+            }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M9.5 5.5A4 4 0 1 1 7 2" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M7 2l1 2.5-2.5.5" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{color:T.textDim, fontSize:9}}>sync</span>
+            </div>
+            {/* list toggle (active) */}
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <line x1="0" y1="2" x2="13" y2="2" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+              <line x1="0" y1="6.5" x2="13" y2="6.5" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+              <line x1="0" y1="11" x2="13" y2="11" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            {/* settings */}
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5.5 1.5h3l.4 1.4c.3.1.6.3.9.5l1.4-.4 1.5 2.5-1 1c0 .3.1.6.1.9s0 .6-.1.9l1 1-1.5 2.5-1.4-.4c-.3.2-.6.4-.9.5l-.4 1.4h-3l-.4-1.4a4 4 0 0 1-.9-.5l-1.4.4L1.2 9.4l1-.9a4 4 0 0 1-.1-.9c0-.3 0-.6.1-.9l-1-1 1.5-2.5 1.4.4c.3-.2.6-.4.9-.5l.5-1.6z" stroke={T.textDim} strokeWidth="1.1" strokeLinejoin="round"/>
+              <circle cx="7" cy="7" r="1.8" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* search */}
+        <div style={{padding:"8px 18px", borderBottom:`1px solid ${T.border}`, flexShrink:0}}>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"7px 12px",
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span style={{color:T.textDim, fontSize:11}}>$</span>
+            <span style={{color:T.textDim, fontSize:11}}>grep -r ""</span>
+            <span style={{width:6,height:12,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite", opacity:0.8}}/>
+          </div>
+        </div>
+
+        {/* flat list */}
+        <div style={{flex:1, overflowY:"auto"}}>
+          {flatEntries.map((e,i) => (
+            <div key={e.name} style={{
+              display:"flex", alignItems:"center",
+              padding:"9px 18px",
+              borderBottom:`1px solid ${T.border}`,
+              background: i===1 ? T.accentDim : "transparent",
+            }}>
+              <span style={{color:T.textFaint, fontSize:9, marginRight:10, width:14}}>{String.fromCharCode(65+i)}</span>
+              <div style={{flex:1}}>
+                <div style={{color: i===1 ? T.accent : T.text, fontSize:12}}>{e.name}</div>
+                <div style={{color:T.textFaint, fontSize:9, marginTop:1}}>{e.path}</div>
+              </div>
+              <span style={{color:T.textFaint, fontSize:9}}>{e.time}</span>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 06 · ENTRY DETAIL
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenEntry() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10,
+          flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{flex:1}}>
+            <div style={{color:T.textDim, fontSize:9}}>email/gmail</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700}}>gmail</div>
+          </div>
+        </div>
+
+        <div style={{flex:1, overflowY:"auto", padding:"16px 18px"}}>
+          {/* password */}}
+          <Label>password</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"12px 14px", marginBottom:6,
+          }}>
+            <div style={{
+              color:T.accent, fontSize:13, fontWeight:500,
+              letterSpacing:"0.1em", filter:"blur(5px)",
+              userSelect:"none", marginBottom:8,
+            }}>P@ssw0rd!Secure2024</div>
+            <div style={{display:"flex", gap:6}}>
+              <div style={{
+                flex:1, background:T.accentDim, border:`1px solid ${T.accentMid}`,
+                borderRadius:T.r-1, padding:"6px 10px",
+                color:T.accent, fontSize:9, textAlign:"center", fontWeight:600,
+              }}>copy</div>
+              <div style={{
+                flex:1, background:T.surface, border:`1px solid ${T.border2}`,
+                borderRadius:T.r-1, padding:"6px 10px",
+                color:T.textDim, fontSize:9, textAlign:"center",
+              }}>reveal</div>
+            </div>
+          </div>
+          <div style={{color:T.textFaint, fontSize:9, marginBottom:18}}>
+            decrypted in-memory · auto-clears in 45s
+          </div>
+
+          {/* metadata */}
+          <Label>metadata</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, overflow:"hidden", marginBottom:16,
+          }}>
+            {[
+              ["path", "email/gmail"],
+              ["modified", "2024-11-03"],
+              ["git commit", "a3f92b1"],
+            ].map(([k,v],i,arr) => (
+              <div key={k} style={{
+                display:"flex", padding:"9px 14px",
+                borderBottom: i<arr.length-1 ? `1px solid ${T.border}` : "none",
+              }}>
+                <span style={{color:T.textDim, fontSize:10, width:72, flexShrink:0}}>{k}</span>
+                <span style={{color:T.text, fontSize:10}}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* notes */}
+          <Label>notes</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"12px 14px", marginBottom:16,
+            minHeight:60,
+          }}>
+            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>
+              recovery: alice+recover@gmail.com<br/>
+              <span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span>
+            </div>
+          </div>
+
+          {/* actions */}
+
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2 ENTRY DETAIL — with edit/delete
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenEntryV2() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{
+          padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10, flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{flex:1}}>
+            <div style={{color:T.textDim, fontSize:9}}>email/gmail</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700}}>gmail</div>
+          </div>
+        </div>
+        <div style={{flex:1, overflowY:"auto", padding:"16px 18px"}}>
+          <Label>password</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"12px 14px", marginBottom:6}}>
+            <div style={{color:T.accent, fontSize:13, fontWeight:500, letterSpacing:"0.1em", filter:"blur(5px)", userSelect:"none", marginBottom:8}}>P@ssw0rd!Secure2024</div>
+            <div style={{display:"flex", gap:6}}>
+              <div style={{flex:1, background:T.accentDim, border:`1px solid ${T.accentMid}`, borderRadius:T.r-1, padding:"6px 10px", color:T.accent, fontSize:9, textAlign:"center", fontWeight:600}}>copy</div>
+              <div style={{flex:1, background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r-1, padding:"6px 10px", color:T.textDim, fontSize:9, textAlign:"center"}}>reveal</div>
+            </div>
+          </div>
+          <div style={{color:T.textFaint, fontSize:9, marginBottom:18}}>decrypted in-memory · auto-clears in 45s</div>
+          <Label>metadata</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:16}}>
+            {[["path","email/gmail"],["modified","2024-11-03"],["git commit","a3f92b1"]].map(([k,v],i,arr)=>(
+              <div key={k} style={{display:"flex", padding:"9px 14px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none"}}>
+                <span style={{color:T.textDim, fontSize:10, width:72, flexShrink:0}}>{k}</span>
+                <span style={{color:T.text, fontSize:10}}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <Label>notes</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"12px 14px", marginBottom:16, minHeight:60}}>
+            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>recovery: alice+recover@gmail.com<br/><span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span></div>
+          </div>
+          <div style={{display:"flex", gap:6}}>
+            <Btn style={{flex:1, fontSize:9}}>edit</Btn>
+            <Btn danger style={{flex:1, fontSize:9}}>delete</Btn>
+          </div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v2 HOME VARIANTS — same as 1.0 but with FAB restored
+// ─────────────────────────────────────────────────────────────────────────────
+const FAB = () => {
+  const T = React.useContext(ThemeContext);
+  return (
+  <div style={{position:"absolute", bottom:40, right:16}}>
+    <div style={{
+      width:44, height:44, borderRadius:T.r,
+      background:T.accentDim, border:`1px solid ${T.accent}`,
+      display:"flex", alignItems:"center", justifyContent:"center",
+      color:T.accent, fontSize:22, fontWeight:300,
+      boxShadow:`0 0 20px ${T.accentMid}`,
+    }}>+</div>
+  </div>
+  );
+};
+
+function ScreenHomeTreeV2() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
+          <div>
+            <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>~/.password-store</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700, marginTop:1}}>pass<span style={{color:T.textDim,fontWeight:300}}>.android</span></div>
+          </div>
+          <div style={{display:"flex", gap:10, alignItems:"center"}}>
+            <div style={{display:"flex", alignItems:"center", gap:5, background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"5px 9px"}}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M9.5 5.5A4 4 0 1 1 7 2" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M7 2l1 2.5-2.5.5" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{color:T.textDim, fontSize:9}}>sync</span>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <rect x="0.5" y="0.5" width="5" height="5" rx="1" stroke={T.accent} strokeWidth="1.1"/>
+              <rect x="7.5" y="0.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="0.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="7.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+          </div>
+        </div>
+        <div style={{padding:"8px 18px", borderBottom:`1px solid ${T.border}`, flexShrink:0}}>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"7px 12px", display:"flex", alignItems:"center", gap:8}}>
+            <span style={{color:T.textDim, fontSize:11}}>$</span>
+            <span style={{color:T.textDim, fontSize:11}}>grep -r ""</span>
+            <span style={{width:6,height:12,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite",opacity:0.8}}/>
+          </div>
+        </div>
+        <div style={{flex:1, overflowY:"auto", padding:"6px 0"}}>
+          {storeData.map(({folder, entries}) => (
+            <div key={folder}>
+              <div style={{display:"flex", alignItems:"center", gap:8, padding:"7px 18px"}}>
+                <span style={{color:T.accentMid, fontSize:10}}>▼</span>
+                <span style={{color:T.accent, fontSize:11, opacity:0.75}}>{folder}/</span>
+                <span style={{color:T.textFaint, fontSize:9, marginLeft:"auto"}}>{entries.length}</span>
+              </div>
+              {entries.map((e,i) => (
+                <div key={e} style={{display:"flex", alignItems:"center", padding:"8px 18px 8px 40px", borderBottom:`1px solid ${T.border}`, background:e==="gmail"?T.accentDim:"transparent"}}>
+                  <span style={{color:T.textFaint, fontSize:10, marginRight:8}}>{i<entries.length-1?"├─":"└─"}</span>
+                  <span style={{color:e==="gmail"?T.accent:T.text, fontSize:11, flex:1}}>{e}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3.5 8L6.5 5L3.5 2" stroke={T.textFaint} strokeWidth="1.2" strokeLinecap="round"/></svg>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <FAB/>
+      </div>
+    </Phone>
+  );
+}
+
+function ScreenHomeFlatV2() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
+          <div>
+            <div style={{color:T.textDim, fontSize:9, letterSpacing:"0.1em"}}>~/.password-store</div>
+            <div style={{color:T.accent, fontSize:14, fontWeight:700, marginTop:1}}>pass<span style={{color:T.textDim,fontWeight:300}}>.android</span></div>
+          </div>
+          <div style={{display:"flex", gap:10, alignItems:"center"}}>
+            <div style={{display:"flex", alignItems:"center", gap:5, background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"5px 9px"}}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M9.5 5.5A4 4 0 1 1 7 2" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M7 2l1 2.5-2.5.5" stroke={T.textDim} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{color:T.textDim, fontSize:9}}>sync</span>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <line x1="0" y1="2" x2="13" y2="2" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+              <line x1="0" y1="6.5" x2="13" y2="6.5" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+              <line x1="0" y1="11" x2="13" y2="11" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div style={{padding:"8px 18px", borderBottom:`1px solid ${T.border}`, flexShrink:0}}>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"7px 12px", display:"flex", alignItems:"center", gap:8}}>
+            <span style={{color:T.textDim, fontSize:11}}>$</span>
+            <span style={{color:T.textDim, fontSize:11}}>grep -r ""</span>
+            <span style={{width:6,height:12,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite",opacity:0.8}}/>
+          </div>
+        </div>
+        <div style={{flex:1, overflowY:"auto"}}>
+          {flatEntries.map((e,i) => (
+            <div key={e.name} style={{display:"flex", alignItems:"center", padding:"9px 18px", borderBottom:`1px solid ${T.border}`, background:i===1?T.accentDim:"transparent"}}>
+              <span style={{color:T.textFaint, fontSize:9, marginRight:10, width:14}}>{String.fromCharCode(65+i)}</span>
+              <div style={{flex:1}}>
+                <div style={{color:i===1?T.accent:T.text, fontSize:12}}>{e.name}</div>
+                <div style={{color:T.textFaint, fontSize:9, marginTop:1}}>{e.path}</div>
+              </div>
+              <span style={{color:T.textFaint, fontSize:9}}>{e.time}</span>
+            </div>
+          ))}
+        </div>
+        <FAB/>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 07 · NEW ENTRY
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenNewEntry() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10,
+          flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{color:T.accent, fontSize:14, fontWeight:700}}>new entry</div>
+        </div>
+
+        <div style={{flex:1, overflowY:"auto", padding:"16px 18px"}}>
+          {/* path builder */}
+          <Label>store path</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"10px 12px", marginBottom:4,
+            display:"flex", alignItems:"center", gap:4,
+          }}>
+            <span style={{
+              background:T.accentDim, border:`1px solid ${T.accentMid}`,
+              borderRadius:3, padding:"2px 7px",
+              color:T.accent, fontSize:10,
+            }}>email</span>
+            <span style={{color:T.textDim, fontSize:11}}>/</span>
+            <span style={{color:T.text, fontSize:11}}>protonmail</span>
+            <span style={{width:6,height:13,background:T.accent,display:"inline-block",animation:"blink 1s step-end infinite", opacity:0.8}}/>
+          </div>
+          {/* folder quick-select */}
+          <div style={{display:"flex", gap:5, marginBottom:16}}>
+            {storeData.map(({folder})=>(
+              <div key={folder} style={{
+                padding:"3px 8px", borderRadius:3, fontSize:9,
+                background: folder==="email"?T.accentDim:T.surface,
+                border:`1px solid ${folder==="email"?T.accent:T.border2}`,
+                color: folder==="email"?T.accent:T.textDim,
+                cursor:"pointer",
+              }}>{folder}</div>
+            ))}
+          </div>
+
+          {/* password */}
+          <Label>password</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.accent}44`,
+            borderRadius:T.r, padding:"10px 12px", marginBottom:6,
+            display:"flex", alignItems:"center", gap:6,
+          }}>
+            <span style={{color:T.text, fontSize:11, flex:1, letterSpacing:"0.05em"}}>••••••••••••••••</span>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 2C3.5 2 1 6.5 1 6.5s2.5 4.5 5.5 4.5 5.5-4.5 5.5-4.5S9.5 2 6.5 2z" stroke={T.textDim} strokeWidth="1.1"/>
+              <circle cx="6.5" cy="6.5" r="1.5" fill={T.textDim}/>
+            </svg>
+          </div>
+          <div style={{
+            display:"flex", alignItems:"center", gap:8,
+            padding:"7px 0 14px",
+            borderBottom:`1px solid ${T.border}`,
+            marginBottom:14,
+            cursor:"pointer",
+          }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v2M6 9v2M1 6h2M9 6h2M2.9 2.9l1.4 1.4M7.7 7.7l1.4 1.4M2.9 9.1l1.4-1.4M7.7 4.3l1.4-1.4" stroke={T.accent} strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            <span style={{color:T.accent, fontSize:10}}>generate password instead</span>
+          </div>
+
+          {/* notes */}
+          <Label>notes <span style={{color:T.textFaint, fontWeight:400}}>optional</span></Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"10px 12px", marginBottom:20,
+            minHeight:64, color:T.textFaint, fontSize:11,
+          }}>username, recovery codes…</div>
+
+          <Btn full>$ pass insert email/protonmail</Btn>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 08 · PASSWORD GENERATOR
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenGenerator() {
+  const T = React.useContext(ThemeContext);
+  const charsets = [
+    {key:"upper", label:"A–Z", active:true},
+    {key:"lower", label:"a–z", active:true},
+    {key:"nums",  label:"0–9", active:true},
+    {key:"syms",  label:"!@#…", active:false},
+  ];
+  const generated = "kR7mN2pXvL9q";
+  const len = 16;
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10,
+          flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{color:T.accent, fontSize:14, fontWeight:700}}>generate</div>
+        </div>
+
+        <div style={{flex:1, overflowY:"auto", padding:"20px 18px"}}>
+          {/* result */}
+          <div style={{
+            background:T.surface, border:`1px solid ${T.accent}55`,
+            borderRadius:T.r, padding:"16px 14px", marginBottom:6,
+            textAlign:"center",
+            boxShadow:`0 0 24px ${T.accentDim}`,
+          }}>
+            <div style={{
+              color:T.accent, fontSize:16, fontWeight:600,
+              letterSpacing:"0.12em", marginBottom:12,
+              fontFamily:T.mono,
+            }}>{generated}</div>
+            <div style={{display:"flex", gap:6}}>
+              <Btn style={{flex:1, fontSize:9}}>copy</Btn>
+              <Btn dim style={{flex:1, fontSize:9}}>↺ regenerate</Btn>
+            </div>
+          </div>
+
+          {/* entropy */}
+          <div style={{
+            display:"flex", gap:4, alignItems:"center",
+            padding:"6px 0 18px",
+          }}>
+            {[1,2,3,4].map(i=>(
+              <div key={i} style={{
+                flex:1, height:3, borderRadius:4,
+                background: i<=3 ? T.accent : T.border2,
+                opacity: i===3?1:i===2?0.6:0.4,
+              }}/>
+            ))}
+            <span style={{color:T.textDim, fontSize:9, marginLeft:6}}>good (71 bits)</span>
+          </div>
+
+          {/* length */}
+          <Label>length — {len}</Label>
+          <div style={{marginBottom:18, paddingInline:2}}>
+            {/* track */}
+            <div style={{height:3, background:T.border2, borderRadius:4, position:"relative", margin:"10px 0"}}>
+              <div style={{height:"100%", width:"60%", background:T.accent, borderRadius:4}}/>
+              <div style={{
+                width:14,height:14, borderRadius:"50%",
+                background:T.accent, border:`2px solid ${T.bg}`,
+                position:"absolute", top:-5.5, left:"calc(60% - 7px)",
+                boxShadow:`0 0 8px ${T.accent}`,
+              }}/>
+            </div>
+            <div style={{display:"flex", justifyContent:"space-between", color:T.textFaint, fontSize:9}}>
+              <span>8</span><span>16</span><span>32</span><span>64</span>
+            </div>
+          </div>
+
+          {/* charsets */}
+          <Label>character sets</Label>
+          <div style={{display:"flex", gap:6, marginBottom:20}}>
+            {charsets.map(c=>(
+              <div key={c.key} style={{
+                flex:1, padding:"8px 4px", borderRadius:T.r,
+                background: c.active ? T.accentDim : T.surface,
+                border:`1px solid ${c.active ? T.accent : T.border2}`,
+                color: c.active ? T.accent : T.textDim,
+                fontSize:10, textAlign:"center", cursor:"pointer",
+              }}>{c.label}</div>
+            ))}
+          </div>
+
+          {/* use it */}
+          <Btn full>use this password</Btn>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS VARIANTS
+// ─────────────────────────────────────────────────────────────────────────────
+function SettingsBase({ pullOn, children }) {
+  const T = React.useContext(ThemeContext);
+  const Toggle = ({on}) => (
+    <div style={{ width:32, height:18, borderRadius:9, background: on ? T.accent : T.border2, position:"relative", flexShrink:0 }}>
+      <div style={{ width:12, height:12, borderRadius:"50%", background:T.bg, position:"absolute", top:3, left: on ? 17 : 3 }}/>
+    </div>
+  );
+  const Row = ({label, value, danger, static:isStatic, toggle, toggleOn, active}) => (
+    <div style={{
+      display:"flex", alignItems:"center", padding:"11px 14px",
+      borderBottom:`1px solid ${T.border}`,
+      background: active ? T.accentDim : "transparent",
+    }}>
+      <span style={{color: danger ? T.danger : active ? T.accent : T.text, fontSize:11, flex:1}}>{label}</span>
+      {value && <span style={{color: active ? T.accent : T.textDim, fontSize:10, marginRight:6}}>{value}</span>}
+      {toggle && <Toggle on={toggleOn}/>}
+      {!danger && !isStatic && !toggle && <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <path d="M3.5 8L6.5 5L3.5 2" stroke={T.textFaint} strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>}
+    </div>
+  );
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%", position:"relative"}}>
+        <div style={{ padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+          <div style={{color:T.accent, fontSize:14, fontWeight:700}}>settings</div>
+        </div>
+        <div style={{flex:1, overflowY:"auto", padding:"12px 18px"}}>
+          <Label>git</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="remote url" value="github.com:user/…" static/>
+            <Row label="ssh key" value="ed25519" static/>
+            <Row label="pull on open" toggle toggleOn={!!pullOn}/>
+          </div>
+          <Label>gpg</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="key id" value="A3F9 2B1C" static/>
+            <Row label="uid" value="alice@example.com" static/>
+          </div>
+          <Label>display</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="default view" value="tree" active={children==="defaultView"}/>
+            <Row label="clipboard timeout" value="45s" active={children==="clipboard"}/>
+            <Row label="session timeout" value="30 min" active={children==="session"}/>
+            <Row label="biometric unlock" toggle toggleOn={true}/>
+          </div>
+          <Label>store</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="delete local store" danger/>
+          </div>
+          <div style={{textAlign:"center", color:T.textFaint, fontSize:9, marginTop:4}}>
+            pass.android · v0.1.0 · linux pass compatible
+          </div>
+        </div>
+        {/* bottom sheet slot */}
+        {children === "defaultView" && (
+          <div style={{
+            position:"absolute", bottom:0, left:0, right:0,
+            background:T.surface, borderTop:`1px solid ${T.border2}`,
+            borderRadius:"12px 12px 0 0",
+            padding:"8px 20px 24px",
+          }}>
+            <div style={{ width:32, height:3, background:T.border2, borderRadius:4, margin:"0 auto 16px" }}/>
+            <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", fontWeight:600, marginBottom:12 }}>default view</div>
+            {["tree","flat"].map(opt => (
+              <div key={opt} style={{
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                padding:"11px 14px", marginBottom:6,
+                background: opt==="tree" ? T.accentDim : T.raised,
+                border:`1px solid ${opt==="tree" ? T.accent : T.border2}`,
+                borderRadius:T.r, cursor:"pointer",
+              }}>
+                <span style={{color: opt==="tree" ? T.accent : T.textDim, fontSize:12}}>{opt} view</span>
+                {opt==="tree" && <div style={{ width:14, height:14, borderRadius:"50%", background:T.accent, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M1 3.5l1.5 1.5 3-3" stroke={T.bg} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {children === "clipboard" && (
+          <div style={{
+            position:"absolute", bottom:0, left:0, right:0,
+            background:T.surface, borderTop:`1px solid ${T.border2}`,
+            borderRadius:"12px 12px 0 0",
+            padding:"8px 20px 24px",
+          }}>
+            <div style={{ width:32, height:3, background:T.border2, borderRadius:4, margin:"0 auto 16px" }}/>
+            <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", fontWeight:600, marginBottom:12 }}>clipboard timeout</div>
+            {[["15s",false],["30s",false],["45s",true],["60s",false],["never",false]].map(([opt, active]) => (
+              <div key={opt} style={{
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                padding:"10px 14px", marginBottom:4,
+                background: active ? T.accentDim : T.raised,
+                border:`1px solid ${active ? T.accent : T.border2}`,
+                borderRadius:T.r, cursor:"pointer",
+              }}>
+                <span style={{color: active ? T.accent : T.textDim, fontSize:12}}>{opt}</span>
+                {active && <div style={{ width:14, height:14, borderRadius:"50%", background:T.accent, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M1 3.5l1.5 1.5 3-3" stroke={T.bg} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {children === "session" && (
+          <div style={{
+            position:"absolute", bottom:0, left:0, right:0,
+            background:T.surface, borderTop:`1px solid ${T.border2}`,
+            borderRadius:"12px 12px 0 0",
+            padding:"8px 20px 24px",
+          }}>
+            <div style={{ width:32, height:3, background:T.border2, borderRadius:4, margin:"0 auto 16px" }}/>
+            <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", fontWeight:600, marginBottom:12 }}>session timeout</div>
+            {[["5 min",false],["15 min",false],["30 min",true],["1 hour",false],["until app close",false]].map(([opt, active]) => (
+              <div key={opt} style={{
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                padding:"10px 14px", marginBottom:4,
+                background: active ? T.accentDim : T.raised,
+                border:`1px solid ${active ? T.accent : T.border2}`,
+                borderRadius:T.r, cursor:"pointer",
+              }}>
+                <span style={{color: active ? T.accent : T.textDim, fontSize:12}}>{opt}</span>
+                {active && <div style={{ width:14, height:14, borderRadius:"50%", background:T.accent, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M1 3.5l1.5 1.5 3-3" stroke={T.bg} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 09 · SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenSettings() {
+  const T = React.useContext(ThemeContext);
+  const Toggle = ({on}) => (
+    <div style={{
+      width:32, height:18, borderRadius:9,
+      background: on ? T.accent : T.border2,
+      position:"relative", flexShrink:0,
+    }}>
+      <div style={{
+        width:12, height:12, borderRadius:"50%", background:"#fff",
+        position:"absolute", top:3,
+        left: on ? 17 : 3,
+      }}/>
+    </div>
+  );
+
+  const Row = ({label, value, danger, static:isStatic, toggle, toggleOn}) => (
+    <div style={{
+      display:"flex", alignItems:"center",
+      padding:"11px 14px",
+      borderBottom:`1px solid ${T.border}`,
+    }}>
+      <span style={{color: danger ? T.danger : T.text, fontSize:11, flex:1}}>{label}</span>
+      {value && <span style={{color:T.textDim, fontSize:10, marginRight:6}}>{value}</span>}
+      {toggle && <Toggle on={toggleOn}/>}
+      {!danger && !isStatic && !toggle && <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <path d="M3.5 8L6.5 5L3.5 2" stroke={T.textFaint} strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>}
+    </div>
+  );
+
+  return (
+    <Phone>
+      <div style={{display:"flex", flexDirection:"column", height:"100%"}}>
+        <div style={{
+          padding:"12px 18px 10px",
+          borderBottom:`1px solid ${T.border}`,
+          flexShrink:0,
+        }}>
+          <div style={{color:T.accent, fontSize:14, fontWeight:700}}>settings</div>
+        </div>
+
+        <div style={{flex:1, overflowY:"auto", padding:"12px 18px"}}>
+          {/* git */}
+          <Label>git</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="remote url" value="github.com:user/…" static/>
+            <Row label="ssh key" value="ed25519" static/>
+            <Row label="pull on open" toggle toggleOn={false}/>
+          </div>
+
+          {/* gpg */}
+          <Label>gpg</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="key id" value="A3F9 2B1C" static/>
+            <Row label="uid" value="alice@example.com" static/>
+          </div>
+
+          {/* display */}
+          <Label>display</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="default view" value="tree"/>
+            <Row label="clipboard timeout" value="45s"/>
+            <Row label="session timeout" value="30 min"/>
+            <Row label="biometric unlock" toggle toggleOn={false}/>
+          </div>
+
+          {/* danger zone */}
+          <Label>store</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:14}}>
+            <Row label="delete local store" danger/>
+          </div>
+
+          <div style={{textAlign:"center", color:T.textFaint, fontSize:9, marginTop:4}}>
+            pass.android · v0.1.0 · linux pass compatible
+          </div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING: GIT CLONE PROGRESS
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenCloneLoading() {
+  const T = React.useContext(ThemeContext);
+  const lines = [
+    { text: "$ git clone git@github.com:user/pass-store.git", color: T.textDim },
+    { text: "Cloning into 'pass-store'...", color: T.textDim },
+    { text: "remote: Enumerating objects: 84, done.", color: T.text },
+    { text: "remote: Counting objects: 100% (84/84), done.", color: T.text },
+    { text: "remote: Compressing objects: 100% (61/61), done.", color: T.text },
+    { text: "Receiving objects:  73% (62/84)", color: T.accent, blink: true },
+  ];
+  const pct = 73;
+  return (
+    <Phone>
+      <div style={{ display:"flex", flexDirection:"column", height:"100%", padding:"20px 20px 24px" }}>
+        {/* header */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ color:T.textDim, fontSize:9, letterSpacing:"0.1em" }}>SETUP · 1 / 2</div>
+            <div style={{ display:"flex", gap:4 }}>
+              {[1,2].map(i=>(
+                <div key={i} style={{ width:20, height:3, borderRadius:4, background:T.accent, opacity:i===1?1:0.3 }}/>
+              ))}
+            </div>
+          </div>
+          <div style={{ color: T.accent, fontSize: 16, fontWeight: 700, marginBottom: 4 }}>cloning store</div>
+          <div style={{ color: T.textDim, fontSize: 10 }}>github.com:user/pass-store</div>
+        </div>
+
+        {/* terminal output */}
+        <div style={{
+          flex: 1,
+          background: T.surface, border: `1px solid ${T.border2}`,
+          borderRadius: T.r, padding: "12px 14px",
+          overflowY: "auto", marginBottom: 16,
+          position: "relative",
+        }}>
+          {/* scanline shimmer */}
+          <div style={{
+            position:"absolute", inset:0, pointerEvents:"none",
+            background:"linear-gradient(180deg, transparent 0%, #39ff6b06 50%, transparent 100%)",
+            backgroundSize:"100% 40px",
+            animation:"scanline 3s linear infinite",
+            borderRadius: T.r,
+          }}/>
+          <div style={{ display:"flex", flexDirection:"column", gap: 5 }}>
+            {lines.map((l, i) => (
+              <div key={i} style={{
+                color: l.color, fontSize: 10, lineHeight: 1.6,
+                fontFamily: T.mono, wordBreak:"break-all",
+                display:"flex", alignItems:"center", gap: 5,
+              }}>
+                <span>{l.text}</span>
+                {l.blink && <span style={{
+                  width: 6, height: 12, background: T.accent, display:"inline-block",
+                  animation:"blink 1s step-end infinite",
+                }}/>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* progress bar */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom: 5 }}>
+            <span style={{ color: T.textDim, fontSize: 9 }}>receiving objects</span>
+            <span style={{ color: T.accent, fontSize: 9, fontWeight: 600 }}>{pct}%</span>
+          </div>
+          <div style={{ height: 4, background: T.border2, borderRadius: 4, overflow:"hidden" }}>
+            <div style={{
+              height:"100%", width:`${pct}%`,
+              background: `linear-gradient(90deg, ${T.accentMid}, ${T.accent})`,
+              borderRadius: 4,
+              boxShadow: `0 0 8px ${T.accentMid}`,
+            }}/>
+          </div>
+        </div>
+        <div style={{ color: T.textFaint, fontSize: 9, marginBottom: 20 }}>62 / 84 objects · 1.2 MB / 1.7 MB</div>
+
+        {/* cancel */}
+        <div style={{
+          border: `1px solid ${T.border2}`, borderRadius: T.r,
+          padding:"10px 16px", textAlign:"center",
+          color: T.textDim, fontSize: 11, cursor:"pointer",
+        }}>cancel</div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 05c · BIOMETRIC UNLOCK — bottom sheet over home
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenBiometric() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{ display:"flex", flexDirection:"column", height:"100%", position:"relative" }}>
+        {/* dimmed home tree in background */}
+        <div style={{ opacity:0.25, pointerEvents:"none", display:"flex", flexDirection:"column", flex:1 }}>
+          <div style={{ padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ color:T.textDim, fontSize:9 }}>~/.password-store</div>
+              <div style={{ color:T.accent, fontSize:14, fontWeight:700 }}>pass<span style={{ color:T.textDim, fontWeight:300 }}>.android</span></div>
+            </div>
+          </div>
+          <div style={{ padding:"8px 18px", borderBottom:`1px solid ${T.border}` }}>
+            <div style={{ background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"7px 12px", display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ color:T.textDim, fontSize:11 }}>$</span>
+              <span style={{ color:T.textDim, fontSize:11 }}>grep -r ""</span>
+            </div>
+          </div>
+          <div style={{ padding:"6px 0" }}>
+            {storeData.map(({folder, entries}) => (
+              <div key={folder}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 18px" }}>
+                  <span style={{ color:T.accentMid, fontSize:10 }}>▼</span>
+                  <span style={{ color:T.accent, fontSize:11, opacity:0.75 }}>{folder}/</span>
+                </div>
+                {entries.slice(0,2).map((e,i) => (
+                  <div key={e} style={{ display:"flex", alignItems:"center", padding:"8px 18px 8px 40px", borderBottom:`1px solid ${T.border}` }}>
+                    <span style={{ color:T.textFaint, fontSize:10, marginRight:8 }}>{i<1?"├─":"└─"}</span>
+                    <span style={{ color:T.text, fontSize:11 }}>{e}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* scrim */}
+        <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.5)", pointerEvents:"none" }}/>
+
+        {/* bottom sheet */}
+        <div style={{
+          position:"absolute", bottom:0, left:0, right:0,
+          background:T.surface, borderTop:`1px solid ${T.border2}`,
+          borderRadius:"16px 16px 0 0",
+          padding:"10px 24px 32px",
+        }}>
+          {/* handle */}
+          <div style={{ width:32, height:3, background:T.border2, borderRadius:4, margin:"0 auto 24px" }}/>
+
+          {/* fingerprint icon */}
+          <div style={{
+            width:56, height:56, borderRadius:14,
+            background:T.accentDim, border:`1px solid ${T.accentMid}`,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            margin:"0 auto 16px",
+            boxShadow:`0 0 28px ${T.accentDim}`,
+          }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M9 7.5C10.5 6 12 5.5 14 5.5s4.5 1 6 3" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M6 11c1-3 4-5.5 8-5.5s7 2.5 8 5.5" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round" opacity="0.5"/>
+              <path d="M11 10.5c.8-.8 1.8-1 3-1s2.2.2 3 1c.8.8 1 1.8 1 3v3" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M11 13.5v-.5c0-1.7 1.3-3 3-3s3 1.3 3 3v3c0 1-.3 2-.8 2.8" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M10 16c-.3-.7-.5-1.5-.5-2.5" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M14 13.5v5c0 1.5-.5 3-1.5 4" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M17 16.5c0 2-.8 4-2 5.5" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M8 13c.2-3.3 2.7-6 6-6" stroke={T.accent} strokeWidth="1.4" strokeLinecap="round" opacity="0.3"/>
+            </svg>
+          </div>
+
+          <div style={{ color:T.accent, fontSize:14, fontWeight:700, textAlign:"center", marginBottom:6 }}>unlock session</div>
+          <div style={{ color:T.textDim, fontSize:10, textAlign:"center", marginBottom:24, lineHeight:1.6 }}>
+            confirm your identity to resume
+          </div>
+
+          <Btn full>use fingerprint</Btn>
+          <div style={{
+            marginTop:10, padding:"10px 0", textAlign:"center",
+            color:T.textDim, fontSize:10, cursor:"pointer",
+          }}>use passphrase instead</div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 05b · GPG PASSPHRASE PROMPT
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenPassphrase() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10, flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{ flex:1 }}>
+            <div style={{ color:T.textDim, fontSize:9 }}>email/gmail</div>
+            <div style={{ color:T.accent, fontSize:14, fontWeight:700 }}>gmail</div>
+          </div>
+        </div>
+
+        <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", padding:"0 24px 40px" }}>
+          {/* lock icon */}
+          <div style={{
+            width:48, height:48, borderRadius:10,
+            background:T.accentDim, border:`1px solid ${T.accentMid}`,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            margin:"0 auto 20px",
+            boxShadow:`0 0 24px ${T.accentDim}`,
+          }}>
+            <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
+              <rect x="3" y="11" width="20" height="13" rx="2" stroke={T.accent} strokeWidth="1.5"/>
+              <path d="M8 11V8a5 5 0 0 1 10 0v3" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="13" cy="17" r="2" fill={T.accent}/>
+              <line x1="13" y1="19" x2="13" y2="21" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+
+          <div style={{ color:T.accent, fontSize:15, fontWeight:700, textAlign:"center", marginBottom:6 }}>session expired</div>
+          <div style={{ color:T.textDim, fontSize:10, textAlign:"center", marginBottom:28, lineHeight:1.6 }}>
+            enter your gpg key passphrase<br/>to start a new session
+          </div>
+
+          {/* passphrase input */}
+          <Label>passphrase</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.accent}55`,
+            borderRadius:T.r, padding:"10px 12px", marginBottom:6,
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span style={{ flex:1, color:T.text, fontSize:13, letterSpacing:"0.2em" }}>••••••••••••</span>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 2C3.5 2 1 6.5 1 6.5s2.5 4.5 5.5 4.5 5.5-4.5 5.5-4.5S9.5 2 6.5 2z" stroke={T.textDim} strokeWidth="1.1"/>
+              <circle cx="6.5" cy="6.5" r="1.5" fill={T.textDim}/>
+            </svg>
+          </div>
+          <div style={{ color:T.textFaint, fontSize:9, marginBottom:24 }}>
+            session lasts 30 min · configurable in settings
+          </div>
+
+          <Btn full>unlock session</Btn>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING: GPG DECRYPTION — inline on Entry Detail
+// ─────────────────────────────────────────────────────────────────────────────
+function Shimmer({ width="100%", height=14, radius=3, style:s={} }) {
+  const T = React.useContext(ThemeContext);
+  return (
+    <div style={{
+      width, height, borderRadius: radius,
+      background: `linear-gradient(90deg, ${T.border} 0%, ${T.border2} 40%, ${T.border} 100%)`,
+      backgroundSize:"200% 100%",
+      animation:"shimmer 1.4s ease-in-out infinite",
+      ...s,
+    }}/>
+  );
+}
+
+function ScreenEntryDecrypting() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      `}</style>
+      <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", gap:10, flexShrink:0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          <div style={{ flex:1 }}>
+            <div style={{ color:T.textDim, fontSize:9 }}>email/gmail</div>
+            <div style={{ color:T.accent, fontSize:14, fontWeight:700 }}>gmail</div>
+          </div>
+        </div>
+
+        <div style={{ flex:1, overflowY:"auto", padding:"16px 18px" }}>
+          {/* password card — decrypting state */}
+          <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>password</div>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"14px 14px", marginBottom:6,
+            display:"flex", flexDirection:"column", alignItems:"center", gap:10,
+          }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"4px 0", width:"100%" }}>
+              <div style={{
+                width: 16, height: 16, borderRadius:"50%",
+                border:`2px solid ${T.border2}`,
+                borderTopColor: T.accent,
+                animation:"spin 0.8s linear infinite", flexShrink:0,
+              }}/>
+              <span style={{ color:T.textDim, fontSize:10 }}>decrypting…</span>
+            </div>
+            <div style={{ display:"flex", gap:6, width:"100%" }}>
+              <Shimmer height={30} radius={T.r} style={{flex:1}}/>
+              <Shimmer height={30} radius={T.r} style={{flex:1}}/>
+            </div>
+          </div>
+          <div style={{ color:T.textFaint, fontSize:9, marginBottom:20 }}>decrypted in-memory · auto-clears in 45s</div>
+
+          {/* metadata — always visible */}
+          <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>metadata</div>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, overflow:"hidden", marginBottom:16,
+          }}>
+            {[["path","email/gmail"],["modified","2024-11-03"],["git commit","a3f92b1"]].map(([k,v],i,arr)=>(
+              <div key={k} style={{ display:"flex", padding:"9px 14px", borderBottom:i<arr.length-1?`1px solid ${T.border}`:"none" }}>
+                <span style={{ color:T.textDim, fontSize:10, width:72, flexShrink:0 }}>{k}</span>
+                <span style={{ color:T.text, fontSize:10 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* notes shimmer */}
+          <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>notes</div>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"12px 14px", display:"flex", flexDirection:"column", gap:8, minHeight:60,
+          }}>
+            <Shimmer width="85%" height={10}/>
+            <Shimmer width="60%" height={10}/>
+          </div>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING: GIT SYNC — inline on Home Tree
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenHomeSyncing() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+        {/* topbar */}
+        <div style={{
+          padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0,
+        }}>
+          <div>
+            <div style={{ color:T.textDim, fontSize:9, letterSpacing:"0.1em" }}>~/.password-store</div>
+            <div style={{ color:T.accent, fontSize:14, fontWeight:700, marginTop:1 }}>
+              pass<span style={{ color:T.textDim, fontWeight:300 }}>.android</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            {/* sync chip — active/spinning */}
+            <div style={{
+              display:"flex", alignItems:"center", gap:5,
+              background:T.accentDim, border:`1px solid ${T.accent}`,
+              borderRadius:T.r, padding:"5px 9px",
+            }}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none"
+                style={{ animation:"spin 0.8s linear infinite", transformOrigin:"center" }}>
+                <path d="M9.5 5.5A4 4 0 1 1 7 2" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round"/>
+                <path d="M7 2l1 2.5-2.5.5" stroke={T.accent} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{ color:T.accent, fontSize:9 }}>syncing</span>
+            </div>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <rect x="0.5" y="0.5" width="5" height="5" rx="1" stroke={T.accent} strokeWidth="1.1"/>
+              <rect x="7.5" y="0.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="0.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+              <rect x="7.5" y="7.5" width="5" height="5" rx="1" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+            {/* settings */}
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5.5 1.5h3l.4 1.4c.3.1.6.3.9.5l1.4-.4 1.5 2.5-1 1c0 .3.1.6.1.9s0 .6-.1.9l1 1-1.5 2.5-1.4-.4c-.3.2-.6.4-.9.5l-.4 1.4h-3l-.4-1.4a4 4 0 0 1-.9-.5l-1.4.4L1.2 9.4l1-.9a4 4 0 0 1-.1-.9c0-.3 0-.6.1-.9l-1-1 1.5-2.5 1.4.4c.3-.2.6-.4.9-.5l.5-1.6z" stroke={T.textDim} strokeWidth="1.1" strokeLinejoin="round"/>
+              <circle cx="7" cy="7" r="1.8" stroke={T.textDim} strokeWidth="1.1"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* sync status banner */}
+        <div style={{
+          margin:"8px 16px 0", padding:"8px 12px",
+          background:T.accentDim, border:`1px solid ${T.accentMid}`,
+          borderRadius:T.r, display:"flex", alignItems:"center", gap:8,
+        }}>
+          <div style={{
+            width:10, height:10, borderRadius:"50%",
+            border:`1.5px solid ${T.border2}`, borderTopColor:T.accent,
+            animation:"spin 0.8s linear infinite", flexShrink:0,
+          }}/>
+          <span style={{ color:T.accent, fontSize:10 }}>git pull --rebase origin main</span>
+        </div>
+
+        {/* tree — dimmed while syncing */}
+        <div style={{ flex:1, overflowY:"auto", padding:"6px 0", opacity:0.45, pointerEvents:"none" }}>
+          {storeData.map(({folder, entries}) => (
+            <div key={folder}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 18px" }}>
+                <span style={{ color:T.accentMid, fontSize:10 }}>▼</span>
+                <span style={{ color:T.accent, fontSize:11, opacity:0.75 }}>{folder}/</span>
+                <span style={{ color:T.textFaint, fontSize:9, marginLeft:"auto" }}>{entries.length}</span>
+              </div>
+              {entries.map((e,i) => (
+                <div key={e} style={{
+                  display:"flex", alignItems:"center",
+                  padding:"8px 18px 8px 40px", borderBottom:`1px solid ${T.border}`,
+                }}>
+                  <span style={{ color:T.textFaint, fontSize:10, marginRight:8 }}>
+                    {i<entries.length-1?"├─":"└─"}
+                  </span>
+                  <span style={{ color:T.text, fontSize:11, flex:1 }}>{e}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOADING: GPG KEY ENUMERATION — skeleton on Screen 03
+// ─────────────────────────────────────────────────────────────────────────────
+function ScreenGpgLoading() {
+  const T = React.useContext(ThemeContext);
+  return (
+    <Phone>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      <div style={{ padding:"16px 20px 20px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+          <div style={{ color:T.textDim, fontSize:9, letterSpacing:"0.1em" }}>SETUP  ·  2 / 2</div>
+          <div style={{ display:"flex", gap:4 }}>
+            {[1,2].map(i=>(
+              <div key={i} style={{ width:20, height:3, borderRadius:4, background:T.accent, opacity:i===2?1:0.6 }}/>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ color:T.accent, fontSize:16, fontWeight:700, marginBottom:4 }}>gpg key</div>
+        <div style={{ color:T.textDim, fontSize:10, marginBottom:20, lineHeight:1.6 }}>
+          provide the keypair used to encrypt/decrypt your store
+        </div>
+
+        <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>import</div>
+
+        {/* skeleton import row */}
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"12px 14px", marginBottom:10,
+          display:"flex", alignItems:"center", gap:10,
+        }}>
+          <div style={{ width:28, height:28, borderRadius:T.r, background:T.border2, flexShrink:0 }}/>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+            <Shimmer width="55%" height={10}/>
+            <Shimmer width="70%" height={9}/>
+          </div>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:8, margin:"4px 0 10px" }}>
+          <div style={{ flex:1, height:1, background:T.border }}/>
+          <span style={{ color:T.textFaint, fontSize:9 }}>or</span>
+          <div style={{ flex:1, height:1, background:T.border }}/>
+        </div>
+
+        <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>paste armored key</div>
+        <div style={{
+          background:T.surface, border:`1px solid ${T.border2}`,
+          borderRadius:T.r, padding:"10px 12px", marginBottom:20,
+          minHeight:80, display:"flex", flexDirection:"column", gap:7,
+        }}>
+          <Shimmer width="90%" height={9}/>
+          <Shimmer width="40%" height={9}/>
+        </div>
+      </div>
+    </Phone>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CANVAS
+// ─────────────────────────────────────────────────────────────────────────────
+function App() {
+  const [theme, setTheme] = React.useState("dark");
+  const T = theme === "light" ? LIGHT_T : DARK_T;
+  const [showTweaks, setShowTweaks] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setShowTweaks(true);
+      if (e.data?.type === '__deactivate_edit_mode') setShowTweaks(false);
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  return (
+    <ThemeContext.Provider value={T}>
+    {showTweaks && (
+      <div style={{
+        position:'fixed', bottom:24, right:24, zIndex:9999,
+        background:'#1a1a1a', border:'1px solid #333',
+        borderRadius:12, padding:'16px 20px', minWidth:200,
+        fontFamily:"'JetBrains Mono', monospace",
+        boxShadow:'0 8px 32px rgba(0,0,0,0.5)',
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
+          <span style={{color:'#fff', fontSize:13, fontWeight:600}}>Tweaks</span>
+          <span style={{color:'#666', cursor:'pointer', fontSize:16}} onClick={() => {
+            setShowTweaks(false);
+            window.parent.postMessage({type:'__edit_mode_dismissed'},'*');
+          }}>×</span>
+        </div>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+          <span style={{color:'#aaa', fontSize:11}}>Light mode</span>
+          <div onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} style={{
+            width:36, height:20, borderRadius:10, cursor:'pointer',
+            background: theme === 'light' ? '#39ff6b' : '#333',
+            position:'relative', transition:'background 0.2s',
+          }}>
+            <div style={{
+              width:14, height:14, borderRadius:'50%', background:'#fff',
+              position:'absolute', top:3,
+              left: theme === 'light' ? 19 : 3,
+              transition:'left 0.2s',
+            }}/>
+          </div>
+        </div>
+      </div>
+    )}
+    <DesignCanvas title="Pass Store — Screens">
+      <DCSection id="onboarding" title="Onboarding">
+        <DCArtboard id="s0" label="00 · Splash" width={320} height={720}>
+          <ScreenSplash/>
+        </DCArtboard>
+        <DCArtboard id="s1" label="01 · Welcome" width={320} height={720}>
+          <ScreenWelcome/>
+        </DCArtboard>
+        <DCArtboard id="s2" label="02 · Clone repo" width={320} height={720}>
+          <ScreenClone/>
+        </DCArtboard>
+        <DCArtboard id="l1" label="02b · Clone — Progress" width={320} height={720}>
+          <ScreenCloneLoading/>
+        </DCArtboard>
+        <DCArtboard id="s3" label="03 · GPG key" width={320} height={720}>
+          <ScreenGpg/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="main" title="Main App">
+        <DCArtboard id="s4" label="04 · Home — Tree" width={320} height={720}>
+          <ScreenHomeTree/>
+        </DCArtboard>
+        <DCArtboard id="l3" label="04b · Home — Syncing" width={320} height={720}>
+          <ScreenHomeSyncing/>
+        </DCArtboard>
+        <DCArtboard id="s5" label="05 · Home — Flat" width={320} height={720}>
+          <ScreenHomeFlat/>
+        </DCArtboard>
+        <DCArtboard id="s6pre" label="05b · GPG Passphrase" width={320} height={720}>
+          <ScreenPassphrase/>
+        </DCArtboard>
+        <DCArtboard id="s6bio" label="05c · Biometric Unlock" width={320} height={720}>
+          <ScreenBiometric/>
+        </DCArtboard>
+        <DCArtboard id="l2" label="06a · Entry — Decrypting" width={320} height={720}>
+          <ScreenEntryDecrypting/>
+        </DCArtboard>
+        <DCArtboard id="s6" label="06b · Entry Detail" width={320} height={720}>
+          <ScreenEntry/>
+        </DCArtboard>
+
+        <DCArtboard id="s9" label="07 · Settings" width={320} height={720}>
+          <ScreenSettings/>
+        </DCArtboard>
+        <DCArtboard id="s9b" label="07b · Settings — Pull on open" width={320} height={720}>
+          <SettingsBase pullOn={true}/>
+        </DCArtboard>
+        <DCArtboard id="s9c" label="07c · Settings — Default view" width={320} height={720}>
+          <SettingsBase>defaultView</SettingsBase>
+        </DCArtboard>
+        <DCArtboard id="s9d" label="07d · Settings — Clipboard timeout" width={320} height={720}>
+          <SettingsBase>clipboard</SettingsBase>
+        </DCArtboard>
+        <DCArtboard id="s9e" label="07e · Settings — Session timeout" width={320} height={720}>
+          <SettingsBase>session</SettingsBase>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="v2" title="v2.0 — Entry Creation">
+        <DCArtboard id="v2-tree" label="01 · Home — Tree (v2)" width={320} height={720}>
+          <ScreenHomeTreeV2/>
+        </DCArtboard>
+        <DCArtboard id="v2-flat" label="02 · Home — Flat (v2)" width={320} height={720}>
+          <ScreenHomeFlatV2/>
+        </DCArtboard>
+        <DCArtboard id="v2-entry" label="03 · Entry Detail (v2)" width={320} height={720}>
+          <ScreenEntryV2/>
+        </DCArtboard>
+        <DCArtboard id="s7" label="03 · New Entry" width={320} height={720}>
+          <ScreenNewEntry/>
+        </DCArtboard>
+        <DCArtboard id="s8" label="02 · Generator" width={320} height={720}>
+          <ScreenGenerator/>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+    </ThemeContext.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

@@ -29,6 +29,7 @@ import com.example.pass.settings.SettingsScreen
 import com.example.pass.settings.SettingsViewModel
 import com.example.pass.syncpanel.SyncPanelScreen
 import com.example.pass.syncpanel.SyncPanelViewModel
+import com.example.pass.ui.components.PassScaffold
 import kotlinx.serialization.Serializable
 
 @Serializable data object Splash : NavKey
@@ -62,8 +63,10 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                         backStack.add(dest)
                     }
                 }
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                PassScaffold { _ ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
 
