@@ -4,9 +4,9 @@
 
 ### Phase 1 — Onboarding Restructure
 
-- [ ] Add `gpgImported` flag to `AppPreferences` (DataStore boolean)
-- [ ] Update `NavGraph` routing: route to GPG screen if `remoteUrl` empty but `gpgImported` true; save `remoteUrl` only on clone success
-- [ ] **Build check** — `assembleDebug` (NavGraph changes are high-risk)
+- [x] Add `gpgImported` flag to `AppPreferences` (DataStore boolean)
+- [x] Update `NavGraph` routing: route to GPG screen if `remoteUrl` empty but `gpgImported` true; save `remoteUrl` only on clone success
+- [x] **Build check** — `assembleDebug` (NavGraph changes are high-risk)
 - [ ] Add `WelcomeScreen` — feature tag pills (gpg, git, pass), single CTA `$ clone a store`
 - [ ] Merge `OnboardingRemoteUrlScreen` + `OnboardingSshKeyScreen` → `CloneRepoScreen` — URL input + SSH key display with copy/regenerate, step indicator 1/2
 - [ ] **Build check** — `assembleDebug` (old screen files deleted, new one added)

@@ -82,6 +82,7 @@ class OnboardingViewModel @Inject constructor(
                 val text = _state.value.gpgKeyText
                 withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
                 _state.update { it.copy(gpgImported = true, gpgImportError = null) }
+                appPreferences.setGpgImported(true)
             } catch (e: KeyImportError) {
                 _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
             }

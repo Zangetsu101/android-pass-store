@@ -30,6 +30,7 @@ import com.example.pass.settings.SettingsViewModel
 import com.example.pass.syncpanel.SyncPanelScreen
 import com.example.pass.syncpanel.SyncPanelViewModel
 import com.example.pass.ui.components.PassScaffold
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.Serializable
 
 @Serializable data object Splash : NavKey
@@ -57,8 +58,14 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
         entryProvider = entryProvider {
             entry<Splash> {
                 LaunchedEffect(Unit) {
-                    appPreferences.remoteUrl.collect { url ->
-                        val dest = if (url.isEmpty()) OnboardingRemoteUrl else EntryBrowser
+                    combine(appPreferences.remoteUrl, appPreferences.gpgImported) { url, gpgDone ->
+                        url to gpgDone
+                    }.collect { (url, gpgDone) ->
+                        val dest = when {
+                            url.isNotEmpty() -> EntryBrowser
+                            gpgDone -> OnboardingGpgImport
+                            else -> OnboardingRemoteUrl
+                        }
                         backStack.clear()
                         backStack.add(dest)
                     }
