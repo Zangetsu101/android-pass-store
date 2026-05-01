@@ -1,5 +1,48 @@
 # PassDroid — Implementation Tasks
 
+## Design Migration (v1.0)
+
+### Phase 1 — Onboarding Restructure
+
+- [ ] Add `gpgImported` flag to `AppPreferences` (DataStore boolean)
+- [ ] Update `NavGraph` routing: route to GPG screen if `remoteUrl` empty but `gpgImported` true; save `remoteUrl` only on clone success
+- [ ] **Build check** — `assembleDebug` (NavGraph changes are high-risk)
+- [ ] Add `WelcomeScreen` — feature tag pills (gpg, git, pass), single CTA `$ clone a store`
+- [ ] Merge `OnboardingRemoteUrlScreen` + `OnboardingSshKeyScreen` → `CloneRepoScreen` — URL input + SSH key display with copy/regenerate, step indicator 1/2
+- [ ] **Build check** — `assembleDebug` (old screen files deleted, new one added)
+- [ ] Reorder onboarding: `Welcome → CloneRepo → GpgImport → CloneProgress`
+- [ ] Update `CloneProgressScreen` to terminal-style streaming output + progress bar + cancel button (design 02b)
+- [ ] Update `GpgImportScreen` step indicator to show 2/2
+- [ ] **Build check** — `assembleDebug`
+
+### Phase 2 — Home Screen Polish
+
+- [ ] Sync state (04b): dim tree to 45% opacity during sync, add status banner showing git command, spinning sync chip
+- [ ] Visual pass on tree and flat list views — align spacing, typography, and active entry highlight (`AccentDim` background) to design tokens
+- [ ] **Build check** — `assembleDebug`
+
+### Phase 3 — Entry Detail Screen
+
+- [ ] Extract `EntryDetailSheet` from `EntryBrowserScreen` → new `EntryDetailScreen` (full screen)
+- [ ] Wire `EntryDetailScreen` into `NavGraph` as a proper destination
+- [ ] **Build check** — `assembleDebug` (extraction + NavGraph wiring)
+- [ ] Add shimmer decrypting state (06a) — password spinner, notes shimmer skeleton, shimmer copy/reveal buttons
+- [ ] Add blur/reveal toggle — 5dp blur on password field, auto-blur after 45s on reveal
+- [ ] Add metadata table — path, modified date, commit hash
+- [ ] Verify 45s clipboard auto-clear timer is wired correctly in new screen
+- [ ] **Build check** — `assembleDebug`
+
+### Phase 4 — Settings Screen
+
+- [ ] Restructure `SettingsScreen` into sections: git, gpg, display, store
+- [ ] Git section: remote URL (read-only), SSH key (viewable), last sync timestamp
+- [ ] GPG section: key fingerprint (read-only), re-import option
+- [ ] Display section: theme toggle placeholder (light theme deferred), display prefs toggles
+- [ ] Store section: manual lock, session timeout, clear all data
+- [ ] **Build check** — `assembleDebug`
+
+---
+
 ## Manual Verification (Final)
 
 Run once after task 11 is complete. Sign off each item before shipping.
