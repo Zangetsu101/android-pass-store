@@ -35,7 +35,7 @@ fun PassToggle(
         label = "track",
     )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 14.dp else 2.dp,
+        targetValue = if (checked) 16.dp else 4.dp,
         animationSpec = tween(150),
         label = "thumb",
     )
@@ -57,7 +57,7 @@ fun PassToggle(
                 .offset(x = thumbOffset)
                 .size(12.dp)
                 .clip(CircleShape)
-                .background(Color.White),
+                .background(if (checked) PassColorsDark.Border2 else Color.White),
         )
     }
 }
