@@ -36,6 +36,11 @@ data class OnboardingUiState(
     val cloneComplete: Boolean = false,
     val cloneLog: List<String> = emptyList(),
     val cloneProgress: Float = 0f,
+    val cloneTaskName: String? = null,
+    val cloneTaskDone: Int = 0,
+    val cloneTaskTotal: Int = 0,
+    val cloneTotalTasks: Int = 0,
+    val cloneCompletedTasks: Int = 0,
 )
 
 @HiltViewModel
@@ -114,7 +119,18 @@ class OnboardingViewModel @Inject constructor(
     fun startClone() {
         cancelCloneFlag.set(false)
         val url = _state.value.remoteUrl.trim()
-        _state.update { it.copy(cloning = true, cloneError = null, cloneComplete = false, cloneLog = emptyList(), cloneProgress = 0f) }
+        _state.update {
+            it.copy(
+                cloning = true,
+                cloneError = null,
+                cloneComplete = false,
+                cloneLog = emptyList(),
+                cloneProgress = 0f,
+                cloneTaskName = null,
+                cloneTaskDone = 0,
+                cloneTaskTotal = 0,
+            )
+        }
         cloneJob = viewModelScope.launch {
             try {
                 val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
@@ -125,19 +141,39 @@ class OnboardingViewModel @Inject constructor(
                 var taskTotal = 0
                 var taskDone = 0
                 val monitor = object : ProgressMonitor {
-                    override fun start(totalTasks: Int) {}
+                    override fun start(totalTasks: Int) {
+                        _state.update { it.copy(cloneTotalTasks = totalTasks, cloneCompletedTasks = 0) }
+                    }
                     override fun beginTask(title: String, totalWork: Int) {
                         taskTotal = totalWork
                         taskDone = 0
-                        _state.update { it.copy(cloneLog = it.cloneLog + title) }
+                        _state.update {
+                            it.copy(
+                                cloneLog = it.cloneLog + title,
+                                cloneTaskName = title,
+                                cloneTaskDone = 0,
+                                cloneTaskTotal = totalWork,
+                            )
+                        }
                     }
                     override fun update(completed: Int) {
                         taskDone += completed
                         val progress = if (taskTotal > 0) taskDone.toFloat() / taskTotal else 0f
-                        _state.update { it.copy(cloneProgress = progress.coerceIn(0f, 1f)) }
+                        _state.update {
+                            it.copy(
+                                cloneProgress = progress.coerceIn(0f, 1f),
+                                cloneTaskDone = taskDone,
+                            )
+                        }
                     }
                     override fun endTask() {
-                        _state.update { it.copy(cloneProgress = 1f) }
+                        _state.update {
+                            it.copy(
+                                cloneProgress = 0f,
+                                cloneTaskDone = taskTotal,
+                                cloneCompletedTasks = it.cloneCompletedTasks + 1,
+                            )
+                        }
                     }
                     override fun isCancelled(): Boolean = cancelCloneFlag.get()
                     override fun showDuration(enabled: Boolean) {}

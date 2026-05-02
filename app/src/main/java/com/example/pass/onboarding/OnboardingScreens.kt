@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,10 +21,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -169,7 +172,7 @@ fun CloneRepoScreen(
 
     OnboardingScaffold(
         step = 1,
-        total = 2,
+        total = 3,
         title = "clone store",
         subtitle = "point to your existing pass git repository",
     ) {
@@ -275,7 +278,7 @@ fun OnboardingGpgImportScreen(
 
     OnboardingScaffold(
         step = 2,
-        total = 2,
+        total = 3,
         title = "gpg key",
         subtitle = "provide the keypair used to encrypt/decrypt your store",
     ) {
@@ -382,58 +385,96 @@ fun CloneProgressScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val logState = rememberLazyListState()
+    var cursorVisible by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) { viewModel.startClone() }
+    LaunchedEffect(Unit) {
+        viewModel.startClone()
+        while (true) { delay(500); cursorVisible = !cursorVisible }
+    }
     LaunchedEffect(state.cloneComplete) { if (state.cloneComplete) onSuccess() }
     LaunchedEffect(state.cloneLog.size) {
         if (state.cloneLog.isNotEmpty()) logState.animateScrollToItem(state.cloneLog.size - 1)
     }
 
-    PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
-        Column(
+    OnboardingScaffold(
+        step = 3,
+        total = 3,
+        title = "cloning store",
+        subtitle = state.remoteUrl,
+        scrollable = false,
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(20.dp),
+                .weight(1f)
+                .fillMaxWidth()
+                .background(PassColorsDark.Surface, PassShapes.medium)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.medium)
+                .padding(12.dp),
         ) {
-            Text("CLONING REPOSITORY", style = PassType.Label)
-            Spacer(Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(PassColorsDark.Surface, PassShapes.medium)
-                    .border(1.dp, PassColorsDark.Border, PassShapes.medium)
-                    .padding(12.dp),
-            ) {
-                LazyColumn(state = logState, modifier = Modifier.fillMaxSize()) {
-                    items(state.cloneLog) { line ->
-                        Text("> $line", style = PassType.Caption, color = PassColorsDark.TextDim)
+            val repoName = state.remoteUrl.substringAfterLast('/').substringAfterLast(':').removeSuffix(".git")
+            LazyColumn(state = logState, modifier = Modifier.fillMaxSize()) {
+                item { Text("> git clone ${state.remoteUrl}", style = PassType.Caption, color = PassColorsDark.TextDim) }
+                item { Text("> Cloning into '$repoName'...", style = PassType.Caption, color = PassColorsDark.TextDim) }
+                itemsIndexed(state.cloneLog) { index, line ->
+                    val isLast = index == state.cloneLog.size - 1
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("> $line", style = PassType.Caption, color = PassColorsDark.TextPrimary)
+                        if (isLast && state.cloning && cursorVisible) {
+                            Spacer(Modifier.width(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 6.dp, height = 12.dp)
+                                    .background(PassColorsDark.Accent),
+                            )
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            if (state.cloning) {
-                LinearProgressIndicator(
-                    progress = { state.cloneProgress },
-                    modifier = Modifier.fillMaxWidth(),
+        }
+        Spacer(Modifier.height(16.dp))
+        val totalProgress = if (state.cloneTotalTasks > 0)
+            ((state.cloneCompletedTasks + state.cloneProgress) / state.cloneTotalTasks).coerceIn(0f, 1f)
+        else 0f
+        if (state.cloning || state.cloneTaskName != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(state.cloneTaskName?.lowercase() ?: "", style = PassType.Caption)
+                Text(
+                    "${(totalProgress * 100).toInt()}%",
+                    style = PassType.Caption,
                     color = PassColorsDark.Accent,
-                    trackColor = PassColorsDark.Border,
                 )
             }
-            state.cloneError?.let { err ->
-                Spacer(Modifier.height(12.dp))
-                Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
-                Spacer(Modifier.height(8.dp))
-                PassPrimaryButton(onClick = { viewModel.startClone() }, label = "$ retry")
-            }
-            if (state.cloning) {
-                Spacer(Modifier.height(12.dp))
-                PassSecondaryButton(
-                    onClick = { viewModel.cancelClone() },
-                    label = "cancel",
-                )
-            }
+            Spacer(Modifier.height(5.dp))
+        }
+        LinearProgressIndicator(
+            progress = { totalProgress },
+            modifier = Modifier.fillMaxWidth(),
+            color = PassColorsDark.Accent,
+            trackColor = PassColorsDark.Border,
+        )
+        if (state.cloneTaskTotal > 0) {
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "${state.cloneTaskDone} / ${state.cloneTaskTotal} objects",
+                style = PassType.Caption,
+                color = PassColorsDark.TextFaint,
+            )
+        }
+        state.cloneError?.let { err ->
+            Spacer(Modifier.height(12.dp))
+            Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
+            Spacer(Modifier.height(8.dp))
+            PassPrimaryButton(onClick = { viewModel.startClone() }, label = "$ retry")
+        }
+        if (state.cloning) {
+            Spacer(Modifier.height(12.dp))
+            PassSecondaryButton(
+                onClick = { viewModel.cancelClone() },
+                label = "cancel",
+            )
         }
     }
 }
@@ -444,14 +485,15 @@ private fun OnboardingScaffold(
     total: Int,
     title: String,
     subtitle: String? = null,
-    content: @Composable () -> Unit,
+    scrollable: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                 .padding(20.dp),
         ) {
             Row(
