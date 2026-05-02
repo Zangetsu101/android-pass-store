@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pass.gitsync.GitSync
 import com.example.pass.gitsync.SyncError
-import com.example.pass.keymanagement.KeyImportError
 import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.preferences.AppPreferences
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -22,15 +24,8 @@ import kotlinx.coroutines.withContext
 import org.eclipse.jgit.lib.ProgressMonitor
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
-data class OnboardingUiState(
-    val remoteUrl: String = "",
-    val remoteUrlError: String? = null,
-    val sshPublicKey: String? = null,
-    val gpgKeyText: String = "",
-    val gpgImportError: String? = null,
-    val gpgImported: Boolean = false,
+data class CloneProgressUiState(
     val cloning: Boolean = false,
     val cloneError: String? = null,
     val cloneComplete: Boolean = false,
@@ -43,72 +38,28 @@ data class OnboardingUiState(
     val cloneCompletedTasks: Int = 0,
 )
 
-@HiltViewModel
-class OnboardingViewModel @Inject constructor(
+@HiltViewModel(assistedFactory = CloneProgressViewModel.Factory::class)
+class CloneProgressViewModel @AssistedInject constructor(
+    @Assisted val remoteUrl: String,
     @ApplicationContext private val context: Context,
     private val keyManagement: KeyManagement,
     private val gitSync: GitSync,
     private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(OnboardingUiState())
-    val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
+    @AssistedFactory
+    interface Factory {
+        fun create(remoteUrl: String): CloneProgressViewModel
+    }
+
+    private val _state = MutableStateFlow(CloneProgressUiState())
+    val state: StateFlow<CloneProgressUiState> = _state.asStateFlow()
 
     private var cloneJob: Job? = null
     private val cancelCloneFlag = AtomicBoolean(false)
 
-    fun setRemoteUrl(url: String) {
-        _state.update { it.copy(remoteUrl = url, remoteUrlError = null) }
-    }
-
-    fun validateRemoteUrl(): Boolean {
-        val url = _state.value.remoteUrl.trim()
-        if (url.isEmpty()) {
-            _state.update { it.copy(remoteUrlError = "Remote URL is required") }
-            return false
-        }
-        val valid = url.startsWith("git@") || url.startsWith("ssh://") ||
-            url.startsWith("https://") || url.startsWith("file://")
-        if (!valid) {
-            _state.update { it.copy(remoteUrlError = "Enter a valid git remote URL") }
-            return false
-        }
-        _state.update { it.copy(remoteUrlError = null) }
-        return true
-    }
-
-    fun generateSshKeyIfNeeded() {
-        if (_state.value.sshPublicKey != null) return
-        viewModelScope.launch {
-            val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
-            _state.update { it.copy(sshPublicKey = publicKey) }
-            appPreferences.setSshPublicKey(publicKey)
-        }
-    }
-
-    fun regenerateSshKey() {
-        viewModelScope.launch {
-            val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
-            _state.update { it.copy(sshPublicKey = publicKey) }
-            appPreferences.setSshPublicKey(publicKey)
-        }
-    }
-
-    fun setGpgKeyText(text: String) {
-        _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
-    }
-
-    fun importGpgKey() {
-        viewModelScope.launch {
-            try {
-                val text = _state.value.gpgKeyText
-                withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
-                _state.update { it.copy(gpgImported = true, gpgImportError = null) }
-                appPreferences.setGpgImported(true)
-            } catch (e: KeyImportError) {
-                _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
-            }
-        }
+    init {
+        startClone()
     }
 
     fun cancelClone() {
@@ -116,9 +67,12 @@ class OnboardingViewModel @Inject constructor(
         cloneJob?.cancel()
     }
 
-    fun startClone() {
+    fun retryClone() {
+        startClone()
+    }
+
+    private fun startClone() {
         cancelCloneFlag.set(false)
-        val url = _state.value.remoteUrl.trim()
         _state.update {
             it.copy(
                 cloning = true,
@@ -134,7 +88,7 @@ class OnboardingViewModel @Inject constructor(
         cloneJob = viewModelScope.launch {
             try {
                 val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
-                val sshKeyPair = if (url.startsWith("git@") || url.startsWith("ssh://")) {
+                val sshKeyPair = if (remoteUrl.startsWith("git@") || remoteUrl.startsWith("ssh://")) {
                     withContext(Dispatchers.IO) { keyManagement.getSshKey() }
                 } else null
 
@@ -179,8 +133,8 @@ class OnboardingViewModel @Inject constructor(
                     override fun showDuration(enabled: Boolean) {}
                 }
 
-                gitSync.clone(url, repoDir, sshKeyPair, monitor)
-                appPreferences.setRemoteUrl(url)
+                gitSync.clone(remoteUrl, repoDir, sshKeyPair, monitor)
+                appPreferences.setRemoteUrl(remoteUrl)
                 _state.update { it.copy(cloning = false, cloneComplete = true) }
             } catch (e: CancellationException) {
                 _state.update { it.copy(cloning = false, cloneLog = _state.value.cloneLog + "cancelled.") }

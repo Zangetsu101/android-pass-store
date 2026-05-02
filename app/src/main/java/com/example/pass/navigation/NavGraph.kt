@@ -19,9 +19,11 @@ import com.example.pass.browser.EntryBrowserViewModel
 import com.example.pass.browser.EntryDetailScreen
 import com.example.pass.browser.EntryDetailViewModel
 import com.example.pass.onboarding.CloneProgressScreen
+import com.example.pass.onboarding.CloneProgressViewModel
 import com.example.pass.onboarding.CloneRepoScreen
+import com.example.pass.onboarding.CloneRepoViewModel
+import com.example.pass.onboarding.GpgImportViewModel
 import com.example.pass.onboarding.OnboardingGpgImportScreen
-import com.example.pass.onboarding.OnboardingViewModel
 import com.example.pass.onboarding.WelcomeScreen
 import com.example.pass.preferences.AppPreferences
 import com.example.pass.session.SessionStartScreen
@@ -37,8 +39,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object Splash : NavKey
 @Serializable data object Welcome : NavKey
 @Serializable data object CloneRepo : NavKey
-@Serializable data object OnboardingGpgImport : NavKey
-@Serializable data object OnboardingClone : NavKey
+@Serializable data class OnboardingGpgImport(val remoteUrl: String) : NavKey
+@Serializable data class OnboardingClone(val remoteUrl: String) : NavKey
 @Serializable data object SessionStart : NavKey
 @Serializable data object EntryBrowser : NavKey
 @Serializable data class EntryDetail(val entryPath: String) : NavKey
@@ -48,7 +50,6 @@ import kotlinx.serialization.Serializable
 @Composable
 fun PassDroidNavHost(appPreferences: AppPreferences) {
     val backStack = rememberNavBackStack(Splash)
-    val onboardingVm: OnboardingViewModel = hiltViewModel()
 
     NavDisplay(
         backStack = backStack,
@@ -65,7 +66,7 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                     }.collect { (url, gpgDone) ->
                         val dest = when {
                             url.isNotEmpty() -> EntryBrowser
-                            gpgDone -> OnboardingGpgImport
+                            gpgDone -> CloneRepo
                             else -> Welcome
                         }
                         backStack.clear()
@@ -84,19 +85,24 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
             }
 
             entry<CloneRepo> {
-                CloneRepoScreen(onboardingVm) {
-                    backStack.add(OnboardingGpgImport)
+                val vm: CloneRepoViewModel = hiltViewModel()
+                CloneRepoScreen(vm) { url ->
+                    backStack.add(OnboardingGpgImport(url))
                 }
             }
 
             entry<OnboardingGpgImport> {
-                OnboardingGpgImportScreen(onboardingVm) {
-                    backStack.add(OnboardingClone)
+                val vm: GpgImportViewModel = hiltViewModel()
+                OnboardingGpgImportScreen(vm) {
+                    backStack.add(OnboardingClone(it.remoteUrl))
                 }
             }
 
             entry<OnboardingClone> {
-                CloneProgressScreen(onboardingVm) {
+                val vm = hiltViewModel<CloneProgressViewModel, CloneProgressViewModel.Factory>(
+                    creationCallback = { factory -> factory.create(it.remoteUrl) }
+                )
+                CloneProgressScreen(vm) {
                     backStack.clear()
                     backStack.add(EntryBrowser)
                 }
