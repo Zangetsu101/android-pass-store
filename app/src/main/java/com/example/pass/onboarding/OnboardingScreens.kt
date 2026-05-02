@@ -92,7 +92,10 @@ fun WelcomeScreen(onStart: () -> Unit) {
                         painter = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = null,
                         tint = PassColorsDark.Accent,
-                        modifier = Modifier.size(52.dp),
+                        modifier = Modifier.size(52.dp).graphicsLayer {
+                          scaleX = 1.6f
+                          scaleY = 1.6f
+                        },
                     )
                 }
                 Spacer(Modifier.height(20.dp))
@@ -107,7 +110,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "the standard unix password\nmanager — on your phone",
+                    text = "the standard unix password manager — on your phone",
                     style = PassType.Body
                 )
                 Spacer(Modifier.height(32.dp))
