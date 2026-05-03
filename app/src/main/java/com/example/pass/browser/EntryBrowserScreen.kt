@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
@@ -42,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassScaffold
@@ -83,23 +86,35 @@ fun EntryBrowserScreen(
             ) {
                 Column {
                     Text("~/.password-store", style = PassType.Caption)
-                    Text("pass.android", style = PassType.Title)
+                    Row {
+                        Text("pass", style = PassType.Title, color = PassColorsDark.Accent)
+                        Text(".android", style = PassType.Title.copy(color = PassColorsDark.TextDim, fontWeight = FontWeight.Light))
+                    }
                 }
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier
+                            .background(PassColorsDark.Surface, RoundedCornerShape(6.dp))
+                            .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(6.dp))
+                            .clickable { viewModel.pull() }
+                            .padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Sync,
+                            contentDescription = "sync",
+                            tint = if (state.syncing) PassColorsDark.Accent else PassColorsDark.TextDim,
+                            modifier = Modifier.size(11.dp).rotate(syncRotation),
+                        )
+                        Text("sync", style = PassType.Caption, color = PassColorsDark.TextDim)
+                    }
                     IconButton(onClick = { viewModel.toggleView() }) {
                         Icon(
                             if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
                             contentDescription = if (state.treeView) "flat view" else "tree view",
                             tint = PassColorsDark.TextDim,
                             modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    IconButton(onClick = { viewModel.pull() }) {
-                        Icon(
-                            Icons.Default.Sync,
-                            contentDescription = "sync",
-                            tint = if (state.syncing) PassColorsDark.Accent else PassColorsDark.TextDim,
-                            modifier = Modifier.size(18.dp).rotate(syncRotation),
                         )
                     }
                     IconButton(onClick = onNavigateToSettings) {
@@ -112,6 +127,7 @@ fun EntryBrowserScreen(
                     }
                 }
             }
+            HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
             // Sync status banner
             if (state.syncMessage != null) {
@@ -158,7 +174,7 @@ fun EntryBrowserScreen(
                     .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
             )
 
-            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
             Box(modifier = Modifier.alpha(if (state.syncing) 0.45f else 1f)) {
                 when {
@@ -190,8 +206,8 @@ fun EntryBrowserScreen(
 @Composable
 private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit) {
     LazyColumn {
-        items(entries, key = { it.path }) { entry ->
-            FlatEntryRow(entry = entry, onClick = { onEntryClick(entry) })
+        itemsIndexed(entries, key = { _, it -> it.path }) { index, entry ->
+            FlatEntryRow(entry = entry, index = index, onClick = { onEntryClick(entry) })
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         }
     }
@@ -215,7 +231,7 @@ private fun TreeView(
         grouped.forEach { (dir, dirEntries) ->
             if (dir.isNotEmpty()) {
                 item(key = "dir_$dir") {
-                    DirHeader(dir = dir, collapsed = dir in collapsedDirs, onToggle = { onToggleDir(dir) })
+                    DirHeader(dir = dir, collapsed = dir in collapsedDirs, count = dirEntries.size, onToggle = { onToggleDir(dir) })
                 }
             }
             if (dir.isEmpty() || dir !in collapsedDirs) {
@@ -229,7 +245,7 @@ private fun TreeView(
 }
 
 @Composable
-private fun DirHeader(dir: String, collapsed: Boolean, onToggle: () -> Unit) {
+private fun DirHeader(dir: String, collapsed: Boolean, count: Int, onToggle: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -242,7 +258,8 @@ private fun DirHeader(dir: String, collapsed: Boolean, onToggle: () -> Unit) {
             style = PassType.Caption.copy(color = PassColorsDark.AccentMid),
             modifier = Modifier.padding(end = 8.dp),
         )
-        Text(text = dir, style = PassType.Body.copy(color = PassColorsDark.Accent.copy(alpha = 0.75f)))
+        Text(text = "$dir/", style = PassType.Body.copy(color = PassColorsDark.Accent.copy(alpha = 0.75f)), modifier = Modifier.weight(1f))
+        Text("$count", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
 
@@ -261,7 +278,7 @@ private fun TreeEntryRow(entry: PassEntry, indent: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun FlatEntryRow(entry: PassEntry, onClick: () -> Unit) {
+private fun FlatEntryRow(entry: PassEntry, index: Int, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
