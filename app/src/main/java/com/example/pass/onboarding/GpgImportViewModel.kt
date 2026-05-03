@@ -22,28 +22,29 @@ data class GpgImportUiState(
 )
 
 @HiltViewModel
-class GpgImportViewModel @Inject constructor(
-    private val keyManagement: KeyManagement,
-    private val appPreferences: AppPreferences,
-) : ViewModel() {
+class GpgImportViewModel
+    @Inject
+    constructor(
+        private val keyManagement: KeyManagement,
+        private val appPreferences: AppPreferences,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(GpgImportUiState())
+        val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(GpgImportUiState())
-    val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
+        fun setGpgKeyText(text: String) {
+            _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
+        }
 
-    fun setGpgKeyText(text: String) {
-        _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
-    }
-
-    fun importGpgKey() {
-        viewModelScope.launch {
-            try {
-                val text = _state.value.gpgKeyText
-                withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
-                _state.update { it.copy(gpgImported = true, gpgImportError = null) }
-                appPreferences.setGpgImported(true)
-            } catch (e: KeyImportError) {
-                _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
+        fun importGpgKey() {
+            viewModelScope.launch {
+                try {
+                    val text = _state.value.gpgKeyText
+                    withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
+                    _state.update { it.copy(gpgImported = true, gpgImportError = null) }
+                    appPreferences.setGpgImported(true)
+                } catch (e: KeyImportError) {
+                    _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
+                }
             }
         }
     }
-}

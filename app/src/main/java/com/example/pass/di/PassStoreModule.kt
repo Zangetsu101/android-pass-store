@@ -11,7 +11,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class PassStoreModule {
-
     @Binds
     @Singleton
     abstract fun bindPassStore(impl: PassStoreImpl): PassStore

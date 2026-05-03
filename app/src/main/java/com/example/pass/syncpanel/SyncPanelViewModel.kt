@@ -23,43 +23,45 @@ data class SyncPanelUiState(
 )
 
 @HiltViewModel
-class SyncPanelViewModel @Inject constructor(
-    private val gitSync: GitSync,
-    private val passStore: PassStore,
-) : ViewModel() {
+class SyncPanelViewModel
+    @Inject
+    constructor(
+        private val gitSync: GitSync,
+        private val passStore: PassStore,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(SyncPanelUiState())
+        val state: StateFlow<SyncPanelUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(SyncPanelUiState())
-    val state: StateFlow<SyncPanelUiState> = _state.asStateFlow()
+        init {
+            loadStatus()
+        }
 
-    init {
-        loadStatus()
-    }
-
-    fun loadStatus() {
-        viewModelScope.launch {
-            val status: SyncStatus = runCatching { gitSync.syncStatus() }.getOrElse {
-                SyncStatus(lastSyncTime = null, localCommit = null, remoteReachable = false)
+        fun loadStatus() {
+            viewModelScope.launch {
+                val status: SyncStatus =
+                    runCatching { gitSync.syncStatus() }.getOrElse {
+                        SyncStatus(lastSyncTime = null, localCommit = null, remoteReachable = false)
+                    }
+                _state.update {
+                    it.copy(
+                        lastSyncTime = status.lastSyncTime,
+                        remoteReachable = status.remoteReachable,
+                    )
+                }
             }
-            _state.update {
-                it.copy(
-                    lastSyncTime = status.lastSyncTime,
-                    remoteReachable = status.remoteReachable,
-                )
+        }
+
+        fun pull() {
+            _state.update { it.copy(pulling = true, pullError = null, pullSuccess = false) }
+            viewModelScope.launch {
+                try {
+                    val result = gitSync.pull()
+                    passStore.buildIndex()
+                    _state.update { it.copy(pulling = false, pullSuccess = true, lastSyncTime = result.lastSyncTime) }
+                } catch (e: Exception) {
+                    _state.update { it.copy(pulling = false, pullError = e.message ?: "Pull failed") }
+                    loadStatus()
+                }
             }
         }
     }
-
-    fun pull() {
-        _state.update { it.copy(pulling = true, pullError = null, pullSuccess = false) }
-        viewModelScope.launch {
-            try {
-                val result = gitSync.pull()
-                passStore.buildIndex()
-                _state.update { it.copy(pulling = false, pullSuccess = true, lastSyncTime = result.lastSyncTime) }
-            } catch (e: Exception) {
-                _state.update { it.copy(pulling = false, pullError = e.message ?: "Pull failed") }
-                loadStatus()
-            }
-        }
-    }
-}

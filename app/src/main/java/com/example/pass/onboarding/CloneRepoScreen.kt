@@ -1,5 +1,6 @@
 package com.example.pass.onboarding
 
+import android.content.ClipData
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -26,7 +27,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import android.content.ClipData
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -83,11 +83,12 @@ fun CloneRepoScreen(
         Spacer(Modifier.height(6.dp))
         val key = state.sshPublicKey
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.small)
-                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-                .padding(10.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(PassColorsDark.Surface, PassShapes.small)
+                    .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                    .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text("ed25519 · generated on device", style = PassType.Caption, color = PassColorsDark.TextDim)
@@ -126,11 +127,12 @@ fun CloneRepoScreen(
         }
         Spacer(Modifier.height(16.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PassColorsDark.Warning.copy(alpha = 0.07f), PassShapes.small)
-                .border(1.dp, PassColorsDark.Warning.copy(alpha = 0.27f), PassShapes.small)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(PassColorsDark.Warning.copy(alpha = 0.07f), PassShapes.small)
+                    .border(1.dp, PassColorsDark.Warning.copy(alpha = 0.27f), PassShapes.small)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Text(
                 text = "⚠ github → Settings → SSH and GPG Keys → New SSH Key",
@@ -156,17 +158,19 @@ private fun SshKeyShimmer() {
         animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
         label = "shimmerOffset",
     )
-    val shimmerBrush = Brush.linearGradient(
-        colors = listOf(PassColorsDark.Surface, PassColorsDark.Raised, PassColorsDark.Surface),
-        start = Offset(offsetX, 0f),
-        end = Offset(offsetX + 300f, 0f),
-    )
+    val shimmerBrush =
+        Brush.linearGradient(
+            colors = listOf(PassColorsDark.Surface, PassColorsDark.Raised, PassColorsDark.Surface),
+            start = Offset(offsetX, 0f),
+            end = Offset(offsetX + 300f, 0f),
+        )
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(PassColorsDark.Surface, PassShapes.small)
-            .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-            .padding(10.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(Modifier.size(width = 140.dp, height = 9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))

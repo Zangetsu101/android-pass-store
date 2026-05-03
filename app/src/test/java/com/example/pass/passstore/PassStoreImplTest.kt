@@ -13,7 +13,6 @@ import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class PassStoreImplTest {
-
     private lateinit var context: Context
     private lateinit var store: PassStoreImpl
     private lateinit var repoDir: File

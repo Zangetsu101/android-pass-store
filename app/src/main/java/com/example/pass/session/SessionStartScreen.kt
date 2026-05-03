@@ -45,11 +45,12 @@ fun SessionStartScreen(
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
         ) {
             Text("unlock session", style = PassType.Title)
             Spacer(Modifier.height(8.dp))
@@ -64,10 +65,11 @@ fun SessionStartScreen(
                 value = state.passphrase,
                 onValueChange = viewModel::setPassphrase,
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
+                keyboardOptions =
+                    KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
                 keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
                 isError = state.error != null,
                 enabled = !state.loading,
@@ -82,16 +84,28 @@ fun SessionStartScreen(
                 onClick = viewModel::submit,
                 enabled = !state.loading && state.passphrase.isNotEmpty(),
                 shape = MaterialTheme.shapes.extraSmall,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PassColorsDark.AccentDim,
-                    contentColor = PassColorsDark.Accent,
-                    disabledContainerColor = PassColorsDark.Border,
-                    disabledContentColor = PassColorsDark.TextFaint,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .border(1.dp, if (!state.loading && state.passphrase.isNotEmpty()) PassColorsDark.Accent else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = PassColorsDark.AccentDim,
+                        contentColor = PassColorsDark.Accent,
+                        disabledContainerColor = PassColorsDark.Border,
+                        disabledContentColor = PassColorsDark.TextFaint,
+                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .border(
+                            1.dp,
+                            if (!state.loading &&
+                                state.passphrase.isNotEmpty()
+                            ) {
+                                PassColorsDark.Accent
+                            } else {
+                                PassColorsDark.Border
+                            },
+                            MaterialTheme.shapes.extraSmall,
+                        ),
             ) {
                 if (state.loading) {
                     CircularProgressIndicator(

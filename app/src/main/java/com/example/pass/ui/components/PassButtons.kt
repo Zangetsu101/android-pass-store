@@ -26,16 +26,18 @@ fun PassPrimaryButton(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.extraSmall,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = PassColorsDark.AccentDim,
-            contentColor = PassColorsDark.Accent,
-            disabledContainerColor = PassColorsDark.Border,
-            disabledContentColor = PassColorsDark.TextFaint,
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = PassColorsDark.AccentDim,
+                contentColor = PassColorsDark.Accent,
+                disabledContainerColor = PassColorsDark.Border,
+                disabledContentColor = PassColorsDark.TextFaint,
+            ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
     ) {
         Text(label, style = PassType.Body.copy(color = if (enabled) PassColorsDark.Accent else PassColorsDark.TextFaint))
     }

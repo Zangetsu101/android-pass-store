@@ -40,85 +40,91 @@ data class EntryDetailUiState(
 )
 
 @HiltViewModel
-class EntryDetailViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val passStore: PassStore,
-    private val decryption: Decryption,
-    private val gitSync: GitSync,
-) : ViewModel() {
+class EntryDetailViewModel
+    @Inject
+    constructor(
+        @ApplicationContext private val context: Context,
+        private val passStore: PassStore,
+        private val decryption: Decryption,
+        private val gitSync: GitSync,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(EntryDetailUiState())
+        val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(EntryDetailUiState())
-    val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
+        private var blurJob: Job? = null
+        private var clipClearJob: Job? = null
 
-    private var blurJob: Job? = null
-    private var clipClearJob: Job? = null
+        fun initForEntry(entryPath: String): PassEntry? {
+            val entry = passStore.index.value.find { it.path == entryPath }
+            _state.update { it.copy(entry = entry) }
+            return entry
+        }
 
-    fun initForEntry(entryPath: String): PassEntry? {
-        val entry = passStore.index.value.find { it.path == entryPath }
-        _state.update { it.copy(entry = entry) }
-        return entry
-    }
-
-    fun decrypt(entry: PassEntry, activity: FragmentActivity) {
-        if (_state.value.decrypting) return
-        _state.update { it.copy(decrypting = true, decryptError = null) }
-        viewModelScope.launch {
-            try {
-                val creds = decryption.decrypt(entry, activity)
-                _state.update { it.copy(decrypting = false, credentials = creds) }
-            } catch (e: SessionError.NoActiveSession) {
-                _state.update { it.copy(decrypting = false, sessionStartNeeded = true) }
-            } catch (e: DecryptionError) {
-                _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
-            } catch (e: Exception) {
-                _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
+        fun decrypt(
+            entry: PassEntry,
+            activity: FragmentActivity,
+        ) {
+            if (_state.value.decrypting) return
+            _state.update { it.copy(decrypting = true, decryptError = null) }
+            viewModelScope.launch {
+                try {
+                    val creds = decryption.decrypt(entry, activity)
+                    _state.update { it.copy(decrypting = false, credentials = creds) }
+                } catch (e: SessionError.NoActiveSession) {
+                    _state.update { it.copy(decrypting = false, sessionStartNeeded = true) }
+                } catch (e: DecryptionError) {
+                    _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
+                } catch (e: Exception) {
+                    _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
+                }
             }
         }
-    }
 
-    fun onSessionStartNavigated() {
-        _state.update { it.copy(sessionStartNeeded = false) }
-    }
+        fun onSessionStartNavigated() {
+            _state.update { it.copy(sessionStartNeeded = false) }
+        }
 
-    fun toggleReveal() {
-        val revealing = !_state.value.passwordRevealed
-        _state.update { it.copy(passwordRevealed = revealing) }
-        blurJob?.cancel()
-        if (revealing) {
-            blurJob = viewModelScope.launch {
-                delay(45_000)
-                _state.update { it.copy(passwordRevealed = false) }
+        fun toggleReveal() {
+            val revealing = !_state.value.passwordRevealed
+            _state.update { it.copy(passwordRevealed = revealing) }
+            blurJob?.cancel()
+            if (revealing) {
+                blurJob =
+                    viewModelScope.launch {
+                        delay(45_000)
+                        _state.update { it.copy(passwordRevealed = false) }
+                    }
             }
         }
-    }
 
-    fun copyPassword() {
-        val creds = _state.value.credentials ?: return
-        val password = String(creds.password)
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
-        _state.update { it.copy(clipboardCopied = true) }
-        clipClearJob?.cancel()
-        clipClearJob = viewModelScope.launch {
-            delay(45_000)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                clipboard.clearPrimaryClip()
-            } else {
-                clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+        fun copyPassword() {
+            val creds = _state.value.credentials ?: return
+            val password = String(creds.password)
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
+            _state.update { it.copy(clipboardCopied = true) }
+            clipClearJob?.cancel()
+            clipClearJob =
+                viewModelScope.launch {
+                    delay(45_000)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        clipboard.clearPrimaryClip()
+                    } else {
+                        clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                    }
+                    _state.update { it.copy(clipboardCopied = false) }
+                }
+        }
+
+        fun loadMetadata(entryPath: String) {
+            viewModelScope.launch {
+                val info = gitSync.lastCommitForFile(entryPath)
+                _state.update { it.copy(commitInfo = info, metadataLoaded = true) }
             }
-            _state.update { it.copy(clipboardCopied = false) }
+        }
+
+        override fun onCleared() {
+            super.onCleared()
+            _state.value.credentials?.zero()
         }
     }
-
-    fun loadMetadata(entryPath: String) {
-        viewModelScope.launch {
-            val info = gitSync.lastCommitForFile(entryPath)
-            _state.update { it.copy(commitInfo = info, metadataLoaded = true) }
-        }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        _state.value.credentials?.zero()
-    }
-}

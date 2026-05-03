@@ -28,7 +28,6 @@ import java.nio.file.Files
 
 @RunWith(JUnit4::class)
 class DecryptionImplTest {
-
     private lateinit var testKey: PGPSecretKeyRing
     private lateinit var keyManagement: KeyManagement
     private lateinit var decryption: DecryptionImpl
@@ -37,8 +36,10 @@ class DecryptionImplTest {
     @Before
     fun setup() {
         // Generate a throwaway key for testing
-        testKey = PGPainless.generateKeyRing()
-            .modernKeyRing("Test User <test@example.com>")
+        testKey =
+            PGPainless
+                .generateKeyRing()
+                .modernKeyRing("Test User <test@example.com>")
 
         keyManagement = mock()
         decryption = DecryptionImpl(keyManagement)
@@ -48,19 +49,25 @@ class DecryptionImplTest {
     private fun encryptText(plaintext: String): ByteArray {
         val publicKey = PGPainless.extractCertificate(testKey)
         val output = ByteArrayOutputStream()
-        val encStream = PGPainless.encryptAndOrSign()
-            .onOutputStream(output)
-            .withOptions(
-                ProducerOptions.encrypt(
-                    EncryptionOptions.encryptCommunications()
-                        .addRecipient(publicKey)
+        val encStream =
+            PGPainless
+                .encryptAndOrSign()
+                .onOutputStream(output)
+                .withOptions(
+                    ProducerOptions.encrypt(
+                        EncryptionOptions
+                            .encryptCommunications()
+                            .addRecipient(publicKey),
+                    ),
                 )
-            )
         encStream.use { it.write(plaintext.toByteArray()) }
         return output.toByteArray()
     }
 
-    private fun makeEntry(filename: String, content: String): PassEntry {
+    private fun makeEntry(
+        filename: String,
+        content: String,
+    ): PassEntry {
         val file = File(tmpDir, filename)
         file.writeBytes(encryptText(content))
         return PassEntry(
@@ -72,72 +79,79 @@ class DecryptionImplTest {
     }
 
     @Test
-    fun `decrypt returns password from line 1 of single-line file`() = runTest {
-        whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
-        val entry = makeEntry("alice.gpg", "s3cr3t")
-        val activity: FragmentActivity = mock()
+    fun `decrypt returns password from line 1 of single-line file`() =
+        runTest {
+            whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
+            val entry = makeEntry("alice.gpg", "s3cr3t")
+            val activity: FragmentActivity = mock()
 
-        val creds = decryption.decrypt(entry, activity)
+            val creds = decryption.decrypt(entry, activity)
 
-        assertArrayEquals("s3cr3t".toCharArray(), creds.password)
-    }
-
-    @Test
-    fun `decrypt returns password and notes from multi-line file`() = runTest {
-        whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
-        val entry = makeEntry("bob.gpg", "password123\nusername: bob\nurl: https://example.com")
-        val activity: FragmentActivity = mock()
-
-        val creds = decryption.decrypt(entry, activity)
-
-        assertArrayEquals("password123".toCharArray(), creds.password)
-        assertTrue(creds.notes.contains("username: bob"))
-    }
-
-    @Test
-    fun `decrypt throws DecryptionError for wrong key`() = runTest {
-        val wrongKey = PGPainless.generateKeyRing()
-            .modernKeyRing("Wrong <wrong@example.com>")
-        whenever(keyManagement.getGpgKey(any())).thenReturn(wrongKey)
-        val entry = makeEntry("alice.gpg", "secret")
-        val activity: FragmentActivity = mock()
-
-        var threw: DecryptionError? = null
-        try {
-            decryption.decrypt(entry, activity)
-        } catch (e: DecryptionError) {
-            threw = e
+            assertArrayEquals("s3cr3t".toCharArray(), creds.password)
         }
-        assertNotNull("Expected DecryptionError", threw)
-    }
 
     @Test
-    fun `decrypt throws DecryptionError for corrupted file`() = runTest {
-        whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
-        val file = File(tmpDir, "corrupt.gpg").also { it.writeText("not valid gpg content") }
-        val entry = PassEntry("corrupt.gpg", "example.com", "corrupt", file)
-        val activity: FragmentActivity = mock()
+    fun `decrypt returns password and notes from multi-line file`() =
+        runTest {
+            whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
+            val entry = makeEntry("bob.gpg", "password123\nusername: bob\nurl: https://example.com")
+            val activity: FragmentActivity = mock()
 
-        var threw: DecryptionError? = null
-        try {
-            decryption.decrypt(entry, activity)
-        } catch (e: DecryptionError) {
-            threw = e
+            val creds = decryption.decrypt(entry, activity)
+
+            assertArrayEquals("password123".toCharArray(), creds.password)
+            assertTrue(creds.notes.contains("username: bob"))
         }
-        assertNotNull("Expected DecryptionError", threw)
-    }
 
     @Test
-    fun `decryptForAutofill returns only password without notes`() = runTest {
-        whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
-        val entry = makeEntry("carol.gpg", "autofillpass\nnotes: blah")
-        val activity: FragmentActivity = mock()
+    fun `decrypt throws DecryptionError for wrong key`() =
+        runTest {
+            val wrongKey =
+                PGPainless
+                    .generateKeyRing()
+                    .modernKeyRing("Wrong <wrong@example.com>")
+            whenever(keyManagement.getGpgKey(any())).thenReturn(wrongKey)
+            val entry = makeEntry("alice.gpg", "secret")
+            val activity: FragmentActivity = mock()
 
-        val creds = decryption.decryptForAutofill(entry, activity)
+            var threw: DecryptionError? = null
+            try {
+                decryption.decrypt(entry, activity)
+            } catch (e: DecryptionError) {
+                threw = e
+            }
+            assertNotNull("Expected DecryptionError", threw)
+        }
 
-        assertArrayEquals("autofillpass".toCharArray(), creds.password)
-        assertEquals("carol", creds.username)
-    }
+    @Test
+    fun `decrypt throws DecryptionError for corrupted file`() =
+        runTest {
+            whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
+            val file = File(tmpDir, "corrupt.gpg").also { it.writeText("not valid gpg content") }
+            val entry = PassEntry("corrupt.gpg", "example.com", "corrupt", file)
+            val activity: FragmentActivity = mock()
+
+            var threw: DecryptionError? = null
+            try {
+                decryption.decrypt(entry, activity)
+            } catch (e: DecryptionError) {
+                threw = e
+            }
+            assertNotNull("Expected DecryptionError", threw)
+        }
+
+    @Test
+    fun `decryptForAutofill returns only password without notes`() =
+        runTest {
+            whenever(keyManagement.getGpgKey(any())).thenReturn(testKey)
+            val entry = makeEntry("carol.gpg", "autofillpass\nnotes: blah")
+            val activity: FragmentActivity = mock()
+
+            val creds = decryption.decryptForAutofill(entry, activity)
+
+            assertArrayEquals("autofillpass".toCharArray(), creds.password)
+            assertEquals("carol", creds.username)
+        }
 
     @Test
     fun `CharArray is all-zero after zero() call`() {

@@ -88,31 +88,34 @@ fun EntryDetailScreen(
     }
 
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME &&
-                entry != null &&
-                state.credentials == null &&
-                !state.decrypting &&
-                state.decryptError == null
-            ) {
-                viewModel.decrypt(entry, activity)
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME &&
+                    entry != null &&
+                    state.credentials == null &&
+                    !state.decrypting &&
+                    state.decryptError == null
+                ) {
+                    viewModel.decrypt(entry, activity)
+                }
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
         ) {
             // Top bar
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
@@ -134,10 +137,11 @@ fun EntryDetailScreen(
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
             ) {
                 if (entry == null) {
                     Text("Entry not found.", style = PassType.Body, color = PassColorsDark.Danger)
@@ -148,9 +152,11 @@ fun EntryDetailScreen(
                     state.decryptError != null -> {
                         Text("error: ${state.decryptError}", color = PassColorsDark.Danger, style = PassType.Body)
                     }
+
                     state.decrypting || state.credentials == null -> {
                         DecryptingShimmer()
                     }
+
                     else -> {
                         val creds = checkNotNull(state.credentials)
                         // Password section
@@ -178,13 +184,15 @@ fun EntryDetailScreen(
                             OutlinedButton(
                                 onClick = { viewModel.copyPassword() },
                                 shape = PassShapes.extraSmall,
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.TextDim,
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.Border2,
-                                ),
+                                colors =
+                                    ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.TextDim,
+                                    ),
+                                border =
+                                    BorderStroke(
+                                        1.dp,
+                                        if (state.clipboardCopied) PassColorsDark.Accent else PassColorsDark.Border2,
+                                    ),
                                 modifier = Modifier.weight(1f).height(40.dp),
                             ) {
                                 Icon(
@@ -232,11 +240,15 @@ fun EntryDetailScreen(
 }
 
 @Composable
-private fun MetaRow(key: String, value: String) {
+private fun MetaRow(
+    key: String,
+    value: String,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 7.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(key, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
@@ -278,20 +290,22 @@ private fun ShimmerBlock(
         label = "shimmerOffset",
     )
     Box(
-        modifier = modifier
-            .width(width)
-            .height(height)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        PassColorsDark.Surface,
-                        PassColorsDark.Raised,
-                        PassColorsDark.Surface,
+        modifier =
+            modifier
+                .width(width)
+                .height(height)
+                .background(
+                    Brush.linearGradient(
+                        colors =
+                            listOf(
+                                PassColorsDark.Surface,
+                                PassColorsDark.Raised,
+                                PassColorsDark.Surface,
+                            ),
+                        start = Offset(offsetX, 0f),
+                        end = Offset(offsetX + 300f, 0f),
                     ),
-                    start = Offset(offsetX, 0f),
-                    end = Offset(offsetX + 300f, 0f),
+                    RoundedCornerShape(3.dp),
                 ),
-                RoundedCornerShape(3.dp),
-            ),
     )
 }

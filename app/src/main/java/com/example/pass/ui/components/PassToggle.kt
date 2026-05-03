@@ -41,23 +41,25 @@ fun PassToggle(
     )
 
     Box(
-        modifier = modifier
-            .size(width = 32.dp, height = 18.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(trackColor)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { onCheckedChange(!checked) },
-            ),
+        modifier =
+            modifier
+                .size(width = 32.dp, height = 18.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(trackColor)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onCheckedChange(!checked) },
+                ),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
-            modifier = Modifier
-                .offset(x = thumbOffset)
-                .size(12.dp)
-                .clip(CircleShape)
-                .background(if (checked) PassColorsDark.Border2 else Color.White),
+            modifier =
+                Modifier
+                    .offset(x = thumbOffset)
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(if (checked) PassColorsDark.Border2 else Color.White),
         )
     }
 }

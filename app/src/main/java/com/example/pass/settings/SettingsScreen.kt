@@ -1,5 +1,6 @@
 package com.example.pass.settings
 
+import android.content.ClipData
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.background
@@ -22,10 +23,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -37,22 +38,21 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import android.content.ClipData
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.components.PassSecondaryButton
 import com.example.pass.ui.components.PassToggle
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
+import kotlinx.coroutines.launch
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -89,19 +89,21 @@ fun SettingsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = PassColorsDark.Background,
-                    titleContentColor = PassColorsDark.Accent,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = PassColorsDark.Background,
+                        titleContentColor = PassColorsDark.Accent,
+                    ),
             )
         },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             // GIT
@@ -169,11 +171,12 @@ fun SettingsScreen(
                             onValueChange = { viewModel.setSessionTimeout(it.roundToInt()) },
                             valueRange = 1f..60f,
                             steps = 58,
-                            colors = SliderDefaults.colors(
-                                thumbColor = PassColorsDark.Accent,
-                                activeTrackColor = PassColorsDark.Accent,
-                                inactiveTrackColor = PassColorsDark.Border2,
-                            ),
+                            colors =
+                                SliderDefaults.colors(
+                                    thumbColor = PassColorsDark.Accent,
+                                    activeTrackColor = PassColorsDark.Accent,
+                                    inactiveTrackColor = PassColorsDark.Border2,
+                                ),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Row {
@@ -236,11 +239,15 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun MetaRow(key: String, value: String) {
+private fun MetaRow(
+    key: String,
+    value: String,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -255,15 +262,19 @@ private fun MetaRow(key: String, value: String) {
 }
 
 @Composable
-private fun SettingsSection(label: String, content: @Composable () -> Unit) {
+private fun SettingsSection(
+    label: String,
+    content: @Composable () -> Unit,
+) {
     Column {
         Text(label, style = PassType.Label, modifier = Modifier.padding(bottom = 4.dp))
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
-                .background(PassColorsDark.Surface)
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(PassColorsDark.Surface)
+                    .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
         ) { content() }
     }
 }
@@ -279,16 +290,18 @@ private fun PassDangerButton(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.extraSmall,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = PassColorsDark.AccentDim.copy(alpha = 0.12f),
-            contentColor = PassColorsDark.Danger,
-            disabledContainerColor = PassColorsDark.Border,
-            disabledContentColor = PassColorsDark.TextFaint,
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .border(1.dp, if (enabled) PassColorsDark.Danger else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = PassColorsDark.AccentDim.copy(alpha = 0.12f),
+                contentColor = PassColorsDark.Danger,
+                disabledContainerColor = PassColorsDark.Border,
+                disabledContentColor = PassColorsDark.TextFaint,
+            ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .border(1.dp, if (enabled) PassColorsDark.Danger else PassColorsDark.Border, MaterialTheme.shapes.extraSmall),
     ) {
         Text(label, style = PassType.Body.copy(color = if (enabled) PassColorsDark.Danger else PassColorsDark.TextFaint))
     }
@@ -297,9 +310,10 @@ private fun PassDangerButton(
 @Composable
 private fun SettingsRow(content: @Composable () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }

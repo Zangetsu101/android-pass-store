@@ -15,28 +15,29 @@ private val KEY_TIMEOUT_MS = longPreferencesKey("session_timeout_ms")
 private val DEFAULT_TIMEOUT_MS = 5 * 60 * 1000L // 5 minutes
 
 @Singleton
-class SessionManager @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
-    @Volatile private var lastAuthTime: Long = 0L
+class SessionManager
+    @Inject
+    constructor(
+        @ApplicationContext private val context: Context,
+    ) {
+        @Volatile private var lastAuthTime: Long = 0L
 
-    fun recordAuth() {
-        lastAuthTime = System.currentTimeMillis()
+        fun recordAuth() {
+            lastAuthTime = System.currentTimeMillis()
+        }
+
+        fun invalidate() {
+            lastAuthTime = 0L
+        }
+
+        suspend fun isSessionActive(): Boolean {
+            val timeout = context.sessionDataStore.data.first()[KEY_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS
+            return (System.currentTimeMillis() - lastAuthTime) < timeout
+        }
+
+        suspend fun setTimeoutMs(ms: Long) {
+            context.sessionDataStore.edit { it[KEY_TIMEOUT_MS] = ms }
+        }
+
+        suspend fun getTimeoutMs(): Long = context.sessionDataStore.data.first()[KEY_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS
     }
-
-    fun invalidate() {
-        lastAuthTime = 0L
-    }
-
-    suspend fun isSessionActive(): Boolean {
-        val timeout = context.sessionDataStore.data.first()[KEY_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS
-        return (System.currentTimeMillis() - lastAuthTime) < timeout
-    }
-
-    suspend fun setTimeoutMs(ms: Long) {
-        context.sessionDataStore.edit { it[KEY_TIMEOUT_MS] = ms }
-    }
-
-    suspend fun getTimeoutMs(): Long =
-        context.sessionDataStore.data.first()[KEY_TIMEOUT_MS] ?: DEFAULT_TIMEOUT_MS
-}

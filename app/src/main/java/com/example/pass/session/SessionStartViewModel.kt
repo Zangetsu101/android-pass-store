@@ -22,29 +22,30 @@ data class SessionStartUiState(
 )
 
 @HiltViewModel
-class SessionStartViewModel @Inject constructor(
-    private val keyManagement: KeyManagement,
-) : ViewModel() {
+class SessionStartViewModel
+    @Inject
+    constructor(
+        private val keyManagement: KeyManagement,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(SessionStartUiState())
+        val state: StateFlow<SessionStartUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(SessionStartUiState())
-    val state: StateFlow<SessionStartUiState> = _state.asStateFlow()
+        fun setPassphrase(value: String) {
+            _state.update { it.copy(passphrase = value, error = null) }
+        }
 
-    fun setPassphrase(value: String) {
-        _state.update { it.copy(passphrase = value, error = null) }
-    }
-
-    fun submit() {
-        val passphrase = _state.value.passphrase.ifEmpty { return }
-        _state.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) { keyManagement.startSession(passphrase) }
-                _state.update { it.copy(loading = false, success = true) }
-            } catch (e: SessionError.WrongPassphrase) {
-                _state.update { it.copy(loading = false, error = "Wrong passphrase") }
-            } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message ?: "Failed to start session") }
+        fun submit() {
+            val passphrase = _state.value.passphrase.ifEmpty { return }
+            _state.update { it.copy(loading = true, error = null) }
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { keyManagement.startSession(passphrase) }
+                    _state.update { it.copy(loading = false, success = true) }
+                } catch (e: SessionError.WrongPassphrase) {
+                    _state.update { it.copy(loading = false, error = "Wrong passphrase") }
+                } catch (e: Exception) {
+                    _state.update { it.copy(loading = false, error = e.message ?: "Failed to start session") }
+                }
             }
         }
     }
-}

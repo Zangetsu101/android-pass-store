@@ -37,14 +37,29 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.Serializable
 
 @Serializable data object Splash : NavKey
+
 @Serializable data object Welcome : NavKey
+
 @Serializable data object CloneRepo : NavKey
-@Serializable data class OnboardingGpgImport(val remoteUrl: String) : NavKey
-@Serializable data class OnboardingClone(val remoteUrl: String) : NavKey
+
+@Serializable data class OnboardingGpgImport(
+    val remoteUrl: String,
+) : NavKey
+
+@Serializable data class OnboardingClone(
+    val remoteUrl: String,
+) : NavKey
+
 @Serializable data object SessionStart : NavKey
+
 @Serializable data object EntryBrowser : NavKey
-@Serializable data class EntryDetail(val entryPath: String) : NavKey
+
+@Serializable data class EntryDetail(
+    val entryPath: String,
+) : NavKey
+
 @Serializable data object SyncPanel : NavKey
+
 @Serializable data object Settings : NavKey
 
 @Composable
@@ -54,103 +69,107 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
-        entryDecorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator(),
-            rememberViewModelStoreNavEntryDecorator(),
-        ),
-        entryProvider = entryProvider {
-            entry<Splash> {
-                LaunchedEffect(Unit) {
-                    combine(appPreferences.remoteUrl, appPreferences.gpgImported) { url, gpgDone ->
-                        url to gpgDone
-                    }.collect { (url, gpgDone) ->
-                        val dest = when {
-                            url.isNotEmpty() -> EntryBrowser
-                            gpgDone -> CloneRepo
-                            else -> Welcome
+        entryDecorators =
+            listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+        entryProvider =
+            entryProvider {
+                entry<Splash> {
+                    LaunchedEffect(Unit) {
+                        combine(appPreferences.remoteUrl, appPreferences.gpgImported) { url, gpgDone ->
+                            url to gpgDone
+                        }.collect { (url, gpgDone) ->
+                            val dest =
+                                when {
+                                    url.isNotEmpty() -> EntryBrowser
+                                    gpgDone -> CloneRepo
+                                    else -> Welcome
+                                }
+                            backStack.clear()
+                            backStack.add(dest)
                         }
-                        backStack.clear()
-                        backStack.add(dest)
+                    }
+                    PassScaffold { _ ->
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
-                PassScaffold { _ ->
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+
+                entry<Welcome> {
+                    WelcomeScreen(onStart = { backStack.add(CloneRepo) })
+                }
+
+                entry<CloneRepo> {
+                    val vm: CloneRepoViewModel = hiltViewModel()
+                    CloneRepoScreen(vm) { url ->
+                        backStack.add(OnboardingGpgImport(url))
                     }
                 }
-            }
 
-            entry<Welcome> {
-                WelcomeScreen(onStart = { backStack.add(CloneRepo) })
-            }
-
-            entry<CloneRepo> {
-                val vm: CloneRepoViewModel = hiltViewModel()
-                CloneRepoScreen(vm) { url ->
-                    backStack.add(OnboardingGpgImport(url))
+                entry<OnboardingGpgImport> {
+                    val vm: GpgImportViewModel = hiltViewModel()
+                    OnboardingGpgImportScreen(vm) {
+                        backStack.add(OnboardingClone(it.remoteUrl))
+                    }
                 }
-            }
 
-            entry<OnboardingGpgImport> {
-                val vm: GpgImportViewModel = hiltViewModel()
-                OnboardingGpgImportScreen(vm) {
-                    backStack.add(OnboardingClone(it.remoteUrl))
-                }
-            }
-
-            entry<OnboardingClone> {
-                val vm = hiltViewModel<CloneProgressViewModel, CloneProgressViewModel.Factory>(
-                    creationCallback = { factory -> factory.create(it.remoteUrl) }
-                )
-                CloneProgressScreen(vm) {
-                    backStack.clear()
-                    backStack.add(EntryBrowser)
-                }
-            }
-
-            entry<SessionStart> {
-                val vm: SessionStartViewModel = hiltViewModel()
-                SessionStartScreen(
-                    viewModel = vm,
-                    onSuccess = { backStack.removeLastOrNull() },
-                )
-            }
-
-            entry<EntryBrowser> {
-                val vm: EntryBrowserViewModel = hiltViewModel()
-                EntryBrowserScreen(
-                    viewModel = vm,
-                    onNavigateToEntryDetail = { entry -> backStack.add(EntryDetail(entry.path)) },
-                    onNavigateToSettings = { backStack.add(Settings) },
-                )
-            }
-
-            entry<EntryDetail> {
-                val vm: EntryDetailViewModel = hiltViewModel()
-                EntryDetailScreen(
-                    entryPath = it.entryPath,
-                    viewModel = vm,
-                    onNavigateToSessionStart = { backStack.add(SessionStart) },
-                    onBack = { backStack.removeLastOrNull() },
-                )
-            }
-
-            entry<SyncPanel> {
-                val vm: SyncPanelViewModel = hiltViewModel()
-                SyncPanelScreen(vm, onBack = { backStack.removeLastOrNull() })
-            }
-
-            entry<Settings> {
-                val vm: SettingsViewModel = hiltViewModel()
-                SettingsScreen(
-                    viewModel = vm,
-                    onBack = { backStack.removeLastOrNull() },
-                    onClearedData = {
+                entry<OnboardingClone> {
+                    val vm =
+                        hiltViewModel<CloneProgressViewModel, CloneProgressViewModel.Factory>(
+                            creationCallback = { factory -> factory.create(it.remoteUrl) },
+                        )
+                    CloneProgressScreen(vm) {
                         backStack.clear()
-                        backStack.add(Welcome)
-                    },
-                )
-            }
-        },
+                        backStack.add(EntryBrowser)
+                    }
+                }
+
+                entry<SessionStart> {
+                    val vm: SessionStartViewModel = hiltViewModel()
+                    SessionStartScreen(
+                        viewModel = vm,
+                        onSuccess = { backStack.removeLastOrNull() },
+                    )
+                }
+
+                entry<EntryBrowser> {
+                    val vm: EntryBrowserViewModel = hiltViewModel()
+                    EntryBrowserScreen(
+                        viewModel = vm,
+                        onNavigateToEntryDetail = { entry -> backStack.add(EntryDetail(entry.path)) },
+                        onNavigateToSettings = { backStack.add(Settings) },
+                    )
+                }
+
+                entry<EntryDetail> {
+                    val vm: EntryDetailViewModel = hiltViewModel()
+                    EntryDetailScreen(
+                        entryPath = it.entryPath,
+                        viewModel = vm,
+                        onNavigateToSessionStart = { backStack.add(SessionStart) },
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+
+                entry<SyncPanel> {
+                    val vm: SyncPanelViewModel = hiltViewModel()
+                    SyncPanelScreen(vm, onBack = { backStack.removeLastOrNull() })
+                }
+
+                entry<Settings> {
+                    val vm: SettingsViewModel = hiltViewModel()
+                    SettingsScreen(
+                        viewModel = vm,
+                        onBack = { backStack.removeLastOrNull() },
+                        onClearedData = {
+                            backStack.clear()
+                            backStack.add(Welcome)
+                        },
+                    )
+                }
+            },
     )
 }

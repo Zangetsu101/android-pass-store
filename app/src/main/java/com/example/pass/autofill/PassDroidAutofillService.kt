@@ -22,7 +22,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class PassDroidAutofillService : AutofillService() {
-
     @Inject lateinit var passStore: PassStore
 
     override fun onFillRequest(
@@ -30,17 +29,22 @@ class PassDroidAutofillService : AutofillService() {
         cancellationSignal: CancellationSignal,
         callback: FillCallback,
     ) {
-        val context = request.fillContexts.lastOrNull() ?: run {
-            callback.onSuccess(null)
-            return
-        }
+        val context =
+            request.fillContexts.lastOrNull() ?: run {
+                callback.onSuccess(null)
+                return
+            }
 
         val structure = context.structure
         val packageName = structure.activityComponent.packageName
 
         val webDomain = findWebDomain(structure)
-        val candidates = if (webDomain != null) passStore.resolve(webDomain)
-                         else passStore.resolveByPackage(packageName)
+        val candidates =
+            if (webDomain != null) {
+                passStore.resolve(webDomain)
+            } else {
+                passStore.resolveByPackage(packageName)
+            }
 
         if (candidates.isEmpty()) {
             callback.onSuccess(null)
@@ -55,17 +59,23 @@ class PassDroidAutofillService : AutofillService() {
             return
         }
 
-        val datasets = candidates.mapIndexed { i, entry ->
-            buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i)
-        }
+        val datasets =
+            candidates.mapIndexed { i, entry ->
+                buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i)
+            }
 
-        val response = FillResponse.Builder()
-            .apply { datasets.forEach { addDataset(it) } }
-            .build()
+        val response =
+            FillResponse
+                .Builder()
+                .apply { datasets.forEach { addDataset(it) } }
+                .build()
         callback.onSuccess(response)
     }
 
-    override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
+    override fun onSaveRequest(
+        request: SaveRequest,
+        callback: SaveCallback,
+    ) {
         callback.onSuccess()
     }
 
@@ -76,29 +86,34 @@ class PassDroidAutofillService : AutofillService() {
         requestCode: Int,
     ): android.service.autofill.Dataset {
         val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
-        val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-            setTextViewText(android.R.id.text1, label)
-        }
+        val presentation =
+            RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
+                setTextViewText(android.R.id.text1, label)
+            }
 
-        val authIntent = Intent(this, AutofillAuthActivity::class.java).apply {
-            putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
-            usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
-            passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
-        }
-        val sender = PendingIntent.getActivity(
-            this,
-            requestCode,
-            authIntent,
-            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val authIntent =
+            Intent(this, AutofillAuthActivity::class.java).apply {
+                putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
+                usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
+                passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
+            }
+        val sender =
+            PendingIntent.getActivity(
+                this,
+                requestCode,
+                authIntent,
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
 
         // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
         @Suppress("DEPRECATION")
-        return android.service.autofill.Dataset.Builder().apply {
-            usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-            passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-            setAuthentication(sender.intentSender)
-        }.build()
+        return android.service.autofill.Dataset
+            .Builder()
+            .apply {
+                usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                setAuthentication(sender.intentSender)
+            }.build()
     }
 
     private fun findWebDomain(structure: AssistStructure): String? {
@@ -153,16 +168,23 @@ class PassDroidAutofillService : AutofillService() {
 
     private fun isUsernameNode(node: AssistStructure.ViewNode): Boolean {
         if (node.autofillHints?.any {
-            it == View.AUTOFILL_HINT_USERNAME || it == View.AUTOFILL_HINT_EMAIL_ADDRESS
-        } == true) return true
+                it == View.AUTOFILL_HINT_USERNAME || it == View.AUTOFILL_HINT_EMAIL_ADDRESS
+            } == true
+        ) {
+            return true
+        }
         val inputType = node.inputType
         if ((inputType and InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0 ||
-            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0) return true
+            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
+        ) {
+            return true
+        }
         val htmlAttrs = node.htmlInfo?.attributes ?: return false
         val typeAttr = htmlAttrs.firstOrNull { it.first == "type" }?.second
         if (typeAttr == "email" || typeAttr == "text") {
             val nameAttr = htmlAttrs.firstOrNull { it.first == "name" || it.first == "id" }?.second?.lowercase()
-            return nameAttr != null && (nameAttr.contains("email") || nameAttr.contains("user") || nameAttr.contains("login") || nameAttr.contains("identifier"))
+            return nameAttr != null &&
+                (nameAttr.contains("email") || nameAttr.contains("user") || nameAttr.contains("login") || nameAttr.contains("identifier"))
         }
         return false
     }

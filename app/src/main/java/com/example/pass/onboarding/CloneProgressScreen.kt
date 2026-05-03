@@ -44,7 +44,10 @@ fun CloneProgressScreen(
     var cursorVisible by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        while (true) { delay(500); cursorVisible = !cursorVisible }
+        while (true) {
+            delay(500)
+            cursorVisible = !cursorVisible
+        }
     }
     LaunchedEffect(state.cloneComplete) { if (state.cloneComplete) onSuccess() }
     LaunchedEffect(state.logs.size) {
@@ -59,35 +62,43 @@ fun CloneProgressScreen(
         scrollable = false,
     ) {
         Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.medium)
-                .border(1.dp, PassColorsDark.Border2, PassShapes.medium)
-                .padding(12.dp),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(PassColorsDark.Surface, PassShapes.medium)
+                    .border(1.dp, PassColorsDark.Border2, PassShapes.medium)
+                    .padding(12.dp),
         ) {
             LazyColumn(state = logState, modifier = Modifier.fillMaxSize()) {
                 item { Text("> git clone ${viewModel.remoteUrl}", style = PassType.Caption, color = PassColorsDark.TextPrimary) }
                 itemsIndexed(state.logs) { index, entry ->
                     val isLast = index == state.logs.size - 1
-                    val label = when (entry) {
-                        is LogEntry.Simple -> entry.text
-                        is LogEntry.Progress -> if (entry.total > 0) {
-                            val pct = (entry.completed * 100f / entry.total).toInt()
-                            "${entry.name}: $pct% (${entry.completed}/${entry.total})"
-                        } else {
-                            "${entry.name}: ${entry.completed}"
+                    val label =
+                        when (entry) {
+                            is LogEntry.Simple -> {
+                                entry.text
+                            }
+
+                            is LogEntry.Progress -> {
+                                if (entry.total > 0) {
+                                    val pct = (entry.completed * 100f / entry.total).toInt()
+                                    "${entry.name}: $pct% (${entry.completed}/${entry.total})"
+                                } else {
+                                    "${entry.name}: ${entry.completed}"
+                                }
+                            }
                         }
-                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(label, style = PassType.Caption, color = if (isLast) PassColorsDark.AccentMid else PassColorsDark.TextDim)
                         if (isLast && state.cloning && cursorVisible) {
                             Spacer(Modifier.width(4.dp))
                             val cursorHeight = with(LocalDensity.current) { 9.sp.toDp() }
                             Box(
-                                modifier = Modifier
-                                    .size(width = 6.dp, height = cursorHeight)
-                                    .background(PassColorsDark.Accent),
+                                modifier =
+                                    Modifier
+                                        .size(width = 6.dp, height = cursorHeight)
+                                        .background(PassColorsDark.Accent),
                             )
                         }
                     }

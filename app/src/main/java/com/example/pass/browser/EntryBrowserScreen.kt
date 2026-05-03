@@ -24,8 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.HorizontalDivider
@@ -76,9 +76,10 @@ fun EntryBrowserScreen(
         ) {
             // Top bar
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -91,11 +92,12 @@ fun EntryBrowserScreen(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        modifier = Modifier
-                            .background(PassColorsDark.Surface, RoundedCornerShape(6.dp))
-                            .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(6.dp))
-                            .clickable { viewModel.pull() }
-                            .padding(horizontal = 9.dp, vertical = 5.dp),
+                        modifier =
+                            Modifier
+                                .background(PassColorsDark.Surface, RoundedCornerShape(6.dp))
+                                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(6.dp))
+                                .clickable { viewModel.pull() }
+                                .padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
@@ -130,10 +132,11 @@ fun EntryBrowserScreen(
             // Sync status banner
             if (state.syncMessage != null) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(PassColorsDark.Surface)
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(PassColorsDark.Surface)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -149,9 +152,10 @@ fun EntryBrowserScreen(
                 value = state.searchQuery,
                 onValueChange = viewModel::setSearchQuery,
                 prefix = "> grep -r ",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -163,6 +167,7 @@ fun EntryBrowserScreen(
                             Text("no results for '${state.searchQuery}'", style = PassType.Body)
                         }
                     }
+
                     state.treeView -> {
                         TreeView(
                             entries = state.entries,
@@ -171,6 +176,7 @@ fun EntryBrowserScreen(
                             onEntryClick = onNavigateToEntryDetail,
                         )
                     }
+
                     else -> {
                         FlatView(
                             entries = state.entries,
@@ -184,7 +190,10 @@ fun EntryBrowserScreen(
 }
 
 @Composable
-private fun FlatView(entries: List<PassEntry>, onEntryClick: (PassEntry) -> Unit) {
+private fun FlatView(
+    entries: List<PassEntry>,
+    onEntryClick: (PassEntry) -> Unit,
+) {
     LazyColumn {
         itemsIndexed(entries, key = { _, it -> it.path }) { index, entry ->
             FlatEntryRow(entry = entry, index = index, onClick = { onEntryClick(entry) })
@@ -200,12 +209,13 @@ private fun TreeView(
     onToggleDir: (String) -> Unit,
     onEntryClick: (PassEntry) -> Unit,
 ) {
-    val grouped = remember(entries) {
-        entries.groupBy { entry ->
-            val parts = entry.path.split("/")
-            if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
+    val grouped =
+        remember(entries) {
+            entries.groupBy { entry ->
+                val parts = entry.path.split("/")
+                if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
+            }
         }
-    }
 
     LazyColumn {
         grouped.forEach { (dir, dirEntries) ->
@@ -225,12 +235,18 @@ private fun TreeView(
 }
 
 @Composable
-private fun DirHeader(dir: String, collapsed: Boolean, count: Int, onToggle: () -> Unit) {
+private fun DirHeader(
+    dir: String,
+    collapsed: Boolean,
+    count: Int,
+    onToggle: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 18.dp, vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -244,12 +260,17 @@ private fun DirHeader(dir: String, collapsed: Boolean, count: Int, onToggle: () 
 }
 
 @Composable
-private fun TreeEntryRow(entry: PassEntry, indent: Boolean, onClick: () -> Unit) {
+private fun TreeEntryRow(
+    entry: PassEntry,
+    indent: Boolean,
+    onClick: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = entry.username, style = PassType.Body, modifier = Modifier.weight(1f))
@@ -258,12 +279,17 @@ private fun TreeEntryRow(entry: PassEntry, indent: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun FlatEntryRow(entry: PassEntry, index: Int, onClick: () -> Unit) {
+private fun FlatEntryRow(
+    entry: PassEntry,
+    index: Int,
+    onClick: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {

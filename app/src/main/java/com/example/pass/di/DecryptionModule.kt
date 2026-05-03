@@ -11,7 +11,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class DecryptionModule {
-
     @Binds
     @Singleton
     abstract fun bindDecryption(impl: DecryptionImpl): Decryption

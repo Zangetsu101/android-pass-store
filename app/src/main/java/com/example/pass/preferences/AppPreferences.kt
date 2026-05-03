@@ -15,28 +15,35 @@ import javax.inject.Singleton
 private val Context.appPrefsDataStore by preferencesDataStore("app_prefs")
 
 @Singleton
-class AppPreferences @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
-    private val store = context.appPrefsDataStore
+class AppPreferences
+    @Inject
+    constructor(
+        @ApplicationContext private val context: Context,
+    ) {
+        private val store = context.appPrefsDataStore
 
-    // empty string = not configured (onboarding needed); non-empty = configured
-    val remoteUrl: Flow<String> = store.data.map { it[KEY_REMOTE_URL] ?: "" }
-    val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
-    val sshPublicKey: Flow<String?> = store.data.map { it[KEY_SSH_PUBLIC_KEY] }
-    val gpgImported: Flow<Boolean> = store.data.map { it[KEY_GPG_IMPORTED] ?: false }
+        // empty string = not configured (onboarding needed); non-empty = configured
+        val remoteUrl: Flow<String> = store.data.map { it[KEY_REMOTE_URL] ?: "" }
+        val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
+        val sshPublicKey: Flow<String?> = store.data.map { it[KEY_SSH_PUBLIC_KEY] }
+        val gpgImported: Flow<Boolean> = store.data.map { it[KEY_GPG_IMPORTED] ?: false }
 
-    suspend fun setRemoteUrl(url: String) = store.edit { it[KEY_REMOTE_URL] = url }
-    suspend fun clearRemoteUrl() = store.edit { it.remove(KEY_REMOTE_URL) }
-    suspend fun setSessionTimeout(minutes: Int) = store.edit { it[KEY_SESSION_TIMEOUT] = minutes }
-    suspend fun setSshPublicKey(key: String) = store.edit { it[KEY_SSH_PUBLIC_KEY] = key }
-    suspend fun setGpgImported(done: Boolean) = store.edit { it[KEY_GPG_IMPORTED] = done }
-    suspend fun clearAll() = store.edit { it.clear() }
+        suspend fun setRemoteUrl(url: String) = store.edit { it[KEY_REMOTE_URL] = url }
 
-    companion object {
-        private val KEY_REMOTE_URL = stringPreferencesKey("remote_url")
-        private val KEY_SESSION_TIMEOUT = intPreferencesKey("session_timeout_minutes")
-        private val KEY_SSH_PUBLIC_KEY = stringPreferencesKey("ssh_public_key")
-        private val KEY_GPG_IMPORTED = booleanPreferencesKey("gpg_imported")
+        suspend fun clearRemoteUrl() = store.edit { it.remove(KEY_REMOTE_URL) }
+
+        suspend fun setSessionTimeout(minutes: Int) = store.edit { it[KEY_SESSION_TIMEOUT] = minutes }
+
+        suspend fun setSshPublicKey(key: String) = store.edit { it[KEY_SSH_PUBLIC_KEY] = key }
+
+        suspend fun setGpgImported(done: Boolean) = store.edit { it[KEY_GPG_IMPORTED] = done }
+
+        suspend fun clearAll() = store.edit { it.clear() }
+
+        companion object {
+            private val KEY_REMOTE_URL = stringPreferencesKey("remote_url")
+            private val KEY_SESSION_TIMEOUT = intPreferencesKey("session_timeout_minutes")
+            private val KEY_SSH_PUBLIC_KEY = stringPreferencesKey("ssh_public_key")
+            private val KEY_GPG_IMPORTED = booleanPreferencesKey("gpg_imported")
+        }
     }
-}

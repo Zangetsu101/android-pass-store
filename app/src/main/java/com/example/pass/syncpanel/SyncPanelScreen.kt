@@ -35,7 +35,10 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
+fun SyncPanelScreen(
+    viewModel: SyncPanelViewModel,
+    onBack: () -> Unit,
+) {
     val state by viewModel.state.collectAsState()
 
     PassScaffold(
@@ -51,10 +54,11 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = PassColorsDark.Background,
-                    titleContentColor = PassColorsDark.Accent,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = PassColorsDark.Background,
+                        titleContentColor = PassColorsDark.Accent,
+                    ),
             )
         },
     ) { padding ->
@@ -75,18 +79,21 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("REMOTE  ", style = PassType.Label)
                 Text(
-                    text = when (state.remoteReachable) {
-                        true  -> "reachable"
-                        false -> "unreachable"
-                        null  -> "unknown"
-                    },
-                    style = PassType.Body.copy(
-                        color = when (state.remoteReachable) {
-                            true  -> PassColorsDark.Accent
-                            false -> PassColorsDark.Danger
-                            null  -> PassColorsDark.TextDim
+                    text =
+                        when (state.remoteReachable) {
+                            true -> "reachable"
+                            false -> "unreachable"
+                            null -> "unknown"
                         },
-                    ),
+                    style =
+                        PassType.Body.copy(
+                            color =
+                                when (state.remoteReachable) {
+                                    true -> PassColorsDark.Accent
+                                    false -> PassColorsDark.Danger
+                                    null -> PassColorsDark.TextDim
+                                },
+                        ),
                 )
             }
 
@@ -105,16 +112,18 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
             Button(
                 onClick = viewModel::pull,
                 enabled = !state.pulling,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PassColorsDark.AccentDim,
-                    contentColor = PassColorsDark.Accent,
-                    disabledContainerColor = PassColorsDark.Border,
-                    disabledContentColor = PassColorsDark.TextFaint,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .border(1.dp, PassColorsDark.Accent, MaterialTheme.shapes.small),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = PassColorsDark.AccentDim,
+                        contentColor = PassColorsDark.Accent,
+                        disabledContainerColor = PassColorsDark.Border,
+                        disabledContentColor = PassColorsDark.TextFaint,
+                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .border(1.dp, PassColorsDark.Accent, MaterialTheme.shapes.small),
             ) {
                 if (state.pulling) {
                     CircularProgressIndicator(
@@ -132,7 +141,9 @@ fun SyncPanelScreen(viewModel: SyncPanelViewModel, onBack: () -> Unit) {
     }
 }
 
-private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-    .withZone(ZoneId.systemDefault())
+private val formatter =
+    DateTimeFormatter
+        .ofPattern("yyyy-MM-dd HH:mm:ss")
+        .withZone(ZoneId.systemDefault())
 
 private fun Instant.format(): String = formatter.format(this)

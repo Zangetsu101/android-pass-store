@@ -15,10 +15,10 @@ private const val KEY_ALIAS_PREFIX = "passdroid_wrapping_"
 private const val GCM_TAG_LENGTH = 128
 private const val GCM_IV_LENGTH = 12
 
-internal class KeyBlobStore(private val context: Context) {
-
-    private fun keysDir(): File =
-        File(context.filesDir, "keys").also { it.mkdirs() }
+internal class KeyBlobStore(
+    private val context: Context,
+) {
+    private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
 
     private fun blobFile(name: String): File = File(keysDir(), "$name.enc")
 
@@ -29,22 +29,27 @@ internal class KeyBlobStore(private val context: Context) {
         val alias = keystoreAlias(name)
         keyStore.getKey(alias, null)?.let { return it as SecretKey }
 
-        val spec = KeyGenParameterSpec.Builder(
-            alias,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
-            .setUserAuthenticationRequired(false)
-            .build()
+        val spec =
+            KeyGenParameterSpec
+                .Builder(
+                    alias,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setUserAuthenticationRequired(false)
+                .build()
 
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+        return KeyGenerator
+            .getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
             .apply { init(spec) }
             .generateKey()
     }
 
-    fun encrypt(name: String, plaintext: ByteArray) {
+    fun encrypt(
+        name: String,
+        plaintext: ByteArray,
+    ) {
         val key = getOrCreateWrappingKey(name)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key)
@@ -76,7 +81,9 @@ internal class KeyBlobStore(private val context: Context) {
     fun deleteAll() {
         keysDir().listFiles()?.forEach { it.delete() }
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-        keyStore.aliases().toList()
+        keyStore
+            .aliases()
+            .toList()
             .filter { it.startsWith(KEY_ALIAS_PREFIX) }
             .forEach { keyStore.deleteEntry(it) }
     }

@@ -11,7 +11,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class KeyManagementModule {
-
     @Binds
     @Singleton
     abstract fun bindKeyManagement(impl: KeyManagementImpl): KeyManagement

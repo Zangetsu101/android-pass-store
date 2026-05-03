@@ -36,38 +36,42 @@ import com.example.pass.ui.theme.PassType
 fun WelcomeScreen(onStart: () -> Unit) {
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 0.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 24.dp, vertical = 0.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(modifier = Modifier.padding(top = 40.dp)) {
                 Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .background(PassColorsDark.AccentDim, RoundedCornerShape(8.dp))
-                        .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(8.dp)),
+                    modifier =
+                        Modifier
+                            .size(52.dp)
+                            .background(PassColorsDark.AccentDim, RoundedCornerShape(8.dp))
+                            .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = null,
                         tint = PassColorsDark.Accent,
-                        modifier = Modifier.size(52.dp).graphicsLayer {
-                            scaleX = 1.6f
-                            scaleY = 1.6f
-                        },
+                        modifier =
+                            Modifier.size(52.dp).graphicsLayer {
+                                scaleX = 1.6f
+                                scaleY = 1.6f
+                            },
                     )
                 }
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text = buildAnnotatedString {
-                        append("pass")
-                        withStyle(SpanStyle(color = PassColorsDark.TextDim, fontWeight = FontWeight.Light)) {
-                            append(".android")
-                        }
-                    },
+                    text =
+                        buildAnnotatedString {
+                            append("pass")
+                            withStyle(SpanStyle(color = PassColorsDark.TextDim, fontWeight = FontWeight.Light)) {
+                                append(".android")
+                            }
+                        },
                     style = PassType.Display,
                 )
                 Spacer(Modifier.height(6.dp))
@@ -97,13 +101,17 @@ fun WelcomeScreen(onStart: () -> Unit) {
 }
 
 @Composable
-private fun FeatureRow(tag: String, description: String) {
+private fun FeatureRow(
+    tag: String,
+    description: String,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
-            modifier = Modifier
-                .background(PassColorsDark.AccentDim, RoundedCornerShape(3.dp))
-                .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(3.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+            modifier =
+                Modifier
+                    .background(PassColorsDark.AccentDim, RoundedCornerShape(3.dp))
+                    .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(3.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
         ) {
             Text(tag, style = PassType.Label)
         }

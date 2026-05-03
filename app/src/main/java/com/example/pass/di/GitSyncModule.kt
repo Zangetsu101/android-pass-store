@@ -11,7 +11,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class GitSyncModule {
-
     @Binds
     @Singleton
     abstract fun bindGitSync(impl: GitSyncImpl): GitSync

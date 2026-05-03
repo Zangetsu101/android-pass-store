@@ -21,47 +21,49 @@ data class CloneRepoUiState(
 )
 
 @HiltViewModel
-class CloneRepoViewModel @Inject constructor(
-    private val keyManagement: KeyManagement,
-    private val appPreferences: AppPreferences,
-) : ViewModel() {
+class CloneRepoViewModel
+    @Inject
+    constructor(
+        private val keyManagement: KeyManagement,
+        private val appPreferences: AppPreferences,
+    ) : ViewModel() {
+        private val _state = MutableStateFlow(CloneRepoUiState())
+        val state: StateFlow<CloneRepoUiState> = _state.asStateFlow()
 
-    private val _state = MutableStateFlow(CloneRepoUiState())
-    val state: StateFlow<CloneRepoUiState> = _state.asStateFlow()
+        init {
+            viewModelScope.launch {
+                val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
+                _state.update { it.copy(sshPublicKey = publicKey) }
+                appPreferences.setSshPublicKey(publicKey)
+            }
+        }
 
-    init {
-        viewModelScope.launch {
-            val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
-            _state.update { it.copy(sshPublicKey = publicKey) }
-            appPreferences.setSshPublicKey(publicKey)
+        fun setRemoteUrl(url: String) {
+            _state.update { it.copy(remoteUrl = url, remoteUrlError = null) }
+        }
+
+        fun validateRemoteUrl(): Boolean {
+            val url = _state.value.remoteUrl.trim()
+            if (url.isEmpty()) {
+                _state.update { it.copy(remoteUrlError = "Remote URL is required") }
+                return false
+            }
+            val valid =
+                url.startsWith("git@") || url.startsWith("ssh://") ||
+                    url.startsWith("https://") || url.startsWith("file://")
+            if (!valid) {
+                _state.update { it.copy(remoteUrlError = "Enter a valid git remote URL") }
+                return false
+            }
+            _state.update { it.copy(remoteUrlError = null) }
+            return true
+        }
+
+        fun regenerateSshKey() {
+            viewModelScope.launch {
+                val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
+                _state.update { it.copy(sshPublicKey = publicKey) }
+                appPreferences.setSshPublicKey(publicKey)
+            }
         }
     }
-
-    fun setRemoteUrl(url: String) {
-        _state.update { it.copy(remoteUrl = url, remoteUrlError = null) }
-    }
-
-    fun validateRemoteUrl(): Boolean {
-        val url = _state.value.remoteUrl.trim()
-        if (url.isEmpty()) {
-            _state.update { it.copy(remoteUrlError = "Remote URL is required") }
-            return false
-        }
-        val valid = url.startsWith("git@") || url.startsWith("ssh://") ||
-            url.startsWith("https://") || url.startsWith("file://")
-        if (!valid) {
-            _state.update { it.copy(remoteUrlError = "Enter a valid git remote URL") }
-            return false
-        }
-        _state.update { it.copy(remoteUrlError = null) }
-        return true
-    }
-
-    fun regenerateSshKey() {
-        viewModelScope.launch {
-            val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
-            _state.update { it.copy(sshPublicKey = publicKey) }
-            appPreferences.setSshPublicKey(publicKey)
-        }
-    }
-}

@@ -37,11 +37,12 @@ internal fun OnboardingScaffold(
 ) {
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                .padding(20.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(20.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -52,12 +53,13 @@ internal fun OnboardingScaffold(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     repeat(total) { i ->
                         Box(
-                            modifier = Modifier
-                                .size(width = 20.dp, height = 3.dp)
-                                .background(
-                                    PassColorsDark.Accent.copy(alpha = if (i + 1 == step) 1f else 0.3f),
-                                    RoundedCornerShape(4.dp),
-                                ),
+                            modifier =
+                                Modifier
+                                    .size(width = 20.dp, height = 3.dp)
+                                    .background(
+                                        PassColorsDark.Accent.copy(alpha = if (i + 1 == step) 1f else 0.3f),
+                                        RoundedCornerShape(4.dp),
+                                    ),
                         )
                     }
                 }

@@ -26,8 +26,15 @@ import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class LogEntry {
-    data class Simple(val text: String) : LogEntry()
-    data class Progress(val name: String, val completed: Int, val total: Int) : LogEntry()
+    data class Simple(
+        val text: String,
+    ) : LogEntry()
+
+    data class Progress(
+        val name: String,
+        val completed: Int,
+        val total: Int,
+    ) : LogEntry()
 }
 
 data class CloneProgressUiState(
@@ -38,91 +45,105 @@ data class CloneProgressUiState(
 )
 
 @HiltViewModel(assistedFactory = CloneProgressViewModel.Factory::class)
-class CloneProgressViewModel @AssistedInject constructor(
-    @Assisted val remoteUrl: String,
-    @ApplicationContext private val context: Context,
-    private val keyManagement: KeyManagement,
-    private val gitSync: GitSync,
-    private val appPreferences: AppPreferences,
-) : ViewModel() {
-
-    @AssistedFactory
-    interface Factory {
-        fun create(remoteUrl: String): CloneProgressViewModel
-    }
-
-    private val _state = MutableStateFlow(CloneProgressUiState())
-    val state: StateFlow<CloneProgressUiState> = _state.asStateFlow()
-
-    private var cloneJob: Job? = null
-    private val cancelCloneFlag = AtomicBoolean(false)
-
-    init {
-        startClone()
-    }
-
-    fun cancelClone() {
-        cancelCloneFlag.set(true)
-        cloneJob?.cancel()
-    }
-
-    fun retryClone() {
-        startClone()
-    }
-
-    private fun startClone() {
-        cancelCloneFlag.set(false)
-        val repoName = remoteUrl.substringAfterLast('/').substringAfterLast(':').removeSuffix(".git")
-        _state.update {
-            it.copy(
-                cloning = true,
-                cloneError = null,
-                cloneComplete = false,
-                logs = listOf(LogEntry.Simple("Cloning into '$repoName'...")),
-            )
+class CloneProgressViewModel
+    @AssistedInject
+    constructor(
+        @Assisted val remoteUrl: String,
+        @ApplicationContext private val context: Context,
+        private val keyManagement: KeyManagement,
+        private val gitSync: GitSync,
+        private val appPreferences: AppPreferences,
+    ) : ViewModel() {
+        @AssistedFactory
+        interface Factory {
+            fun create(remoteUrl: String): CloneProgressViewModel
         }
-        cloneJob = viewModelScope.launch {
-            try {
-                val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
-                val sshKeyPair = if (remoteUrl.startsWith("git@") || remoteUrl.startsWith("ssh://")) {
-                    withContext(Dispatchers.IO) { keyManagement.getSshKey() }
-                } else null
 
-                val monitor = object : ProgressMonitor {
-                    override fun start(totalTasks: Int) {}
-                    override fun beginTask(title: String, totalWork: Int) {
-                        _state.update { it.copy(logs = it.logs + LogEntry.Progress(title, 0, totalWork)) }
-                    }
-                    override fun update(completed: Int) {
-                        _state.update {
-                            val logs = it.logs.toMutableList()
-                            val last = logs.lastOrNull()
-                            if (last is LogEntry.Progress) {
-                                logs[logs.lastIndex] = last.copy(completed = last.completed + completed)
+        private val _state = MutableStateFlow(CloneProgressUiState())
+        val state: StateFlow<CloneProgressUiState> = _state.asStateFlow()
+
+        private var cloneJob: Job? = null
+        private val cancelCloneFlag = AtomicBoolean(false)
+
+        init {
+            startClone()
+        }
+
+        fun cancelClone() {
+            cancelCloneFlag.set(true)
+            cloneJob?.cancel()
+        }
+
+        fun retryClone() {
+            startClone()
+        }
+
+        private fun startClone() {
+            cancelCloneFlag.set(false)
+            val repoName = remoteUrl.substringAfterLast('/').substringAfterLast(':').removeSuffix(".git")
+            _state.update {
+                it.copy(
+                    cloning = true,
+                    cloneError = null,
+                    cloneComplete = false,
+                    logs = listOf(LogEntry.Simple("Cloning into '$repoName'...")),
+                )
+            }
+            cloneJob =
+                viewModelScope.launch {
+                    try {
+                        val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
+                        val sshKeyPair =
+                            if (remoteUrl.startsWith("git@") || remoteUrl.startsWith("ssh://")) {
+                                withContext(Dispatchers.IO) { keyManagement.getSshKey() }
+                            } else {
+                                null
                             }
-                            it.copy(logs = logs)
+
+                        val monitor =
+                            object : ProgressMonitor {
+                                override fun start(totalTasks: Int) {}
+
+                                override fun beginTask(
+                                    title: String,
+                                    totalWork: Int,
+                                ) {
+                                    _state.update { it.copy(logs = it.logs + LogEntry.Progress(title, 0, totalWork)) }
+                                }
+
+                                override fun update(completed: Int) {
+                                    _state.update {
+                                        val logs = it.logs.toMutableList()
+                                        val last = logs.lastOrNull()
+                                        if (last is LogEntry.Progress) {
+                                            logs[logs.lastIndex] = last.copy(completed = last.completed + completed)
+                                        }
+                                        it.copy(logs = logs)
+                                    }
+                                }
+
+                                override fun endTask() {}
+
+                                override fun isCancelled(): Boolean = cancelCloneFlag.get()
+
+                                override fun showDuration(enabled: Boolean) {}
+                            }
+
+                        gitSync.clone(remoteUrl, repoDir, sshKeyPair, monitor)
+                        appPreferences.setRemoteUrl(remoteUrl)
+                        _state.update { it.copy(cloning = false, cloneComplete = true) }
+                    } catch (e: CancellationException) {
+                        _state.update { it.copy(cloning = false) }
+                        throw e
+                    } catch (e: SyncError) {
+                        _state.update { it.copy(cloning = false, cloneError = e.message) }
+                    } catch (e: Exception) {
+                        if (cancelCloneFlag.get()) {
+                            _state.update { it.copy(cloning = false, logs = it.logs + LogEntry.Simple("Cancelled.")) }
+                        } else {
+                            _state.update { it.copy(cloning = false, cloneError = e.message ?: "Clone failed") }
                         }
                     }
-                    override fun endTask() {}
-                    override fun isCancelled(): Boolean = cancelCloneFlag.get()
-                    override fun showDuration(enabled: Boolean) {}
                 }
-
-                gitSync.clone(remoteUrl, repoDir, sshKeyPair, monitor)
-                appPreferences.setRemoteUrl(remoteUrl)
-                _state.update { it.copy(cloning = false, cloneComplete = true) }
-            } catch (e: CancellationException) {
-                _state.update { it.copy(cloning = false) }
-                throw e
-            } catch (e: SyncError) {
-                _state.update { it.copy(cloning = false, cloneError = e.message) }
-            } catch (e: Exception) {
-                if (cancelCloneFlag.get()) {
-                    _state.update { it.copy(cloning = false, logs = it.logs + LogEntry.Simple("Cancelled.")) }
-                } else {
-                    _state.update { it.copy(cloning = false, cloneError = e.message ?: "Clone failed") }
-                }
-            }
         }
     }
-}

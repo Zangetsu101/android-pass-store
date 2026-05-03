@@ -41,15 +41,18 @@ fun OnboardingGpgImportScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let {
-            val text = context.contentResolver.openInputStream(it)
-                ?.bufferedReader()
-                ?.readText()
-                ?: return@let
-            viewModel.setGpgKeyText(text)
+    val filePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                val text =
+                    context.contentResolver
+                        .openInputStream(it)
+                        ?.bufferedReader()
+                        ?.readText()
+                        ?: return@let
+                viewModel.setGpgKeyText(text)
+            }
         }
-    }
 
     OnboardingScaffold(
         step = 2,
@@ -58,20 +61,22 @@ fun OnboardingGpgImportScreen(
         subtitle = "provide the keypair used to encrypt/decrypt your store",
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.small)
-                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-                .clickable { filePicker.launch(arrayOf("*/*")) }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(PassColorsDark.Surface, PassShapes.small)
+                    .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                    .clickable { filePicker.launch(arrayOf("*/*")) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(PassColorsDark.AccentDim, PassShapes.small)
-                    .border(1.dp, PassColorsDark.AccentMid, PassShapes.small),
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .background(PassColorsDark.AccentDim, PassShapes.small)
+                        .border(1.dp, PassColorsDark.AccentMid, PassShapes.small),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

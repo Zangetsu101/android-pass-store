@@ -44,11 +44,12 @@ fun PassTextField(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val borderColor = when {
-        isError -> PassColorsDark.Danger
-        isFocused -> PassColorsDark.Accent.copy(alpha = 0.33f)
-        else -> PassColorsDark.Border2
-    }
+    val borderColor =
+        when {
+            isError -> PassColorsDark.Danger
+            isFocused -> PassColorsDark.Accent.copy(alpha = 0.33f)
+            else -> PassColorsDark.Border2
+        }
 
     BasicTextField(
         value = value,
@@ -65,11 +66,12 @@ fun PassTextField(
         maxLines = maxLines,
         decorationBox = { innerTextField ->
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PassColorsDark.Surface, PassShapes.small)
-                    .border(1.dp, borderColor, PassShapes.small)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(PassColorsDark.Surface, PassShapes.small)
+                        .border(1.dp, borderColor, PassShapes.small)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {

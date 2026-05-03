@@ -11,7 +11,10 @@ interface GitSync {
         sshKeyPair: KeyPair? = null,
         progressMonitor: ProgressMonitor? = null,
     )
+
     suspend fun pull(sshKeyPair: KeyPair? = null): SyncResult
+
     suspend fun syncStatus(): SyncStatus
+
     suspend fun lastCommitForFile(repoRelativePath: String): FileCommitInfo?
 }

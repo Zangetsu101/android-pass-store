@@ -19,18 +19,26 @@ import javax.inject.Inject
 @RequiresApi(34)
 @AndroidEntryPoint
 class CredentialAuthActivity : FragmentActivity() {
-
     @Inject lateinit var passStore: PassStore
+
     @Inject lateinit var decryption: Decryption
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val path = intent.getStringExtra(EXTRA_ENTRY_PATH)
-        if (path == null) { setResult(RESULT_CANCELED); finish(); return }
+        if (path == null) {
+            setResult(RESULT_CANCELED)
+            finish()
+            return
+        }
 
         val entry = passStore.index.value.find { it.path == path }
-        if (entry == null) { setResult(RESULT_CANCELED); finish(); return }
+        if (entry == null) {
+            setResult(RESULT_CANCELED)
+            finish()
+            return
+        }
 
         lifecycleScope.launch {
             try {
@@ -56,7 +64,11 @@ class CredentialAuthActivity : FragmentActivity() {
     companion object {
         private const val EXTRA_ENTRY_PATH = "entry_path"
 
-        fun createIntent(context: Context, entryPath: String, optionId: String): Intent =
+        fun createIntent(
+            context: Context,
+            entryPath: String,
+            optionId: String,
+        ): Intent =
             Intent(context, CredentialAuthActivity::class.java).apply {
                 putExtra(EXTRA_ENTRY_PATH, entryPath)
             }
