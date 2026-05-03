@@ -10,6 +10,12 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class EntryScore(
+    val path: Int,
+    val domain: Int,
+    val username: Int,
+)
+
 @Singleton
 class PassStoreImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -37,8 +43,7 @@ class PassStoreImpl @Inject constructor(
         val q = query.lowercase()
         return _index.value
             .map { entry -> entry to entryScore(entry, q) }
-            .filter { (_, score) -> score < Int.MAX_VALUE }
-            .sortedBy { (_, score) -> score }
+            .sortedWith(compareBy({ (_, score) -> score.domain }, { (_, score) -> score.username }, { (_, score) -> score.path }))
             .map { (entry, _) -> entry }
     }
 
@@ -82,12 +87,11 @@ class PassStoreImpl @Inject constructor(
         }
     }
 
-    private fun entryScore(entry: PassEntry, query: String): Int {
-        val candidates = listOfNotNull(
-            entry.username.lowercase(),
-            entry.domain?.lowercase(),
-            entry.path.lowercase().removeSuffix(".gpg"),
+    private fun entryScore(entry: PassEntry, query: String): EntryScore {
+        return EntryScore(
+            path = levenshtein.apply(query, entry.path.lowercase()),
+            domain = entry.domain?.let { levenshtein.apply(query, it.lowercase()) } ?: Int.MAX_VALUE,
+            username = levenshtein.apply(query, entry.username.lowercase()),
         )
-        return candidates.minOfOrNull { levenshtein.apply(query, it) } ?: Int.MAX_VALUE
     }
 }
