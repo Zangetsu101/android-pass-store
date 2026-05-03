@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./gradlew formatKotlin 2>/dev/null || true",
+            "statusMessage": "Formatting Kotlin..."
+          }
+        ]
+      }
+    ]
+  }
+}
