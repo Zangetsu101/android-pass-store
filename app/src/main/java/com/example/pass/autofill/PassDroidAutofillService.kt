@@ -92,6 +92,8 @@ class PassDroidAutofillService : AutofillService() {
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
+        @Suppress("DEPRECATION")
         return android.service.autofill.Dataset.Builder().apply {
             usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
             passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }

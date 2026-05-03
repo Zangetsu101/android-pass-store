@@ -41,9 +41,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.components.PassSecondaryButton
@@ -68,7 +71,8 @@ fun SettingsScreen(
     val remoteUrl by viewModel.remoteUrl.collectAsState()
     val sessionTimeout by viewModel.sessionTimeoutMinutes.collectAsState()
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showClearConfirm by remember { mutableStateOf(false) }
 
     PassScaffold(
@@ -116,7 +120,7 @@ fun SettingsScreen(
                         Text(sshKey!!, style = PassType.Caption, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                         PassSecondaryButton(
-                            onClick = { clipboard.setText(AnnotatedString(sshKey!!)) },
+                            onClick = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("", sshKey!!))) } },
                             label = "copy ssh key",
                         )
                     }

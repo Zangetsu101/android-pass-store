@@ -50,6 +50,8 @@ class AutofillAuthActivity : FragmentActivity() {
                     setTextViewText(android.R.id.text1, label)
                 }
 
+                // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
+                @Suppress("DEPRECATION")
                 val dataset = Dataset.Builder().apply {
                     usernameId?.let { setValue(it, AutofillValue.forText(creds.username), presentation) }
                     passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }

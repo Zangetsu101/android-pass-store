@@ -26,11 +26,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import android.content.ClipData
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassSecondaryButton
@@ -49,7 +50,7 @@ fun CloneRepoScreen(
     onNext: (String) -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var showShimmer by remember { mutableStateOf(true) }
 
@@ -105,7 +106,7 @@ fun CloneRepoScreen(
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             PassPrimaryButton(
-                onClick = { if (key != null) clipboard.setText(AnnotatedString(key)) },
+                onClick = { if (key != null) scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("", key))) } },
                 enabled = key != null,
                 label = "copy key",
                 modifier = Modifier.weight(1f),

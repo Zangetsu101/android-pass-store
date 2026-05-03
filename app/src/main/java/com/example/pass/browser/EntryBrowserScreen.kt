@@ -25,7 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.HorizontalDivider
@@ -109,7 +109,7 @@ fun EntryBrowserScreen(
                     }
                     IconButton(onClick = { viewModel.toggleView() }) {
                         Icon(
-                            if (state.treeView) Icons.Default.FormatListBulleted else Icons.Default.AccountTree,
+                            if (state.treeView) Icons.AutoMirrored.Filled.FormatListBulleted else Icons.Default.AccountTree,
                             contentDescription = if (state.treeView) "flat view" else "tree view",
                             tint = PassColorsDark.TextDim,
                             modifier = Modifier.size(18.dp),
