@@ -25,13 +25,16 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
 
-data class Task(val name: String, val completed: Int, val total: Int)
+sealed class LogEntry {
+    data class Simple(val text: String) : LogEntry()
+    data class Progress(val name: String, val completed: Int, val total: Int) : LogEntry()
+}
 
 data class CloneProgressUiState(
     val cloning: Boolean = false,
     val cloneError: String? = null,
     val cloneComplete: Boolean = false,
-    val tasks: List<Task> = emptyList(),
+    val logs: List<LogEntry> = emptyList(),
 )
 
 @HiltViewModel(assistedFactory = CloneProgressViewModel.Factory::class)
@@ -69,12 +72,13 @@ class CloneProgressViewModel @AssistedInject constructor(
 
     private fun startClone() {
         cancelCloneFlag.set(false)
+        val repoName = remoteUrl.substringAfterLast('/').substringAfterLast(':').removeSuffix(".git")
         _state.update {
             it.copy(
                 cloning = true,
                 cloneError = null,
                 cloneComplete = false,
-                tasks = emptyList(),
+                logs = listOf(LogEntry.Simple("Cloning into '$repoName'...")),
             )
         }
         cloneJob = viewModelScope.launch {
@@ -87,13 +91,16 @@ class CloneProgressViewModel @AssistedInject constructor(
                 val monitor = object : ProgressMonitor {
                     override fun start(totalTasks: Int) {}
                     override fun beginTask(title: String, totalWork: Int) {
-                        _state.update { it.copy(tasks = it.tasks + Task(title, 0, totalWork)) }
+                        _state.update { it.copy(logs = it.logs + LogEntry.Progress(title, 0, totalWork)) }
                     }
                     override fun update(completed: Int) {
                         _state.update {
-                            val tasks = it.tasks.toMutableList()
-                            if (tasks.isNotEmpty()) tasks[tasks.lastIndex] = tasks.last().copy(completed = tasks.last().completed + completed)
-                            it.copy(tasks = tasks)
+                            val logs = it.logs.toMutableList()
+                            val last = logs.lastOrNull()
+                            if (last is LogEntry.Progress) {
+                                logs[logs.lastIndex] = last.copy(completed = last.completed + completed)
+                            }
+                            it.copy(logs = logs)
                         }
                     }
                     override fun endTask() {}
@@ -110,8 +117,11 @@ class CloneProgressViewModel @AssistedInject constructor(
             } catch (e: SyncError) {
                 _state.update { it.copy(cloning = false, cloneError = e.message) }
             } catch (e: Exception) {
-                val msg = if (cancelCloneFlag.get()) "Cancelled." else (e.message ?: "Clone failed")
-                _state.update { it.copy(cloning = false, cloneError = msg) }
+                if (cancelCloneFlag.get()) {
+                    _state.update { it.copy(cloning = false, logs = it.logs + LogEntry.Simple("Cancelled.")) }
+                } else {
+                    _state.update { it.copy(cloning = false, cloneError = e.message ?: "Clone failed") }
+                }
             }
         }
     }

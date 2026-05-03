@@ -47,8 +47,8 @@ fun CloneProgressScreen(
         while (true) { delay(500); cursorVisible = !cursorVisible }
     }
     LaunchedEffect(state.cloneComplete) { if (state.cloneComplete) onSuccess() }
-    LaunchedEffect(state.tasks.size) {
-        if (state.tasks.isNotEmpty()) logState.animateScrollToItem(state.tasks.size - 1)
+    LaunchedEffect(state.logs.size) {
+        if (state.logs.isNotEmpty()) logState.animateScrollToItem(state.logs.size - 1)
     }
 
     OnboardingScaffold(
@@ -66,20 +66,21 @@ fun CloneProgressScreen(
                 .border(1.dp, PassColorsDark.Border2, PassShapes.medium)
                 .padding(12.dp),
         ) {
-            val repoName = viewModel.remoteUrl.substringAfterLast('/').substringAfterLast(':').removeSuffix(".git")
             LazyColumn(state = logState, modifier = Modifier.fillMaxSize()) {
-                item { Text("> git clone ${viewModel.remoteUrl}", style = PassType.Caption, color = PassColorsDark.TextDim) }
-                item { Text("> Cloning into '$repoName'...", style = PassType.Caption, color = PassColorsDark.TextDim) }
-                itemsIndexed(state.tasks) { index, task ->
-                    val isLast = index == state.tasks.size - 1
-                    val label = if (task.total > 0) {
-                        val pct = (task.completed * 100f / task.total).toInt()
-                        "${task.name}: $pct% (${task.completed}/${task.total})"
-                    } else {
-                        "${task.name}: ${task.completed}"
+                item { Text("> git clone ${viewModel.remoteUrl}", style = PassType.Caption, color = PassColorsDark.TextPrimary) }
+                itemsIndexed(state.logs) { index, entry ->
+                    val isLast = index == state.logs.size - 1
+                    val label = when (entry) {
+                        is LogEntry.Simple -> entry.text
+                        is LogEntry.Progress -> if (entry.total > 0) {
+                            val pct = (entry.completed * 100f / entry.total).toInt()
+                            "${entry.name}: $pct% (${entry.completed}/${entry.total})"
+                        } else {
+                            "${entry.name}: ${entry.completed}"
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("> $label", style = PassType.Caption, color = PassColorsDark.TextPrimary)
+                        Text(label, style = PassType.Caption, color = if (isLast) PassColorsDark.AccentMid else PassColorsDark.TextDim)
                         if (isLast && state.cloning && cursorVisible) {
                             Spacer(Modifier.width(4.dp))
                             val cursorHeight = with(LocalDensity.current) { 9.sp.toDp() }
