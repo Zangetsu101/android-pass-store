@@ -32,8 +32,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,12 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassScaffold
+import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
 
@@ -147,31 +145,13 @@ fun EntryBrowserScreen(
             }
 
             // Search bar
-            TextField(
+            PassTextField(
                 value = state.searchQuery,
                 onValueChange = viewModel::setSearchQuery,
-                placeholder = {
-                    Text(
-                        "grep -r \"\"",
-                        style = PassType.Body.copy(color = PassColorsDark.TextDim),
-                    )
-                },
-                prefix = { Text("$ ", style = PassType.Body.copy(color = PassColorsDark.TextDim)) },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = PassColorsDark.Surface,
-                    unfocusedContainerColor = PassColorsDark.Surface,
-                    focusedTextColor = PassColorsDark.TextPrimary,
-                    unfocusedTextColor = PassColorsDark.TextPrimary,
-                    cursorColor = PassColorsDark.Accent,
-                    focusedIndicatorColor = PassColorsDark.Accent,
-                    unfocusedIndicatorColor = PassColorsDark.Border2,
-                ),
+                prefix = "> grep -r ",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)

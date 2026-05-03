@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,7 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassPrimaryButton
-import com.example.pass.ui.components.passTextFieldColors
+import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassShapes
 import com.example.pass.ui.theme.PassType
@@ -106,15 +105,14 @@ fun OnboardingGpgImportScreen(
         Spacer(Modifier.height(8.dp))
         Text("paste armored secret key", style = PassType.Label)
         Spacer(Modifier.height(6.dp))
-        OutlinedTextField(
+        PassTextField(
             value = state.gpgKeyText,
             onValueChange = viewModel::setGpgKeyText,
-            placeholder = { Text("-----BEGIN PGP PRIVATE KEY BLOCK-----", style = PassType.Caption) },
+            placeholder = "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+            singleLine = false,
             minLines = 5,
             maxLines = 10,
             isError = state.gpgImportError != null,
-            textStyle = PassType.Body,
-            colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(6.dp))

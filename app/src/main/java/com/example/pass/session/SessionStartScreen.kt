@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassScaffold
-import com.example.pass.ui.components.passTextFieldColors
+import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassType
 
@@ -59,11 +58,11 @@ fun SessionStartScreen(
                 style = PassType.Body,
             )
             Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
+            Text("passphrase", style = PassType.Label)
+            Spacer(Modifier.height(6.dp))
+            PassTextField(
                 value = state.passphrase,
                 onValueChange = viewModel::setPassphrase,
-                label = { Text("passphrase", style = PassType.Caption) },
-                singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
@@ -71,12 +70,13 @@ fun SessionStartScreen(
                 ),
                 keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
                 isError = state.error != null,
-                supportingText = state.error?.let { { Text(it, style = PassType.Caption, color = PassColorsDark.Danger) } },
                 enabled = !state.loading,
-                textStyle = PassType.Body,
-                colors = passTextFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
+            state.error?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = PassType.Caption, color = PassColorsDark.Danger)
+            }
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = viewModel::submit,

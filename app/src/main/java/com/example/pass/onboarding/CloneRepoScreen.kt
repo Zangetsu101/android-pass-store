@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +34,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassSecondaryButton
-import com.example.pass.ui.components.passTextFieldColors
+import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassShapes
 import com.example.pass.ui.theme.PassType
@@ -67,17 +66,17 @@ fun CloneRepoScreen(
     ) {
         Text("git remote url", style = PassType.Label)
         Spacer(Modifier.height(6.dp))
-        OutlinedTextField(
+        PassTextField(
             value = state.remoteUrl,
             onValueChange = viewModel::setRemoteUrl,
-            placeholder = { Text("git@github.com:user/pass.git", style = PassType.Caption) },
-            singleLine = true,
+            placeholder = "git@github.com:user/pass.git",
             isError = state.remoteUrlError != null,
-            supportingText = state.remoteUrlError?.let { { Text(it, style = PassType.Caption) } },
-            textStyle = PassType.Body,
-            colors = passTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
+        state.remoteUrlError?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = PassType.Caption, color = PassColorsDark.Danger)
+        }
         Spacer(Modifier.height(16.dp))
         Text("ssh public key", style = PassType.Label)
         Spacer(Modifier.height(6.dp))
