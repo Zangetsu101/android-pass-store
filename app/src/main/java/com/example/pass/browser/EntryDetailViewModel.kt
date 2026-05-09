@@ -12,11 +12,15 @@ import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
 import com.example.pass.gitsync.FileCommitInfo
 import com.example.pass.gitsync.GitSync
+import com.example.pass.keymanagement.BiometricAuthException
 import com.example.pass.keymanagement.BiometricNotEnrolledException
 import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -28,92 +32,153 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
-import javax.inject.Inject
+
+sealed class UnlockState {
+    data object Idle : UnlockState()
+
+    sealed class Authenticating : UnlockState() {
+        data object Biometric : Authenticating()
+
+        data class Passphrase(
+            val input: String = "",
+            val error: String? = null,
+        ) : Authenticating()
+    }
+
+    data object Decrypting : UnlockState()
+
+    data class Decrypted(
+        val credentials: Credentials,
+        val passwordRevealed: Boolean = false,
+        val clipboardCopied: Boolean = false,
+    ) : UnlockState()
+
+    data class Failed(
+        val message: String,
+    ) : UnlockState()
+}
 
 data class EntryDetailUiState(
     val entry: PassEntry? = null,
-    val decrypting: Boolean = false,
-    val credentials: Credentials? = null,
-    val decryptError: String? = null,
-    val passwordRevealed: Boolean = false,
-    val clipboardCopied: Boolean = false,
-    val sessionStartNeeded: Boolean = false,
-    val biometricNotEnrolled: Boolean = false,
-    val showPassphraseInput: Boolean = false,
-    val passphraseInput: String = "",
-    val passphraseError: String? = null,
+    val unlockState: UnlockState = UnlockState.Idle,
     val commitInfo: FileCommitInfo? = null,
     val metadataLoaded: Boolean = false,
 )
 
-@HiltViewModel
+@HiltViewModel(assistedFactory = EntryDetailViewModel.Factory::class)
 class EntryDetailViewModel
-    @Inject
+    @AssistedInject
     constructor(
+        @Assisted private val entryPath: String,
         @ApplicationContext private val context: Context,
         private val passStore: PassStore,
         private val decryption: Decryption,
         private val gitSync: GitSync,
         private val keyManagement: KeyManagement,
     ) : ViewModel() {
+        @AssistedFactory
+        interface Factory {
+            fun create(entryPath: String): EntryDetailViewModel
+        }
+
         private val _state = MutableStateFlow(EntryDetailUiState())
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
         private var blurJob: Job? = null
         private var clipClearJob: Job? = null
 
-        fun initForEntry(entryPath: String): PassEntry? {
+        init {
             val entry = passStore.index.value.find { it.path == entryPath }
-            _state.update { it.copy(entry = entry) }
-            return entry
+            if (entry == null) {
+                _state.update { it.copy(unlockState = UnlockState.Failed("Entry not found")) }
+            } else {
+                _state.update { it.copy(entry = entry) }
+            }
         }
 
-        fun decrypt(
-            entry: PassEntry,
-            activity: FragmentActivity,
-        ) {
-            if (_state.value.decrypting) return
-            _state.update { it.copy(decrypting = true, decryptError = null, biometricNotEnrolled = false) }
+        fun authenticate(activity: FragmentActivity) {
+            if (_state.value.unlockState !is UnlockState.Idle) return
+            val entry = _state.value.entry ?: return
+            _state.update { it.copy(unlockState = UnlockState.Authenticating.Biometric) }
             viewModelScope.launch {
                 try {
-                    val creds = decryption.decrypt(entry, activity)
-                    _state.update { it.copy(decrypting = false, credentials = creds) }
+                    val key = keyManagement.getGpgKey(activity)
+                    _state.update { it.copy(unlockState = UnlockState.Decrypting) }
+                    val creds = decryption.decryptWithKey(entry, key)
+                    _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
                 } catch (e: BiometricNotEnrolledException) {
-                    _state.update { it.copy(decrypting = false, biometricNotEnrolled = true) }
-                } catch (e: SessionError.NoActiveSession) {
-                    _state.update { it.copy(decrypting = false, sessionStartNeeded = true) }
+                    _state.update { it.copy(unlockState = UnlockState.Authenticating.Passphrase()) }
+                } catch (e: BiometricAuthException) {
+                    _state.update { it.copy(unlockState = UnlockState.Idle) }
                 } catch (e: DecryptionError) {
-                    _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
+                    _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                 } catch (e: Exception) {
-                    _state.update { it.copy(decrypting = false, decryptError = e.message ?: "Decryption failed") }
+                    _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                 }
             }
         }
 
-        fun onSessionStartNavigated() {
-            _state.update { it.copy(sessionStartNeeded = false) }
+        fun dismissPassphrase() {
+            _state.update { it.copy(unlockState = UnlockState.Idle) }
+        }
+
+        fun setPassphraseInput(value: String) {
+            val current = _state.value.unlockState as? UnlockState.Authenticating.Passphrase ?: return
+            _state.update { it.copy(unlockState = current.copy(input = value, error = null)) }
+        }
+
+        fun submitPassphrase(activity: FragmentActivity) {
+            val entry = _state.value.entry ?: return
+            val current = _state.value.unlockState as? UnlockState.Authenticating.Passphrase ?: return
+            val passphrase = current.input.ifEmpty { return }
+            _state.update { it.copy(unlockState = UnlockState.Decrypting) }
+            viewModelScope.launch {
+                try {
+                    val key = withContext(Dispatchers.IO) { keyManagement.getGpgKeyWithPassphrase(passphrase) }
+                    val creds = decryption.decryptWithKey(entry, key)
+                    _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
+                } catch (e: SessionError.WrongPassphrase) {
+                    _state.update {
+                        it.copy(
+                            unlockState = UnlockState.Authenticating.Passphrase(input = passphrase, error = "Wrong passphrase"),
+                        )
+                    }
+                } catch (e: Exception) {
+                    _state.update {
+                        it.copy(
+                            unlockState =
+                                UnlockState.Authenticating.Passphrase(
+                                    input = passphrase,
+                                    error =
+                                        e.message ?: "Failed",
+                                ),
+                        )
+                    }
+                }
+            }
         }
 
         fun toggleReveal() {
-            val revealing = !_state.value.passwordRevealed
-            _state.update { it.copy(passwordRevealed = revealing) }
+            val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            val revealing = !current.passwordRevealed
+            _state.update { it.copy(unlockState = current.copy(passwordRevealed = revealing)) }
             blurJob?.cancel()
             if (revealing) {
                 blurJob =
                     viewModelScope.launch {
                         delay(45_000)
-                        _state.update { it.copy(passwordRevealed = false) }
+                        val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
+                        _state.update { it.copy(unlockState = decrypted.copy(passwordRevealed = false)) }
                     }
             }
         }
 
         fun copyPassword() {
-            val creds = _state.value.credentials ?: return
-            val password = String(creds.password)
+            val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            val password = String(current.credentials.password)
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
-            _state.update { it.copy(clipboardCopied = true) }
+            _state.update { it.copy(unlockState = current.copy(clipboardCopied = true)) }
             clipClearJob?.cancel()
             clipClearJob =
                 viewModelScope.launch {
@@ -123,57 +188,20 @@ class EntryDetailViewModel
                     } else {
                         clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
                     }
-                    _state.update { it.copy(clipboardCopied = false) }
+                    val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
+                    _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false)) }
                 }
         }
 
-        fun loadMetadata(entryPath: String) {
+        fun loadMetadata() {
             viewModelScope.launch {
                 val info = gitSync.lastCommitForFile(entryPath)
                 _state.update { it.copy(commitInfo = info, metadataLoaded = true) }
             }
         }
 
-        fun showPassphraseInput() {
-            _state.update { it.copy(showPassphraseInput = true) }
-        }
-
-        fun setPassphraseInput(value: String) {
-            _state.update { it.copy(passphraseInput = value, passphraseError = null) }
-        }
-
-        fun submitPassphrase(
-            entry: PassEntry,
-            activity: FragmentActivity,
-        ) {
-            val passphrase = _state.value.passphraseInput.ifEmpty { return }
-            _state.update { it.copy(showPassphraseInput = false, biometricNotEnrolled = false, passphraseError = null) }
-            viewModelScope.launch {
-                try {
-                    withContext(Dispatchers.IO) { keyManagement.getGpgKeyWithPassphrase(passphrase) }
-                    val creds = decryption.decrypt(entry, activity)
-                    _state.update {
-                        it.copy(
-                            passphraseInput = "",
-                            credentials = creds,
-                        )
-                    }
-                } catch (e: SessionError.WrongPassphrase) {
-                    _state.update { it.copy(showPassphraseInput = true, biometricNotEnrolled = true, passphraseError = "Wrong passphrase") }
-                } catch (e: Exception) {
-                    _state.update {
-                        it.copy(
-                            showPassphraseInput = true,
-                            biometricNotEnrolled = true,
-                            passphraseError = e.message ?: "Failed",
-                        )
-                    }
-                }
-            }
-        }
-
         override fun onCleared() {
             super.onCleared()
-            _state.value.credentials?.zero()
+            (_state.value.unlockState as? UnlockState.Decrypted)?.credentials?.zero()
         }
     }

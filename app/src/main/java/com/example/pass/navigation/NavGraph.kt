@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
@@ -144,23 +145,29 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                 }
 
                 entry<EntryBrowser> {
+                    val navVm: NavViewModel = hiltViewModel()
+                    val context = LocalContext.current
                     val vm: EntryBrowserViewModel = hiltViewModel()
                     EntryBrowserScreen(
                         viewModel = vm,
-                        onNavigateToEntryDetail = { entry -> backStack.add(EntryDetail(entry.path)) },
+                        onNavigateToEntryDetail = { entry ->
+                            if (navVm.requiresSessionStart(context)) {
+                                backStack.add(SessionStart(returnEntryPath = entry.path))
+                            } else {
+                                backStack.add(EntryDetail(entry.path))
+                            }
+                        },
                         onNavigateToSettings = { backStack.add(Settings) },
                     )
                 }
 
                 entry<EntryDetail> {
-                    val vm: EntryDetailViewModel = hiltViewModel()
+                    val vm =
+                        hiltViewModel<EntryDetailViewModel, EntryDetailViewModel.Factory>(
+                            creationCallback = { factory -> factory.create(it.entryPath) },
+                        )
                     EntryDetailScreen(
-                        entryPath = it.entryPath,
                         viewModel = vm,
-                        onNavigateToSessionStart = {
-                            backStack.removeLastOrNull()
-                            backStack.add(SessionStart(returnEntryPath = it.entryPath))
-                        },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }

@@ -1,5 +1,6 @@
 package com.example.pass.keymanagement
 
+import android.content.Context
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -63,8 +64,8 @@ suspend fun showBiometricPrompt(
     prompt.authenticate(info)
 }
 
-fun isBiometricAvailable(activity: FragmentActivity): Boolean {
-    val mgr = BiometricManager.from(activity)
+fun isBiometricAvailable(context: Context): Boolean {
+    val mgr = BiometricManager.from(context)
     return mgr.canAuthenticate(ALLOWED_AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
 }
 

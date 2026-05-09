@@ -1,6 +1,7 @@
 package com.example.pass.decryption
 
 import androidx.fragment.app.FragmentActivity
+import com.example.pass.keymanagement.GpgPrivateKey
 import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.passstore.PassEntry
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,17 @@ class DecryptionImpl
         ): Credentials {
             val secretKeyRing = keyManagement.getGpgKey(activity)
             val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
+            val lines = plaintext.lines()
+            val password = (lines.firstOrNull() ?: "").toCharArray()
+            val notes = lines.drop(1).joinToString("\n").trimEnd()
+            return Credentials(password = password, notes = notes)
+        }
+
+        override suspend fun decryptWithKey(
+            entry: PassEntry,
+            key: GpgPrivateKey,
+        ): Credentials {
+            val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, key) }
             val lines = plaintext.lines()
             val password = (lines.firstOrNull() ?: "").toCharArray()
             val notes = lines.drop(1).joinToString("\n").trimEnd()
