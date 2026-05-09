@@ -21,6 +21,9 @@ interface KeyManagement {
     @Throws(SessionError::class)
     suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey
 
+    @Throws(SessionError::class)
+    fun getGpgKeyWithPassphrase(passphrase: String): GpgPrivateKey
+
     fun generateSshKey(): String
 
     fun getSshKey(): SshPrivateKey

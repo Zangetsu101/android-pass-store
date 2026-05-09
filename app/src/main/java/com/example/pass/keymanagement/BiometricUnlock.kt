@@ -33,9 +33,15 @@ suspend fun showBiometricPrompt(
                     errString: CharSequence,
                 ) {
                     if (cont.isActive) {
-                        cont.resumeWithException(
-                            BiometricAuthException("Biometric error $errorCode: $errString"),
-                        )
+                        val ex =
+                            if (errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS ||
+                                errorCode == BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL
+                            ) {
+                                BiometricNotEnrolledException()
+                            } else {
+                                BiometricAuthException("Biometric error $errorCode: $errString")
+                            }
+                        cont.resumeWithException(ex)
                     }
                 }
 
@@ -65,3 +71,5 @@ fun isBiometricAvailable(activity: FragmentActivity): Boolean {
 class BiometricAuthException(
     message: String,
 ) : Exception(message)
+
+class BiometricNotEnrolledException : Exception("No screen lock or biometric enrolled")

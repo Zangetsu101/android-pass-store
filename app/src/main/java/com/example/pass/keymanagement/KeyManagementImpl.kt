@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -48,6 +49,7 @@ private const val SESSION_KEY_ALIAS = "passdroid_session_key"
 private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
 private const val GCM_TAG_BITS = 128
 private const val GCM_IV_BYTES = 12
+private const val NO_BIOMETRIC_PASSPHRASE_TIMEOUT_MS = 5 * 60 * 1000L
 
 @Singleton
 class KeyManagementImpl
@@ -60,6 +62,9 @@ class KeyManagementImpl
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var timeoutJob: Job? = null
+
+        private var cachedPassphrase: String? = null
+        private var passphraseTimeoutJob: Job? = null
 
         private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
 
@@ -115,6 +120,8 @@ class KeyManagementImpl
 
         override fun endSession() {
             timeoutJob?.cancel()
+            passphraseTimeoutJob?.cancel()
+            cachedPassphrase = null
             val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
             if (keyStore.containsAlias(SESSION_KEY_ALIAS)) {
                 keyStore.deleteEntry(SESSION_KEY_ALIAS)
@@ -160,32 +167,54 @@ class KeyManagementImpl
 
         @Throws(SessionError::class)
         override suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey {
-            if (!isSessionActive()) throw SessionError.NoActiveSession()
+            cachedPassphrase?.let { p -> return withContext(Dispatchers.IO) { unlockGpgKey(p) } }
 
-            showBiometricPrompt(activity)
+            if (!isBiometricAvailable(activity)) throw BiometricNotEnrolledException()
 
-            val passphrase = decryptSessionPassphrase()
+            val active = withContext(Dispatchers.IO) { isSessionActive() }
+            if (!active) throw SessionError.NoActiveSession()
+
+            showBiometricPrompt(activity) // must run on Main — uses BiometricPrompt
+
+            val passphrase = withContext(Dispatchers.IO) { decryptSessionPassphrase() }
+            cachePassphrase(passphrase)
+            scheduleInactivityTimeout()
+            return withContext(Dispatchers.IO) { unlockGpgKey(passphrase) }
+        }
+
+        override fun getGpgKeyWithPassphrase(passphrase: String): GpgPrivateKey {
+            val key = unlockGpgKey(passphrase)
+            cachePassphrase(passphrase)
+            return key
+        }
+
+        private fun cachePassphrase(passphrase: String) {
+            cachedPassphrase = passphrase
+            passphraseTimeoutJob?.cancel()
+            passphraseTimeoutJob =
+                scope.launch {
+                    delay(NO_BIOMETRIC_PASSPHRASE_TIMEOUT_MS)
+                    cachedPassphrase = null
+                }
+        }
+
+        private fun unlockGpgKey(passphrase: String): GpgPrivateKey {
             val armoredKey = File(keysDir(), GPG_KEY_FILE).readText()
             val keys =
                 PGPainless.readKeyRing().secretKeyRing(armoredKey)
                     ?: error("Corrupted GPG key file")
-
             val decryptor =
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                     .build(passphrase.toCharArray())
-            val unlockedKeys =
-                PGPSecretKeyRing(
-                    keys.map { secretKey ->
-                        if (secretKey.s2KUsage != 0) {
-                            PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
-                        } else {
-                            secretKey
-                        }
-                    },
-                )
-
-            scheduleInactivityTimeout()
-            return unlockedKeys
+            return PGPSecretKeyRing(
+                keys.map { secretKey ->
+                    if (secretKey.s2KUsage != 0) {
+                        PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
+                    } else {
+                        secretKey
+                    }
+                },
+            )
         }
 
         override fun clearAllKeys() {

@@ -12,11 +12,14 @@ import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
 import com.example.pass.gitsync.FileCommitInfo
 import com.example.pass.gitsync.GitSync
+import com.example.pass.keymanagement.BiometricNotEnrolledException
+import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import javax.inject.Inject
 
@@ -35,6 +39,10 @@ data class EntryDetailUiState(
     val passwordRevealed: Boolean = false,
     val clipboardCopied: Boolean = false,
     val sessionStartNeeded: Boolean = false,
+    val biometricNotEnrolled: Boolean = false,
+    val showPassphraseInput: Boolean = false,
+    val passphraseInput: String = "",
+    val passphraseError: String? = null,
     val commitInfo: FileCommitInfo? = null,
     val metadataLoaded: Boolean = false,
 )
@@ -47,6 +55,7 @@ class EntryDetailViewModel
         private val passStore: PassStore,
         private val decryption: Decryption,
         private val gitSync: GitSync,
+        private val keyManagement: KeyManagement,
     ) : ViewModel() {
         private val _state = MutableStateFlow(EntryDetailUiState())
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
@@ -65,11 +74,13 @@ class EntryDetailViewModel
             activity: FragmentActivity,
         ) {
             if (_state.value.decrypting) return
-            _state.update { it.copy(decrypting = true, decryptError = null) }
+            _state.update { it.copy(decrypting = true, decryptError = null, biometricNotEnrolled = false) }
             viewModelScope.launch {
                 try {
                     val creds = decryption.decrypt(entry, activity)
                     _state.update { it.copy(decrypting = false, credentials = creds) }
+                } catch (e: BiometricNotEnrolledException) {
+                    _state.update { it.copy(decrypting = false, biometricNotEnrolled = true) }
                 } catch (e: SessionError.NoActiveSession) {
                     _state.update { it.copy(decrypting = false, sessionStartNeeded = true) }
                 } catch (e: DecryptionError) {
@@ -120,6 +131,44 @@ class EntryDetailViewModel
             viewModelScope.launch {
                 val info = gitSync.lastCommitForFile(entryPath)
                 _state.update { it.copy(commitInfo = info, metadataLoaded = true) }
+            }
+        }
+
+        fun showPassphraseInput() {
+            _state.update { it.copy(showPassphraseInput = true) }
+        }
+
+        fun setPassphraseInput(value: String) {
+            _state.update { it.copy(passphraseInput = value, passphraseError = null) }
+        }
+
+        fun submitPassphrase(
+            entry: PassEntry,
+            activity: FragmentActivity,
+        ) {
+            val passphrase = _state.value.passphraseInput.ifEmpty { return }
+            _state.update { it.copy(showPassphraseInput = false, biometricNotEnrolled = false, passphraseError = null) }
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { keyManagement.getGpgKeyWithPassphrase(passphrase) }
+                    val creds = decryption.decrypt(entry, activity)
+                    _state.update {
+                        it.copy(
+                            passphraseInput = "",
+                            credentials = creds,
+                        )
+                    }
+                } catch (e: SessionError.WrongPassphrase) {
+                    _state.update { it.copy(showPassphraseInput = true, biometricNotEnrolled = true, passphraseError = "Wrong passphrase") }
+                } catch (e: Exception) {
+                    _state.update {
+                        it.copy(
+                            showPassphraseInput = true,
+                            biometricNotEnrolled = true,
+                            passphraseError = e.message ?: "Failed",
+                        )
+                    }
+                }
             }
         }
 
