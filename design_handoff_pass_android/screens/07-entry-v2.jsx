@@ -25,6 +25,10 @@ function ScreenEntryV2() {
             </div>
           </div>
           <div style={{color:T.textFaint, fontSize:9, marginBottom:18}}>decrypted in-memory · auto-clears in 45s</div>
+          <Label>notes</Label>
+          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"12px 14px", marginBottom:16, minHeight:60}}>
+            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>recovery: alice+recover@gmail.com<br/><span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span></div>
+          </div>
           <Label>metadata</Label>
           <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, overflow:"hidden", marginBottom:16}}>
             {[["path","email/gmail"],["modified","2024-11-03"],["git commit","a3f92b1"]].map(([k,v],i,arr)=>(
@@ -33,10 +37,6 @@ function ScreenEntryV2() {
                 <span style={{color:T.text, fontSize:10}}>{v}</span>
               </div>
             ))}
-          </div>
-          <Label>notes</Label>
-          <div style={{background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"12px 14px", marginBottom:16, minHeight:60}}>
-            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>recovery: alice+recover@gmail.com<br/><span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span></div>
           </div>
           <div style={{display:"flex", gap:6}}>
             <Btn style={{flex:1, fontSize:9}}>edit</Btn>

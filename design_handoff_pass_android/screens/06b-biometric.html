@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pass Store — 05b · GPG Passphrase</title>
+<title>Pass Store — 06b · Biometric Unlock</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -36,19 +36,19 @@
 </style>
 </head>
 <body>
-<div class="label"><a href="../Screens.html">← all screens</a> 05b · GPG Passphrase</div>
+<div class="label"><a href="../Screens.html">← all screens</a> 06b · Biometric Unlock</div>
 <script>/*embedded-detect*/if(window.self!==window.top)document.body.classList.add('embedded');</script>
 <div id="root"></div>
 <script type="text/babel" src="_shared.jsx"></script>
-<script type="text/babel" src="05b-passphrase.jsx"></script>
+<script type="text/babel" src="06b-biometric.jsx"></script>
 <script type="text/babel" src="_app.jsx"></script>
 <script>
   // wait until babel finishes processing all <script type="text/babel"> tags
   (function waitFor(){
-    if (typeof mountScreen !== 'function' || !window.ScreenPassphrase) {
+    if (typeof mountScreen !== 'function' || !window.ScreenBiometric) {
       return setTimeout(waitFor, 30);
     }
-    mountScreen(React.createElement(window.ScreenPassphrase, {}));
+    mountScreen(React.createElement(window.ScreenBiometric, {}));
   })();
 </script>
 </body>

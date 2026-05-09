@@ -48,6 +48,19 @@ function ScreenEntry() {
             decrypted in-memory · auto-clears in 45s
           </div>
 
+          {/* notes */}
+          <Label>notes</Label>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"12px 14px", marginBottom:16,
+            minHeight:60,
+          }}>
+            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>
+              recovery: alice+recover@gmail.com<br/>
+              <span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span>
+            </div>
+          </div>
+
           {/* metadata */}
           <Label>metadata</Label>
           <div style={{
@@ -67,19 +80,6 @@ function ScreenEntry() {
                 <span style={{color:T.text, fontSize:10}}>{v}</span>
               </div>
             ))}
-          </div>
-
-          {/* notes */}
-          <Label>notes</Label>
-          <div style={{
-            background:T.surface, border:`1px solid ${T.border2}`,
-            borderRadius:T.r, padding:"12px 14px", marginBottom:16,
-            minHeight:60,
-          }}>
-            <div style={{color:T.textDim, fontSize:11, lineHeight:1.7}}>
-              recovery: alice+recover@gmail.com<br/>
-              <span style={{color:T.textFaint}}>2fa via backup codes in bitwarden</span>
-            </div>
           </div>
 
           {/* actions */}

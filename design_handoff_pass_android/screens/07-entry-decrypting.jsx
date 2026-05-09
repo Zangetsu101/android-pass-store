@@ -45,6 +45,16 @@ function ScreenEntryDecrypting() {
           </div>
           <div style={{ color:T.textFaint, fontSize:9, marginBottom:20 }}>decrypted in-memory · auto-clears in 45s</div>
 
+          {/* notes shimmer — always visible */}
+          <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>notes</div>
+          <div style={{
+            background:T.surface, border:`1px solid ${T.border2}`,
+            borderRadius:T.r, padding:"12px 14px", display:"flex", flexDirection:"column", gap:8, minHeight:60, marginBottom:16,
+          }}>
+            <Shimmer width="85%" height={10}/>
+            <Shimmer width="60%" height={10}/>
+          </div>
+
           {/* metadata — always visible */}
           <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>metadata</div>
           <div style={{
@@ -57,16 +67,6 @@ function ScreenEntryDecrypting() {
                 <span style={{ color:T.text, fontSize:10 }}>{v}</span>
               </div>
             ))}
-          </div>
-
-          {/* notes shimmer */}
-          <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>notes</div>
-          <div style={{
-            background:T.surface, border:`1px solid ${T.border2}`,
-            borderRadius:T.r, padding:"12px 14px", display:"flex", flexDirection:"column", gap:8, minHeight:60,
-          }}>
-            <Shimmer width="85%" height={10}/>
-            <Shimmer width="60%" height={10}/>
           </div>
         </div>
       </div>

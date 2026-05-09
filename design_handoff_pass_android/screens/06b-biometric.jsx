@@ -3,35 +3,33 @@ function ScreenBiometric() {
   return (
     <Phone>
       <div style={{ display:"flex", flexDirection:"column", height:"100%", position:"relative" }}>
-        {/* dimmed home tree in background */}
-        <div style={{ opacity:0.25, pointerEvents:"none", display:"flex", flexDirection:"column", flex:1 }}>
-          <div style={{ padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        {/* dimmed entry-decrypting in background */}
+        <div style={{ opacity:0.22, pointerEvents:"none", display:"flex", flexDirection:"column", flex:1 }}>
+          <div style={{ padding:"12px 18px 10px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10 }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7L9 3" stroke={T.textDim} strokeWidth="1.4" strokeLinecap="round"/></svg>
             <div>
-              <div style={{ color:T.textDim, fontSize:9 }}>~/.password-store</div>
-              <div style={{ color:T.accent, fontSize:14, fontWeight:700 }}>pass<span style={{ color:T.textDim, fontWeight:300 }}>.android</span></div>
+              <div style={{ color:T.textDim, fontSize:9 }}>email/gmail</div>
+              <div style={{ color:T.accent, fontSize:14, fontWeight:700 }}>gmail</div>
             </div>
           </div>
-          <div style={{ padding:"8px 18px", borderBottom:`1px solid ${T.border}` }}>
-            <div style={{ background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"7px 12px", display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ color:T.textDim, fontSize:11 }}>$</span>
-              <span style={{ color:T.textDim, fontSize:11 }}>grep -r ""</span>
-            </div>
-          </div>
-          <div style={{ padding:"6px 0" }}>
-            {storeData.map(({folder, entries}) => (
-              <div key={folder}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 18px" }}>
-                  <span style={{ color:T.accentMid, fontSize:10 }}>▼</span>
-                  <span style={{ color:T.accent, fontSize:11, opacity:0.75 }}>{folder}/</span>
-                </div>
-                {entries.slice(0,2).map((e,i) => (
-                  <div key={e} style={{ display:"flex", alignItems:"center", padding:"8px 18px 8px 40px", borderBottom:`1px solid ${T.border}` }}>
-                    <span style={{ color:T.textFaint, fontSize:10, marginRight:8 }}>{i<1?"├─":"└─"}</span>
-                    <span style={{ color:T.text, fontSize:11 }}>{e}</span>
-                  </div>
-                ))}
+          <div style={{ flex:1, padding:"16px 18px", display:"flex", flexDirection:"column", gap:0 }}>
+            <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>password</div>
+            <div style={{ background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"14px 14px", marginBottom:6 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${T.border2}`, borderTopColor:T.accent, flexShrink:0 }}/>
+                <span style={{ color:T.textDim, fontSize:10 }}>decrypting…</span>
               </div>
-            ))}
+              <div style={{ display:"flex", gap:6 }}>
+                <Shimmer height={28} radius={T.r} style={{flex:1}}/>
+                <Shimmer height={28} radius={T.r} style={{flex:1}}/>
+              </div>
+            </div>
+            <div style={{ color:T.textFaint, fontSize:9, marginBottom:16 }}>decrypted in-memory · auto-clears in 45s</div>
+            <div style={{ color:T.accent, fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6, fontWeight:600 }}>notes</div>
+            <div style={{ background:T.surface, border:`1px solid ${T.border2}`, borderRadius:T.r, padding:"10px 14px", display:"flex", flexDirection:"column", gap:7 }}>
+              <Shimmer width="80%" height={9}/>
+              <Shimmer width="55%" height={9}/>
+            </div>
           </div>
         </div>
 
