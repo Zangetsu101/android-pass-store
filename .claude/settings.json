@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./gradlew formatKotlin 2>/dev/null || true",
+            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '\\.kt$' && ./gradlew formatKotlin 2>/dev/null || true",
             "statusMessage": "Formatting Kotlin..."
           }
         ]
