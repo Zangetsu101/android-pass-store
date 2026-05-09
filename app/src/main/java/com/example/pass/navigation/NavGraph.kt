@@ -1,12 +1,7 @@
 package com.example.pass.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -33,8 +28,10 @@ import com.example.pass.settings.SettingsScreen
 import com.example.pass.settings.SettingsViewModel
 import com.example.pass.syncpanel.SyncPanelScreen
 import com.example.pass.syncpanel.SyncPanelViewModel
-import com.example.pass.ui.components.PassScaffold
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 
 @Serializable data object Splash : NavKey
@@ -81,24 +78,24 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
             entryProvider {
                 entry<Splash> {
                     LaunchedEffect(Unit) {
-                        combine(appPreferences.remoteUrl, appPreferences.gpgImported) { url, gpgDone ->
-                            url to gpgDone
-                        }.collect { (url, gpgDone) ->
-                            val dest =
-                                when {
-                                    url.isNotEmpty() -> EntryBrowser
-                                    gpgDone -> CloneRepo
-                                    else -> Welcome
+                        val destDeferred =
+                            async {
+                                combine(appPreferences.remoteUrl, appPreferences.gpgImported) { url, gpgDone ->
+                                    url to gpgDone
+                                }.first().let { (url, gpgDone) ->
+                                    when {
+                                        url.isNotEmpty() -> EntryBrowser
+                                        gpgDone -> CloneRepo
+                                        else -> Welcome
+                                    }
                                 }
-                            backStack.clear()
-                            backStack.add(dest)
-                        }
+                            }
+                        delay(1_500)
+                        val dest = destDeferred.await()
+                        backStack.clear()
+                        backStack.add(dest)
                     }
-                    PassScaffold { _ ->
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
+                    SplashScreen()
                 }
 
                 entry<Welcome> {
