@@ -72,16 +72,18 @@ fun EntryBrowserScreen(
 
     PassScaffold { padding ->
         Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // Top bar
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
