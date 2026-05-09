@@ -50,7 +50,9 @@ import kotlinx.serialization.Serializable
     val remoteUrl: String,
 ) : NavKey
 
-@Serializable data object SessionStart : NavKey
+@Serializable data class SessionStart(
+    val returnEntryPath: String? = null,
+) : NavKey
 
 @Serializable data object EntryBrowser : NavKey
 
@@ -129,9 +131,15 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
 
                 entry<SessionStart> {
                     val vm: SessionStartViewModel = hiltViewModel()
+                    val returnEntryPath = it.returnEntryPath
                     SessionStartScreen(
                         viewModel = vm,
-                        onSuccess = { backStack.removeLastOrNull() },
+                        onSuccess = {
+                            backStack.removeLastOrNull()
+                            if (returnEntryPath != null) {
+                                backStack.add(EntryDetail(returnEntryPath))
+                            }
+                        },
                     )
                 }
 
@@ -149,7 +157,10 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                     EntryDetailScreen(
                         entryPath = it.entryPath,
                         viewModel = vm,
-                        onNavigateToSessionStart = { backStack.add(SessionStart) },
+                        onNavigateToSessionStart = {
+                            backStack.removeLastOrNull()
+                            backStack.add(SessionStart(returnEntryPath = it.entryPath))
+                        },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
