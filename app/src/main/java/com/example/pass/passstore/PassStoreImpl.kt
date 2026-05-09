@@ -10,12 +10,6 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class EntryScore(
-    val path: Int,
-    val domain: Int,
-    val username: Int,
-)
-
 @Singleton
 class PassStoreImpl
     @Inject
@@ -45,7 +39,7 @@ class PassStoreImpl
             val q = query.lowercase()
             return _index.value
                 .map { entry -> entry to entryScore(entry, q) }
-                .sortedWith(compareBy({ (_, score) -> score.domain }, { (_, score) -> score.username }, { (_, score) -> score.path }))
+                .sortedBy { (_, score) -> score }
                 .map { (entry, _) -> entry }
         }
 
@@ -98,13 +92,27 @@ class PassStoreImpl
             }
         }
 
+        private fun fieldScore(
+            query: String,
+            field: String,
+        ): Int =
+            when {
+                field == query -> 0
+                field.startsWith(query) -> 1
+                field.contains(query) -> 2
+                else -> 1000 + levenshtein.apply(query, field)
+            }
+
         private fun entryScore(
             entry: PassEntry,
             query: String,
-        ): EntryScore =
-            EntryScore(
-                path = levenshtein.apply(query, entry.path.lowercase()),
-                domain = entry.domain?.let { levenshtein.apply(query, it.lowercase()) } ?: Int.MAX_VALUE,
-                username = levenshtein.apply(query, entry.username.lowercase()),
-            )
+        ): Int {
+            val candidates =
+                listOfNotNull(
+                    entry.username.lowercase(),
+                    entry.domain?.lowercase(),
+                    entry.path.lowercase().removeSuffix(".gpg"),
+                )
+            return candidates.minOfOrNull { fieldScore(query, it) } ?: Int.MAX_VALUE
+        }
     }
