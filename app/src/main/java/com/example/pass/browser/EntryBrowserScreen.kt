@@ -12,13 +12,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -49,6 +46,7 @@ import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
+import com.example.pass.ui.theme.PassShapes
 import com.example.pass.ui.theme.PassType
 
 @Composable
@@ -133,34 +131,42 @@ fun EntryBrowserScreen(
             }
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
-            // Sync status banner
-            if (state.syncMessage != null) {
+            // Search bar / sync status banner (mutually exclusive, same slot)
+            if (state.syncing) {
                 Row(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .background(PassColorsDark.Surface)
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .background(PassColorsDark.Surface, PassShapes.small)
+                            .border(1.dp, PassColorsDark.AccentMid, PassShapes.small)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = null,
+                        tint = PassColorsDark.Accent,
+                        modifier = Modifier.size(10.dp).rotate(syncRotation),
+                    )
                     Text(
-                        "$ ${state.syncMessage}",
-                        style = PassType.Caption,
-                        color = PassColorsDark.TextDim,
+                        "git pull --rebase origin main",
+                        style = PassType.Body,
+                        color = PassColorsDark.Accent,
                     )
                 }
+            } else {
+                PassTextField(
+                    value = state.searchQuery,
+                    onValueChange = viewModel::setSearchQuery,
+                    prefix = "> grep -r ",
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
             }
-
-            // Search bar
-            PassTextField(
-                value = state.searchQuery,
-                onValueChange = viewModel::setSearchQuery,
-                prefix = "> grep -r ",
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-            )
 
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
@@ -178,6 +184,7 @@ fun EntryBrowserScreen(
                             collapsedDirs = state.collapsedDirs,
                             onToggleDir = viewModel::toggleDir,
                             onEntryClick = onNavigateToEntryDetail,
+                            enabled = !state.syncing,
                         )
                     }
 
@@ -185,6 +192,7 @@ fun EntryBrowserScreen(
                         FlatView(
                             entries = state.entries,
                             onEntryClick = onNavigateToEntryDetail,
+                            enabled = !state.syncing,
                         )
                     }
                 }
@@ -197,12 +205,13 @@ fun EntryBrowserScreen(
 private fun FlatView(
     entries: List<PassEntry>,
     onEntryClick: (PassEntry) -> Unit,
+    enabled: Boolean = true,
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(entries) { listState.scrollToItem(0) }
     LazyColumn(state = listState) {
         itemsIndexed(entries, key = { _, it -> it.path }) { index, entry ->
-            FlatEntryRow(entry = entry, index = index, onClick = { onEntryClick(entry) })
+            FlatEntryRow(entry = entry, index = index, enabled = enabled, onClick = { onEntryClick(entry) })
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         }
     }
@@ -214,6 +223,7 @@ private fun TreeView(
     collapsedDirs: Set<String>,
     onToggleDir: (String) -> Unit,
     onEntryClick: (PassEntry) -> Unit,
+    enabled: Boolean = true,
 ) {
     val grouped =
         remember(entries) {
@@ -229,12 +239,18 @@ private fun TreeView(
         grouped.forEach { (dir, dirEntries) ->
             if (dir.isNotEmpty()) {
                 item(key = "dir_$dir") {
-                    DirHeader(dir = dir, collapsed = dir in collapsedDirs, count = dirEntries.size, onToggle = { onToggleDir(dir) })
+                    DirHeader(
+                        dir = dir,
+                        collapsed = dir in collapsedDirs,
+                        count = dirEntries.size,
+                        enabled = enabled,
+                        onToggle = { onToggleDir(dir) },
+                    )
                 }
             }
             if (dir.isEmpty() || dir !in collapsedDirs) {
                 items(dirEntries, key = { it.path }) { entry ->
-                    TreeEntryRow(entry = entry, indent = dir.isNotEmpty(), onClick = { onEntryClick(entry) })
+                    TreeEntryRow(entry = entry, indent = dir.isNotEmpty(), enabled = enabled, onClick = { onEntryClick(entry) })
                     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 }
             }
@@ -248,12 +264,13 @@ private fun DirHeader(
     collapsed: Boolean,
     count: Int,
     onToggle: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggle)
+                .clickable(enabled = enabled, onClick = onToggle)
                 .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -272,12 +289,13 @@ private fun TreeEntryRow(
     entry: PassEntry,
     indent: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .clickable(enabled = enabled, onClick = onClick)
                 .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -291,12 +309,13 @@ private fun FlatEntryRow(
     entry: PassEntry,
     index: Int,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

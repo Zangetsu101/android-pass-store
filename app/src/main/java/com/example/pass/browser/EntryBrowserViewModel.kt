@@ -22,7 +22,6 @@ data class EntryBrowserUiState(
     val treeView: Boolean = false,
     val collapsedDirs: Set<String> = emptySet(),
     val syncing: Boolean = false,
-    val syncMessage: String? = null,
 )
 
 @HiltViewModel
@@ -71,14 +70,14 @@ class EntryBrowserViewModel
 
         fun pull() {
             if (_state.value.syncing) return
-            _state.update { it.copy(syncing = true, syncMessage = "git pull") }
+            _state.update { it.copy(syncing = true) }
             viewModelScope.launch {
                 try {
                     gitSync.pull()
                     passStore.buildIndex()
                 } catch (_: Exception) {
                 } finally {
-                    _state.update { it.copy(syncing = false, syncMessage = null) }
+                    _state.update { it.copy(syncing = false) }
                 }
             }
         }
