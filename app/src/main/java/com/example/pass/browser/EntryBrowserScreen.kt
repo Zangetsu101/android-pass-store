@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
@@ -33,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -194,7 +196,9 @@ private fun FlatView(
     entries: List<PassEntry>,
     onEntryClick: (PassEntry) -> Unit,
 ) {
-    LazyColumn {
+    val listState = rememberLazyListState()
+    LaunchedEffect(entries) { listState.scrollToItem(0) }
+    LazyColumn(state = listState) {
         itemsIndexed(entries, key = { _, it -> it.path }) { index, entry ->
             FlatEntryRow(entry = entry, index = index, onClick = { onEntryClick(entry) })
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -217,7 +221,9 @@ private fun TreeView(
             }
         }
 
-    LazyColumn {
+    val listState = rememberLazyListState()
+    LaunchedEffect(entries) { listState.scrollToItem(0) }
+    LazyColumn(state = listState) {
         grouped.forEach { (dir, dirEntries) ->
             if (dir.isNotEmpty()) {
                 item(key = "dir_$dir") {
