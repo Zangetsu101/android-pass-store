@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.fragment.app.FragmentActivity
 import com.example.pass.R
-import com.example.pass.gitsync.FileCommitInfo
 import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassScaffold
@@ -72,7 +71,6 @@ fun EntryDetailScreen(
 
     LaunchedEffect(Unit) {
         viewModel.authenticate(activity)
-        viewModel.loadMetadata()
     }
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
@@ -94,21 +92,28 @@ fun EntryDetailScreen(
                             .padding(horizontal = 18.dp, vertical = 16.dp),
                 ) {
                     when (val unlock = state.unlockState) {
-                        is UnlockState.Idle -> ShimmerCard(showProgress = false)
-                        is UnlockState.Authenticating -> ShimmerCard(showProgress = false)
-                        is UnlockState.Decrypting -> ShimmerCard(showProgress = true)
+                        is UnlockState.Idle -> PasswordSkeleton(decrypting = false)
+                        is UnlockState.Authenticating -> PasswordSkeleton(decrypting = false)
+                        is UnlockState.Decrypting -> PasswordSkeleton(decrypting = true)
                         is UnlockState.Decrypted -> DecryptedContent(unlock, viewModel)
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
 
-                    state.entry?.let { entry ->
-                        Spacer(Modifier.height(16.dp))
-                        MetadataCard(
-                            entry = entry,
-                            commitInfo = state.commitInfo,
-                            metadataLoaded = state.metadataLoaded,
+                    if (state.unlockState !is UnlockState.Decrypted && state.unlockState !is UnlockState.Failed) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "decrypted in-memory · auto-clears in 45s",
+                            style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
                         )
+                        Spacer(Modifier.height(20.dp))
+                        NotesSkeleton()
                     }
+
+                    Spacer(Modifier.height(16.dp))
+                    MetadataCard(
+                        entry = state.entry,
+                        gitStatus = state.gitStatus,
+                    )
                 }
             }
 
@@ -135,7 +140,7 @@ fun EntryDetailScreen(
 
 @Composable
 private fun EntryTopBar(
-    entry: PassEntry?,
+    entry: PassEntry,
     onBack: () -> Unit,
 ) {
     Row(
@@ -155,12 +160,10 @@ private fun EntryTopBar(
         }
         Spacer(Modifier.width(10.dp))
         Column {
-            entry?.domain?.let {
+            entry.domain?.let {
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
-            entry?.let {
-                Text(it.username, style = PassType.Title)
-            }
+            Text(entry.username, style = PassType.Title)
         }
     }
 }
@@ -264,8 +267,7 @@ private fun NotesCard(notes: String) {
 @Composable
 private fun MetadataCard(
     entry: PassEntry,
-    commitInfo: FileCommitInfo?,
-    metadataLoaded: Boolean,
+    gitStatus: GitStatus,
 ) {
     Text("metadata", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
@@ -279,14 +281,24 @@ private fun MetadataCard(
     ) {
         MetaRow("path", entry.path)
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
-        if (!metadataLoaded) {
-            MetaRow("modified", "…")
-            HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
-            MetaRow("commit", "…")
-        } else {
-            MetaRow("modified", if (commitInfo != null) DATE_FMT.format(commitInfo.commitTime) else "unknown")
-            HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
-            MetaRow("commit", commitInfo?.commitHash ?: "unknown")
+        when (gitStatus) {
+            is GitStatus.Loading -> {
+                MetaRow("modified", "…")
+                HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+                MetaRow("commit", "…")
+            }
+
+            is GitStatus.Untracked -> {
+                MetaRow("modified", "unknown")
+                HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+                MetaRow("commit", "untracked")
+            }
+
+            is GitStatus.Tracked -> {
+                MetaRow("modified", DATE_FMT.format(gitStatus.commitInfo.commitTime))
+                HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+                MetaRow("commit", gitStatus.commitInfo.commitHash)
+            }
         }
     }
 }
@@ -314,7 +326,7 @@ private fun MetaRow(
 }
 
 @Composable
-private fun ShimmerCard(showProgress: Boolean) {
+private fun PasswordSkeleton(decrypting: Boolean) {
     Text("password", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
@@ -326,7 +338,7 @@ private fun ShimmerCard(showProgress: Boolean) {
                 .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (showProgress) {
+        if (decrypting) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -348,9 +360,10 @@ private fun ShimmerCard(showProgress: Boolean) {
             ShimmerBlock(height = 30.dp, modifier = Modifier.weight(1f))
         }
     }
-    Spacer(Modifier.height(6.dp))
-    Text("decrypted in-memory · auto-clears in 45s", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
-    Spacer(Modifier.height(20.dp))
+}
+
+@Composable
+private fun NotesSkeleton() {
     Text("notes", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
@@ -365,6 +378,26 @@ private fun ShimmerCard(showProgress: Boolean) {
     ) {
         ShimmerBlock(height = 10.dp, modifier = Modifier.fillMaxWidth(0.85f))
         ShimmerBlock(height = 10.dp, modifier = Modifier.fillMaxWidth(0.60f))
+    }
+}
+
+@Composable
+private fun MetadataSkeleton() {
+    Text("metadata", style = PassType.Label)
+    Spacer(Modifier.height(6.dp))
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp))
+                .background(PassColorsDark.Surface)
+                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+    ) {
+        MetaRow("path", "…")
+        HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+        MetaRow("modified", "…")
+        HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+        MetaRow("commit", "…")
     }
 }
 

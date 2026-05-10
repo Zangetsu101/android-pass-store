@@ -10,14 +10,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.pass.decryption.Credentials
 import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
-import com.example.pass.gitsync.FileCommitInfo
 import com.example.pass.gitsync.GitSync
 import com.example.pass.keymanagement.BiometricAuthException
 import com.example.pass.keymanagement.BiometricNotEnrolledException
 import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
-import com.example.pass.passstore.PassStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -32,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 sealed class UnlockState {
     data object Idle : UnlockState()
@@ -58,47 +57,57 @@ sealed class UnlockState {
     ) : UnlockState()
 }
 
+sealed class GitStatus {
+    data object Loading : GitStatus()
+
+    data object Untracked : GitStatus()
+
+    data class Tracked(
+        val commitInfo: com.example.pass.gitsync.FileCommitInfo,
+    ) : GitStatus()
+}
+
 data class EntryDetailUiState(
-    val entry: PassEntry? = null,
+    val entry: PassEntry,
     val unlockState: UnlockState = UnlockState.Idle,
-    val commitInfo: FileCommitInfo? = null,
-    val metadataLoaded: Boolean = false,
+    val gitStatus: GitStatus = GitStatus.Loading,
 )
 
 @HiltViewModel(assistedFactory = EntryDetailViewModel.Factory::class)
 class EntryDetailViewModel
     @AssistedInject
     constructor(
-        @Assisted private val entryPath: String,
+        @Assisted private val entry: PassEntry,
         @ApplicationContext private val context: Context,
-        private val passStore: PassStore,
         private val decryption: Decryption,
         private val gitSync: GitSync,
         private val keyManagement: KeyManagement,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
-            fun create(entryPath: String): EntryDetailViewModel
+            fun create(entry: PassEntry): EntryDetailViewModel
         }
 
-        private val _state = MutableStateFlow(EntryDetailUiState())
+        private val _state =
+            MutableStateFlow(
+                EntryDetailUiState(entry),
+            )
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
         private var blurJob: Job? = null
         private var clipClearJob: Job? = null
 
         init {
-            val entry = passStore.index.value.find { it.path == entryPath }
-            if (entry == null) {
-                _state.update { it.copy(unlockState = UnlockState.Failed("Entry not found")) }
-            } else {
-                _state.update { it.copy(entry = entry) }
+            viewModelScope.launch {
+                val info = gitSync.lastCommitForFile(entry.path)
+                val gitStatus = if (info != null) GitStatus.Tracked(info) else GitStatus.Untracked
+                _state.update { it.copy(gitStatus = gitStatus) }
             }
         }
 
         fun authenticate(activity: FragmentActivity) {
             if (_state.value.unlockState !is UnlockState.Idle) return
-            val entry = _state.value.entry ?: return
+            val entry = _state.value.entry
             _state.update { it.copy(unlockState = UnlockState.Authenticating.Biometric) }
             viewModelScope.launch {
                 try {
@@ -128,7 +137,7 @@ class EntryDetailViewModel
         }
 
         fun submitPassphrase(activity: FragmentActivity) {
-            val entry = _state.value.entry ?: return
+            val entry = _state.value.entry
             val current = _state.value.unlockState as? UnlockState.Authenticating.Passphrase ?: return
             val passphrase = current.input.ifEmpty { return }
             _state.update { it.copy(unlockState = UnlockState.Decrypting) }
@@ -139,9 +148,7 @@ class EntryDetailViewModel
                     _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
                 } catch (e: SessionError.WrongPassphrase) {
                     _state.update {
-                        it.copy(
-                            unlockState = UnlockState.Authenticating.Passphrase(input = passphrase, error = "Wrong passphrase"),
-                        )
+                        it.copy(unlockState = UnlockState.Authenticating.Passphrase(input = passphrase, error = "Wrong passphrase"))
                     }
                 } catch (e: Exception) {
                     _state.update {
@@ -149,8 +156,7 @@ class EntryDetailViewModel
                             unlockState =
                                 UnlockState.Authenticating.Passphrase(
                                     input = passphrase,
-                                    error =
-                                        e.message ?: "Failed",
+                                    error = e.message ?: "Failed",
                                 ),
                         )
                     }
@@ -166,7 +172,7 @@ class EntryDetailViewModel
             if (revealing) {
                 blurJob =
                     viewModelScope.launch {
-                        delay(45_000)
+                        delay(45_000.milliseconds)
                         val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
                         _state.update { it.copy(unlockState = decrypted.copy(passwordRevealed = false)) }
                     }
@@ -182,7 +188,7 @@ class EntryDetailViewModel
             clipClearJob?.cancel()
             clipClearJob =
                 viewModelScope.launch {
-                    delay(45_000)
+                    delay(45_000.milliseconds)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         clipboard.clearPrimaryClip()
                     } else {
@@ -191,13 +197,6 @@ class EntryDetailViewModel
                     val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
                     _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false)) }
                 }
-        }
-
-        fun loadMetadata() {
-            viewModelScope.launch {
-                val info = gitSync.lastCommitForFile(entryPath)
-                _state.update { it.copy(commitInfo = info, metadataLoaded = true) }
-            }
         }
 
         override fun onCleared() {

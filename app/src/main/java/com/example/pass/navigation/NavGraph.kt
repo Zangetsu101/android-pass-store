@@ -1,7 +1,9 @@
 package com.example.pass.navigation
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -33,6 +35,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.milliseconds
 
 @Serializable data object Splash : NavKey
 
@@ -90,7 +93,7 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                                     }
                                 }
                             }
-                        delay(1_500)
+                        delay(1_500.milliseconds)
                         val dest = destDeferred.await()
                         backStack.clear()
                         backStack.add(dest)
@@ -159,9 +162,19 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                 }
 
                 entry<EntryDetail> {
+                    val navVm: NavViewModel = hiltViewModel()
+                    val context = LocalContext.current
+                    val maybeEntry = remember(it.entryPath) { navVm.findEntry(it.entryPath) }
+                    if (maybeEntry == null) {
+                        LaunchedEffect(Unit) {
+                            Toast.makeText(context, "entry not found", Toast.LENGTH_SHORT).show()
+                            backStack.removeLastOrNull()
+                        }
+                        return@entry
+                    }
                     val vm =
                         hiltViewModel<EntryDetailViewModel, EntryDetailViewModel.Factory>(
-                            creationCallback = { factory -> factory.create(it.entryPath) },
+                            creationCallback = { factory -> factory.create(maybeEntry) },
                         )
                     EntryDetailScreen(
                         viewModel = vm,
