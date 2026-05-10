@@ -2,17 +2,15 @@ package com.example.pass.session
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.pass.keymanagement.KeyManagement
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class SessionStartUiState(
@@ -27,7 +25,7 @@ data class SessionStartUiState(
 class SessionStartViewModel
     @Inject
     constructor(
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(SessionStartUiState())
@@ -50,7 +48,7 @@ class SessionStartViewModel
             _state.update { it.copy(loading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    withContext(Dispatchers.IO) { keyManagement.startSession(passphrase) }
+                    cryptoOperations.startSession(passphrase)
                     _state.update { it.copy(loading = false, success = true) }
                 } catch (e: SessionError.WrongPassphrase) {
                     _state.update { it.copy(loading = false, error = "Wrong passphrase") }

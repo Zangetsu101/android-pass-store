@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pass.gitsync.GitSync
 import com.example.pass.gitsync.SyncError
-import com.example.pass.keymanagement.KeyManagement
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -50,7 +50,7 @@ class CloneProgressViewModel
     constructor(
         @Assisted val remoteUrl: String,
         @ApplicationContext private val context: Context,
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
         private val gitSync: GitSync,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
@@ -95,7 +95,7 @@ class CloneProgressViewModel
                         val repoDir = Paths.get(context.filesDir.absolutePath, "repo")
                         val sshKeyPair =
                             if (remoteUrl.startsWith("git@") || remoteUrl.startsWith("ssh://")) {
-                                withContext(Dispatchers.IO) { keyManagement.getSshKey() }
+                                withContext(Dispatchers.IO) { cryptoOperations.getSshKey() }
                             } else {
                                 null
                             }

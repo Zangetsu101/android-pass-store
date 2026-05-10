@@ -1,8 +1,8 @@
 package com.example.pass.decryption
 
 import androidx.fragment.app.FragmentActivity
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.keymanagement.GpgPrivateKey
-import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.passstore.PassEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,13 +20,13 @@ import javax.inject.Singleton
 class DecryptionImpl
     @Inject
     constructor(
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
     ) : Decryption {
         override suspend fun decrypt(
             entry: PassEntry,
             activity: FragmentActivity,
         ): Credentials {
-            val secretKeyRing = keyManagement.getGpgKey(activity)
+            val secretKeyRing = cryptoOperations.getGpgKey(activity)
             val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
             val lines = plaintext.lines()
             val password = (lines.firstOrNull() ?: "").toCharArray()
@@ -49,7 +49,7 @@ class DecryptionImpl
             entry: PassEntry,
             activity: FragmentActivity,
         ): AutofillCredentials {
-            val secretKeyRing = keyManagement.getGpgKey(activity)
+            val secretKeyRing = cryptoOperations.getGpgKey(activity)
             val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
             val password = (plaintext.lines().firstOrNull() ?: "").toCharArray()
             return AutofillCredentials(password = password, username = entry.username)

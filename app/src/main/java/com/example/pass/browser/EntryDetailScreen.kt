@@ -1,11 +1,8 @@
 package com.example.pass.browser
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -48,11 +44,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.fragment.app.FragmentActivity
-import com.example.pass.R
 import com.example.pass.passstore.PassEntry
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassScaffold
-import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
 import com.example.pass.ui.theme.PassShapes
 import com.example.pass.ui.theme.PassType
@@ -93,7 +87,7 @@ fun EntryDetailScreen(
                 ) {
                     when (val unlock = state.unlockState) {
                         is UnlockState.Idle,
-                        is UnlockState.Authenticating,
+                        is UnlockState.Authenticating.Biometric,
                         is UnlockState.Decrypting,
                         -> PasswordSkeleton()
 
@@ -132,9 +126,6 @@ fun EntryDetailScreen(
                 )
             }
 
-            if (state.unlockState is UnlockState.Authenticating.Passphrase) {
-                PassphraseSheet(state = state, activity = activity, viewModel = viewModel)
-            }
         }
     }
 }
@@ -386,115 +377,6 @@ private fun MetadataSkeleton() {
         MetaRow("modified", "…")
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         MetaRow("commit", "…")
-    }
-}
-
-@Composable
-private fun PassphraseSheet(
-    state: EntryDetailUiState,
-    activity: FragmentActivity,
-    viewModel: EntryDetailViewModel,
-) {
-    val context = LocalContext.current
-    val passphraseState = state.unlockState as UnlockState.Authenticating.Passphrase
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Color.Black
-                            .copy(alpha = 0.55f),
-                    ).clickable { viewModel.dismissPassphrase() },
-        )
-        Column(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(PassColorsDark.Surface, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .padding(start = 24.dp, end = 24.dp, bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier =
-                    Modifier
-                        .width(32.dp)
-                        .height(3.dp)
-                        .background(PassColorsDark.Border2, RoundedCornerShape(4.dp)),
-            )
-            Spacer(Modifier.height(24.dp))
-            Box(
-                modifier =
-                    Modifier
-                        .size(48.dp)
-                        .background(PassColorsDark.AccentDim, RoundedCornerShape(8.dp))
-                        .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_launcher_foreground),
-                    contentDescription = null,
-                    tint = PassColorsDark.Accent,
-                    modifier =
-                        Modifier.size(48.dp).graphicsLayer {
-                            scaleX = 1.6f
-                            scaleY = 1.6f
-                        },
-                )
-            }
-            Spacer(Modifier.height(20.dp))
-            Text("start local session", style = PassType.Title, color = PassColorsDark.Accent)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "no biometric auth enrolled · passphrase will be cached for 5 min",
-                style = PassType.Caption,
-                color = PassColorsDark.TextFaint,
-            )
-            Spacer(Modifier.height(20.dp))
-            PassTextField(
-                value = passphraseState.input,
-                onValueChange = viewModel::setPassphraseInput,
-                placeholder = "passphrase",
-                visualTransformation =
-                    androidx.compose.ui.text.input
-                        .PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (passphraseState.error != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(passphraseState.error, style = PassType.Caption, color = PassColorsDark.Danger)
-            }
-            Spacer(Modifier.height(12.dp))
-            PassPrimaryButton(onClick = { viewModel.submitPassphrase(activity) }, label = "unlock")
-            Spacer(Modifier.height(14.dp))
-            Text(
-                text =
-                    androidx.compose.ui.text.buildAnnotatedString {
-                        append("enroll a fingerprint in ")
-                        pushLink(
-                            androidx.compose.ui.text.LinkAnnotation.Clickable("settings") {
-                                context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
-                            },
-                        )
-                        pushStyle(
-                            androidx.compose.ui.text.SpanStyle(
-                                color = PassColorsDark.AccentMid,
-                                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                            ),
-                        )
-                        append("Android Settings →")
-                        pop()
-                        pop()
-                    },
-                style =
-                    PassType.Caption.copy(
-                        color = PassColorsDark.TextFaint,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    ),
-            )
-        }
     }
 }
 

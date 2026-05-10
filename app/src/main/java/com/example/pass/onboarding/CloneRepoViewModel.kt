@@ -2,7 +2,7 @@ package com.example.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.pass.keymanagement.KeyManagement
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +24,7 @@ data class CloneRepoUiState(
 class CloneRepoViewModel
     @Inject
     constructor(
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(CloneRepoUiState())
@@ -32,7 +32,7 @@ class CloneRepoViewModel
 
         init {
             viewModelScope.launch {
-                val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
+                val publicKey = withContext(Dispatchers.IO) { cryptoOperations.generateSshKey() }
                 _state.update { it.copy(sshPublicKey = publicKey) }
                 appPreferences.setSshPublicKey(publicKey)
             }
@@ -61,7 +61,7 @@ class CloneRepoViewModel
 
         fun regenerateSshKey() {
             viewModelScope.launch {
-                val publicKey = withContext(Dispatchers.IO) { keyManagement.generateSshKey() }
+                val publicKey = withContext(Dispatchers.IO) { cryptoOperations.generateSshKey() }
                 _state.update { it.copy(sshPublicKey = publicKey) }
                 appPreferences.setSshPublicKey(publicKey)
             }

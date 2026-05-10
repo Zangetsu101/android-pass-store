@@ -2,8 +2,8 @@ package com.example.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.keymanagement.KeyImportError
-import com.example.pass.keymanagement.KeyManagement
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +25,7 @@ data class GpgImportUiState(
 class GpgImportViewModel
     @Inject
     constructor(
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(GpgImportUiState())
@@ -39,7 +39,7 @@ class GpgImportViewModel
             viewModelScope.launch {
                 try {
                     val text = _state.value.gpgKeyText
-                    withContext(Dispatchers.IO) { keyManagement.importGpgKey(text) }
+                    withContext(Dispatchers.IO) { cryptoOperations.importGpgKey(text) }
                     _state.update { it.copy(gpgImported = true, gpgImportError = null) }
                     appPreferences.setGpgImported(true)
                 } catch (e: KeyImportError) {

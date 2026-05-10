@@ -12,8 +12,7 @@ import com.example.pass.decryption.Decryption
 import com.example.pass.decryption.DecryptionError
 import com.example.pass.gitsync.GitSync
 import com.example.pass.keymanagement.BiometricAuthException
-import com.example.pass.keymanagement.BiometricNotEnrolledException
-import com.example.pass.keymanagement.KeyManagement
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
 import dagger.assisted.Assisted
@@ -37,11 +36,6 @@ sealed class UnlockState {
 
     sealed class Authenticating : UnlockState() {
         data object Biometric : Authenticating()
-
-        data class Passphrase(
-            val input: String = "",
-            val error: String? = null,
-        ) : Authenticating()
     }
 
     data object Decrypting : UnlockState()
@@ -81,7 +75,7 @@ class EntryDetailViewModel
         @ApplicationContext private val context: Context,
         private val decryption: Decryption,
         private val gitSync: GitSync,
-        private val keyManagement: KeyManagement,
+        private val cryptoOperations: CryptoOperations,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
@@ -111,55 +105,18 @@ class EntryDetailViewModel
             _state.update { it.copy(unlockState = UnlockState.Authenticating.Biometric) }
             viewModelScope.launch {
                 try {
-                    val key = keyManagement.getGpgKey(activity)
+                    val key = cryptoOperations.getGpgKey(activity)
                     _state.update { it.copy(unlockState = UnlockState.Decrypting) }
                     val creds = decryption.decryptWithKey(entry, key)
                     _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
-                } catch (e: BiometricNotEnrolledException) {
-                    _state.update { it.copy(unlockState = UnlockState.Authenticating.Passphrase()) }
                 } catch (e: BiometricAuthException) {
                     _state.update { it.copy(unlockState = UnlockState.Idle) }
+                } catch (e: SessionError.NoActiveSession) {
+                    _state.update { it.copy(unlockState = UnlockState.Failed("Session expired — return to home and unlock")) }
                 } catch (e: DecryptionError) {
                     _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                 } catch (e: Exception) {
                     _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
-                }
-            }
-        }
-
-        fun dismissPassphrase() {
-            _state.update { it.copy(unlockState = UnlockState.Idle) }
-        }
-
-        fun setPassphraseInput(value: String) {
-            val current = _state.value.unlockState as? UnlockState.Authenticating.Passphrase ?: return
-            _state.update { it.copy(unlockState = current.copy(input = value, error = null)) }
-        }
-
-        fun submitPassphrase(activity: FragmentActivity) {
-            val entry = _state.value.entry
-            val current = _state.value.unlockState as? UnlockState.Authenticating.Passphrase ?: return
-            val passphrase = current.input.ifEmpty { return }
-            _state.update { it.copy(unlockState = UnlockState.Decrypting) }
-            viewModelScope.launch {
-                try {
-                    val key = withContext(Dispatchers.IO) { keyManagement.getGpgKeyWithPassphrase(passphrase) }
-                    val creds = decryption.decryptWithKey(entry, key)
-                    _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
-                } catch (e: SessionError.WrongPassphrase) {
-                    _state.update {
-                        it.copy(unlockState = UnlockState.Authenticating.Passphrase(input = passphrase, error = "Wrong passphrase"))
-                    }
-                } catch (e: Exception) {
-                    _state.update {
-                        it.copy(
-                            unlockState =
-                                UnlockState.Authenticating.Passphrase(
-                                    input = passphrase,
-                                    error = e.message ?: "Failed",
-                                ),
-                        )
-                    }
                 }
             }
         }
