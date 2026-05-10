@@ -29,11 +29,13 @@ Expose pass credentials to Android's autofill surfaces: `AutofillService` (Andro
 
 ## Session / Biometric Gate
 
+AutofillService injects `SessionOperations` directly — no `CryptoOperations` dependency.
+
 - Candidates are always shown unconditionally — no locked datasets
-- Each dataset's `IntentSender` activity checks session state before proceeding:
-  - **Session active:** biometric prompt (`BIOMETRIC_STRONG or DEVICE_CREDENTIAL`) → decrypt → return `Dataset`
-  - **Session inactive:** launch `SessionStartActivity` (passphrase entry) via `PendingIntent`; after session starts, return to the originating app — user triggers autofill again, session now active
-- Biometric result is valid for a single fill operation (not cached)
+- Each dataset's `IntentSender` activity calls `sessionOperations.isSessionActive()` before proceeding:
+  - **Active:** `sessionOperations.getPassphrase(activity)` → hardware biometric (CryptoObject) → decrypt → return `Dataset`
+  - **NoActiveSession:** launch `SessionStartActivity` (passphrase entry) via `PendingIntent`; after session starts, user triggers autofill again
+- Biometric result is valid for a single fill operation — no passphrase caching in autofill path (unlike app UI)
 - **Android 16+:** `BiometricPromptData` can be embedded directly into the Credential Manager `GetCredentialRequest`, replacing the separate `IntentSender` round-trip for the Credential Manager path. The `AutofillService` path is unchanged.
 - **Android 16+ Identity Check:** When the device is outside a user-defined trusted location, the OS enforces biometric-only auth for credential access — PIN/password fallback is disabled at the platform level. Our per-fill biometric requirement aligns with this automatically.
 

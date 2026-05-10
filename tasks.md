@@ -43,6 +43,66 @@
 
 ---
 
+### Phase 5 — Session / Crypto Refactor
+
+> When completing each task below, remove the corresponding `⚠️` line from `architecture/modules/key-management.md` in the same commit.
+
+#### Architecture Docs
+
+- [x] Rewrite `architecture/modules/key-management.md` — split into Session + Crypto modules, document all design decisions, missing implementations list
+- [x] Update `architecture/modules/decryption.md` — reference `CryptoService` in flow diagram
+- [x] Update `architecture/modules/autofill.md` — reference `SessionOperations`, remove `NotSupported` path
+
+#### Session Module
+
+- [ ] Create `SessionState` sealed class + `EndReason` enum (`TIMEOUT`, `MANUAL`, `REBOOT`)
+- [ ] Create `SessionOperations` interface (`createSession`, `endSession`, `touchSession`, `isSessionActive`, `getPassphrase`, `sessionState`)
+- [ ] Create `SessionManager` — extract from `KeyManagementImpl`
+  - [ ] `createSessionKey()` with `setUserAuthenticationRequired(true)`, no validity duration
+  - [ ] `createSession(passphrase)` — encrypt + store blob, call `touchSession()` to start timer
+  - [ ] `endSession()` — delete Keystore entry + blob, emit `Inactive`
+  - [ ] `touchSession()` — cancel + restart inactivity timer (reads timeout from `DataStore`)
+  - [ ] `isSessionActive()` — Keystore entry check
+  - [ ] `getPassphrase(activity)` — `BiometricPrompt(CryptoObject(cipher))` → hardware-authenticated cipher → decrypt blob
+  - [ ] `sessionState: Flow<SessionState>` — `MutableStateFlow`, default `Inactive(REBOOT)`
+  - [ ] Boot receiver calls `sessionOperations.endSession()`
+- [ ] Bind `SessionOperations` → `SessionManager` in Hilt module
+- [ ] **Commit** — `feat(session): add SessionOperations interface and SessionManager`
+
+#### Crypto Module
+
+- [ ] Create `CryptoOperations` interface (`startSession`, `getGpgKey`, `importGpgKey`, `generateSshKey`, `getSshKey`, `clearAllKeys`)
+- [ ] Create `CryptoService` — extract from `KeyManagementImpl`
+  - [ ] `startSession(passphrase)` — validate passphrase against GPG key → `sessionOperations.createSession(passphrase)`
+  - [ ] `getGpgKey(activity)` — `isSessionActive()` check → `sessionOperations.getPassphrase()` if cache cold → cache plaintext → `touchSession()` → unlock GPG key
+  - [ ] Fix: cached path calls `touchSession()` (currently skipped)
+  - [ ] Observe `sessionState` — clear `cachedPassphrase` + cancel biometric cache timer on `Inactive`
+  - [ ] `clearAllKeys()` — `sessionOperations.endSession()` + wipe all key blobs
+  - [ ] Remove `getGpgKeyWithPassphrase()` — no-biometric path removed
+- [ ] Bind `CryptoOperations` → `CryptoService` in Hilt module
+- [ ] **Build check** — `assembleDebug`
+- [ ] **Commit** — `feat(crypto): add CryptoOperations interface and CryptoService`
+
+#### Consumer Updates
+
+- [ ] Update `DecryptionModule` / ViewModel — inject `CryptoOperations` instead of `KeyManagement`
+- [ ] Update `SettingsViewModel` — lock session via `sessionOperations.endSession()`; timeout pref via `SessionOperations`
+- [ ] Update `AutofillService` — inject `SessionOperations` directly
+- [ ] Delete `KeyManagementImpl` + `KeyManagement` interface
+- [ ] **Build check** — `assembleDebug`
+- [ ] **Commit** — `refactor: wire CryptoOperations/SessionOperations into consumers, delete KeyManagementImpl`
+
+#### Remove No-Biometric Path (EntryDetail)
+
+- [ ] Remove `PassphraseSheet` composable from `EntryDetailScreen.kt` (lines 393–499)
+- [ ] Remove `if (state.unlockState is UnlockState.Authenticating.Passphrase)` block (line 135–137)
+- [ ] Remove `UnlockState.Authenticating.Passphrase` from `UnlockState` sealed class
+- [ ] Remove `setPassphraseInput`, `submitPassphrase`, `dismissPassphrase` from `EntryDetailViewModel`
+- [ ] **Build check** — `assembleDebug`
+- [ ] **Commit** — `refactor: remove no-biometric passphrase path from EntryDetail`
+
+---
+
 ## Manual Verification (Final)
 
 Run once after task 11 is complete. Sign off each item before shipping.

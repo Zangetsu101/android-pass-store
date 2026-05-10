@@ -1,15 +1,108 @@
-# Key Management Module
+# Key Management
 
-## Implementation
+Two modules with clear ownership boundaries — split from the original monolithic `KeyManagementImpl`.
 
-- **Keystore ops:** `android.security.keystore.KeyStore` + `KeyGenerator`
-- **Biometric:** `androidx.biometric.BiometricPrompt` + `BiometricManager`
-- **Scoping:** Hilt `@Singleton` — single instance shared across UI and `AutofillService`
-- **Async:** Coroutines (`Dispatchers.IO` for key operations)
+---
 
-## Responsibility
+## Session Module
 
-Secure storage and lifecycle management for all cryptographic key material on the device: the GPG private key and the SSH private key.
+### Interface: `SessionOperations` / Impl: `SessionManager`
+
+**Responsibility:** Owns the encrypted passphrase, Keystore lifecycle, and session inactivity timer.
+
+**Implementation:**
+
+- `android.security.keystore.KeyStore` + `KeyGenerator`
+- `androidx.biometric.BiometricManager` (status check only — no UI)
+- Hilt `@Singleton`
+- `DataStore<Preferences>` for session timeout preference
+- Coroutines (`Dispatchers.IO`) for timer
+
+### Session State Flow
+
+```kotlin
+sealed class SessionState {
+    object Active : SessionState()
+    data class Inactive(val reason: EndReason) : SessionState()
+}
+
+enum class EndReason { TIMEOUT, MANUAL, REBOOT }
+```
+
+Default: `Inactive(REBOOT)` — covers fresh install, first launch, actual device reboot.
+
+### Key Storage
+
+```
+[Passphrase] ← encrypted under AES-256-GCM Keystore key
+                Keystore key: setUserAuthenticationRequired(true), no validity duration (-1)
+                Cipher.init() only succeeds via CryptoObject from BiometricPrompt — hardware enforced, no time window
+                PIN/pattern accepted as fallback (BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+                devices with no biometric and no PIN cannot use the app
+```
+
+### Interfaces
+
+- `createSession(passphrase: String)` — encrypt passphrase into Keystore, start inactivity timer
+- `endSession()` — delete Keystore entry + encrypted blob
+- `touchSession()` — reset inactivity timer
+- `isSessionActive(): Boolean` — check Keystore entry exists
+- `getPassphrase(activity: FragmentActivity): String` — `BiometricPrompt(CryptoObject(cipher))` → hardware-authenticated cipher → Keystore decrypt
+- `sessionState: Flow<SessionState>` — emits on session start/end
+
+### Session Lifecycle
+
+- **Create:** `CryptoService.startSession(passphrase)` validates → calls `createSession()` → stores encrypted passphrase → starts inactivity timer
+- **Active:** `getPassphrase(activity)` → biometric → Keystore decrypt → return plaintext
+- **Touch:** `touchSession()` called by `CryptoService` on every `getGpgKey()` call (cached or not) — resets inactivity timer
+- **End triggers:**
+  - Inactivity timeout — timer fires → `endSession()` → emits `Inactive(TIMEOUT)`
+  - Manual lock — `endSession()` called → emits `Inactive(MANUAL)`
+  - Device reboot — `ACTION_BOOT_COMPLETED` receiver → `endSession()` → initial state `Inactive(REBOOT)`
+
+### Session Settings
+
+- **Timeout mode:** inactivity timer resets on every key access, duration user-configurable via `DataStore`
+- **Manual lock mode:** `timeout = 0` — session persists until user explicitly locks
+
+---
+
+## Crypto Module
+
+### Interface: `CryptoOperations` / Impl: `CryptoService`
+
+**Responsibility:** GPG/SSH key operations and in-memory passphrase cache (biometric cache layer).
+
+**Implementation:**
+
+- `org.pgpainless:pgpainless-core` (BouncyCastle wrapper)
+- BouncyCastle for SSH keypair
+- Hilt `@Singleton`
+- Injects `SessionOperations`
+- Observes `sessionState: Flow<SessionState>` to clear cache on session end
+
+### Biometric Cache
+
+```
+[Passphrase] ← held in memory after biometric unlock
+                cleared after biometric cache timeout (default: 5 min, future: configurable)
+                cleared immediately on Inactive emission from sessionState
+```
+
+- `getGpgKey()` skips biometric if passphrase is cached — returns immediately
+- Every `getGpgKey()` call (cached or not) calls `sessionOperations.touchSession()`
+- Cache evicted on session end via `sessionState` observation
+
+### Interfaces
+
+- `startSession(passphrase: String)` — validate passphrase against GPG key → `sessionOperations.createSession(passphrase)`
+- `getGpgKey(activity: FragmentActivity): GpgPrivateKey` — `isSessionActive()` check → `sessionOperations.getPassphrase()` (CryptoObject biometric) → cache plaintext passphrase → `touchSession()` → unlock GPG key
+- `importGpgKey(armoredKey: String)` — validate key is passphrase-protected, store blob; reject unprotected keys
+- `generateSshKey(): String` — generate Ed25519 keypair, store encrypted under device-unlock Keystore key, return OpenSSH public key
+- `getSshKey(): SshPrivateKey` — unwrap SSH key (device-unlock bound, no biometric required)
+- `clearAllKeys()` — `sessionOperations.endSession()` + wipe all key blobs + delete SSH Keystore entry
+
+---
 
 ## Key Storage Model
 
@@ -17,12 +110,10 @@ Secure storage and lifecycle management for all cryptographic key material on th
 
 ```
 [Armored GPG key blob] ← stored as-is in app-private internal storage
+                          (/data/data/<pkg>/files/keys/gpg.asc)
+                          must be passphrase-protected — unprotected keys rejected at import
                           passphrase held in Keystore during active session
 ```
-
-- Armored key lives in app-private internal storage (`/data/data/<pkg>/files/keys/gpg.asc`)
-- Must be passphrase-protected — unprotected keys are rejected at import
-- Passphrase is never stored persistently on disk
 
 ### SSH Key
 
@@ -33,75 +124,46 @@ Secure storage and lifecycle management for all cryptographic key material on th
                   bound to: device unlock only (no biometric required)
 ```
 
-- SSH key lives in app-private internal storage (`/data/data/<pkg>/files/keys/ssh`)
-- Wrapping key is device-unlock bound — accessible for background git sync without user interaction
+---
 
-## Session Model
+## Consumer Mapping
 
-### Keystore Layout During Active Session
+| Consumer                            | Module              |
+| ----------------------------------- | ------------------- |
+| App UI (entry decrypt)              | `CryptoOperations`  |
+| App Settings (lock, timeout config) | `CryptoOperations`  |
+| AutofillService                     | `SessionOperations` |
+| Credential Manager Provider         | `SessionOperations` |
+| Boot completed receiver             | `SessionOperations` |
 
-```
-[Passphrase] ← encrypted under persistent biometric-bound Keystore key
-                created at session start, deleted at session end
-```
+---
 
-### Session Lifecycle
+## Missing Implementations
 
-- **Start:** user enters passphrase → validated against armored GPG key → passphrase stored in Keystore → session active
-- **Active:** biometric unlocks passphrase from Keystore → passphrase decrypts armored key → key used for operation
-- **Biometric fallback:** device PIN/pattern via `BiometricPrompt` with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`
-- **End triggers:**
-  - Manual lock (user action) — Keystore entry deleted immediately
-  - Inactivity timeout (user-configurable, timer resets on each decryption) — Keystore entry deleted on expiry
-  - Device reboot — `ACTION_BOOT_COMPLETED` receiver deletes Keystore entry; passphrase required on next session
+- ⚠️ `SessionManager`/`CryptoService` split not done — currently monolithic `KeyManagementImpl`
+- ⚠️ `SessionOperations` / `CryptoOperations` interfaces not created
+- ⚠️ `startSession()` does not call `touchSession()` — idle sessions never time out
+- ⚠️ Cached passphrase path in `getGpgKey()` does not call `touchSession()` — session timer not reset on every use
+- ⚠️ `isSessionActive()` exists but not behind `SessionOperations` interface yet
+- ⚠️ `createSessionKey()` uses `setUserAuthenticationRequired(false)` — must change to `true` with `CryptoObject` pattern
+- ⚠️ Biometric cache timeout not user-configurable (hardcoded 5 min in `NO_BIOMETRIC_PASSPHRASE_TIMEOUT_MS`)
 
-### Session Settings
-
-- **Timeout mode:** inactivity timer (resets on each use), duration user-configurable
-- **Manual lock mode:** session persists until user explicitly locks
+---
 
 ## Autofill
 
-- AutofillService checks session state (Keystore entry exists?) before proceeding
-- **Session active:** biometric prompt → unlock passphrase → decrypt entry
-- **Session inactive:** prompt user to open the app and start a session first
+- AutofillService injects `SessionOperations` directly — no `CryptoOperations` dependency
+- Checks `getSessionStatus()` before proceeding
+- **Active:** `sessionOperations.getPassphrase(activity)` → hardware biometric (CryptoObject) → decrypt entry
+- **NoActiveSession:** prompt user to open app and start a session first
 
-## Interfaces
-
-- `importGpgKey(armoredKey: String)` — validate key is passphrase-protected, store blob; reject unprotected keys
-- `startSession(passphrase: String)` — validate passphrase against stored armored key, store passphrase in Keystore
-- `endSession()` — delete passphrase Keystore entry
-- `generateSshKey(): PublicKey` — generate Ed25519 keypair, store encrypted under device-unlock Keystore key, return public key
-- `getGpgKey(biometricPrompt): GpgPrivateKey` — biometric → unlock passphrase → decrypt armored key → return key for single operation
-- `getSshKey(): SshPrivateKey` — unwrap SSH key from Keystore (device-unlock bound, no biometric required)
-- `clearAllKeys()` — wipe both key blobs, delete all Keystore entries, end session
-
-## Acceptance Checklist
-
-```
-[manual] importGpgKey() accepts passphrase-protected armored key
-[manual] importGpgKey() rejects unprotected armored key with clear error
-[manual] importGpgKey() rejects malformed armored key with clear error
-[manual] imported GPG key survives app restart (blob persists)
-[manual] startSession() succeeds with correct passphrase
-[manual] startSession() fails with incorrect passphrase
-[manual] generateSshKey() returns valid Ed25519 public key in OpenSSH format
-[manual] generated SSH key survives app restart
-[manual] getSshKey() accessible without biometric after device unlock
-[manual] getGpgKey() requires biometric when session is active
-[manual] getGpgKey() fallback to device PIN when biometric unavailable
-[manual] session ends after inactivity timeout (app re-prompts passphrase)
-[manual] manual lock immediately ends session
-[manual] device reboot ends session (passphrase required on next open)
-[manual] autofill succeeds when session is active (biometric prompt)
-[manual] autofill prompts user to open app when session is inactive
-[manual] clearAllKeys() removes both key blobs from app-private storage
-[manual] clearAllKeys() removes all Keystore entries
-```
+---
 
 ## Android 16 Notes
 
-- **Identity Check:** On Android 16+, the OS enforces biometric-only auth for accessing credentials outside trusted locations at the platform level. This reinforces our biometric gate without requiring app-side changes.
+- **Identity Check:** On Android 16+, the OS enforces biometric-only auth for accessing credentials outside trusted locations at the platform level. Reinforces our biometric gate without app-side changes.
+
+---
 
 ## Non-Goals (v1)
 
@@ -112,8 +174,12 @@ Secure storage and lifecycle management for all cryptographic key material on th
 - SSH biometric unlock
 - Import of unprotected GPG keys (user sets passphrase during import)
 
+---
+
 ## 2.0 Backlog
 
+- **Biometric cache timeout configurable** — separate slider in Settings
 - **SSH biometric unlock** — optional setting to require biometric for SSH key access
-- **Import unprotected GPG key** — allow import of passphrase-less keys, prompt user to set a passphrase during import
+- **Import unprotected GPG key** — prompt user to set passphrase during import
+- **Autofill NotSupported path** — passphrase entry in autofill flow
 - **Restore Credentials** — `CreateRestoreCredentialRequest` (API 36) for encrypted cross-device key transfer
