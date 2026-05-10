@@ -1,7 +1,9 @@
 package com.example.pass.di
 
-import com.example.pass.keymanagement.KeyManagement
-import com.example.pass.keymanagement.KeyManagementImpl
+import com.example.pass.keymanagement.CryptoOperations
+import com.example.pass.keymanagement.CryptoService
+import com.example.pass.keymanagement.SessionManager
+import com.example.pass.keymanagement.SessionOperations
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -13,5 +15,9 @@ import javax.inject.Singleton
 abstract class KeyManagementModule {
     @Binds
     @Singleton
-    abstract fun bindKeyManagement(impl: KeyManagementImpl): KeyManagement
+    abstract fun bindSessionOperations(impl: SessionManager): SessionOperations
+
+    @Binds
+    @Singleton
+    abstract fun bindCryptoOperations(impl: CryptoService): CryptoOperations
 }
