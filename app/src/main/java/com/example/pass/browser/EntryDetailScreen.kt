@@ -27,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +42,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -92,10 +92,13 @@ fun EntryDetailScreen(
                             .padding(horizontal = 18.dp, vertical = 16.dp),
                 ) {
                     when (val unlock = state.unlockState) {
-                        is UnlockState.Idle -> PasswordSkeleton(decrypting = false)
-                        is UnlockState.Authenticating -> PasswordSkeleton(decrypting = false)
-                        is UnlockState.Decrypting -> PasswordSkeleton(decrypting = true)
+                        is UnlockState.Idle,
+                        is UnlockState.Authenticating,
+                        is UnlockState.Decrypting,
+                        -> PasswordSkeleton()
+
                         is UnlockState.Decrypted -> DecryptedContent(unlock, viewModel)
+
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
 
@@ -326,7 +329,8 @@ private fun MetaRow(
 }
 
 @Composable
-private fun PasswordSkeleton(decrypting: Boolean) {
+private fun PasswordSkeleton() {
+    val bodyHeight = with(LocalDensity.current) { PassType.Body.fontSize.toDp() }
     Text("password", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
@@ -335,29 +339,13 @@ private fun PasswordSkeleton(decrypting: Boolean) {
                 .fillMaxWidth()
                 .background(PassColorsDark.Surface, RoundedCornerShape(4.dp))
                 .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp))
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (decrypting) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    color = PassColorsDark.Accent,
-                    trackColor = PassColorsDark.Border2,
-                    strokeWidth = 2.dp,
-                )
-                Text("decrypting…", style = PassType.Body.copy(color = PassColorsDark.TextDim))
-            }
-        } else {
-            ShimmerBlock(height = 14.dp, modifier = Modifier.fillMaxWidth(0.55f))
-        }
+        ShimmerBlock(height = bodyHeight, modifier = Modifier.fillMaxWidth(0.55f))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ShimmerBlock(height = 30.dp, modifier = Modifier.weight(1f))
-            ShimmerBlock(height = 30.dp, modifier = Modifier.weight(1f))
+            ShimmerBlock(height = 40.dp, modifier = Modifier.weight(1f))
+            ShimmerBlock(height = 40.dp, modifier = Modifier.weight(1f))
         }
     }
 }
