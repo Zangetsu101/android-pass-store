@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.pass.R
+import com.example.pass.ui.components.PassAppIcon
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.components.PassTextField
 import com.example.pass.ui.theme.PassColorsDark
@@ -73,30 +74,7 @@ fun SessionStartScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .drawBehind {
-                                drawCircle(
-                                    brush =
-                                        Brush.radialGradient(
-                                            colors = listOf(PassColorsDark.AccentDim, Color.Transparent),
-                                            radius = 60.dp.toPx(),
-                                        ),
-                                    radius = 60.dp.toPx(),
-                                )
-                            }.size(48.dp)
-                            .background(PassColorsDark.AccentDim, RoundedCornerShape(10.dp))
-                            .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_launcher_monochrome),
-                        contentDescription = null,
-                        tint = PassColorsDark.Accent,
-                        modifier = Modifier.size(32.dp),
-                    )
-                }
+                PassAppIcon(size = 52.dp)
                 Spacer(Modifier.height(20.dp))
                 Text("session expired", style = PassType.Title, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(6.dp))

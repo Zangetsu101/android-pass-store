@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.example.pass.R
+import com.example.pass.ui.components.PassAppIcon
 import com.example.pass.ui.theme.JetBrainsMono
 import com.example.pass.ui.theme.PassColorsDark
 
@@ -73,30 +74,7 @@ fun SplashScreen() {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier =
-                    Modifier
-                        .drawBehind {
-                            drawCircle(
-                                brush =
-                                    Brush.radialGradient(
-                                        colors = listOf(PassColorsDark.AccentDim, Color.Transparent),
-                                        radius = 90.dp.toPx(),
-                                    ),
-                                radius = 90.dp.toPx(),
-                            )
-                        }.size(64.dp)
-                        .background(PassColorsDark.AccentDim, RoundedCornerShape(14.dp))
-                        .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_launcher_monochrome),
-                    contentDescription = null,
-                    tint = PassColorsDark.Accent,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
+            PassAppIcon(size = 64.dp, showGlow = true)
 
             Spacer(Modifier.height(20.dp))
 

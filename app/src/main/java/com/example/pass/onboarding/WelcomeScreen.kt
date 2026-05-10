@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.pass.R
+import com.example.pass.ui.components.PassAppIcon
 import com.example.pass.ui.components.PassPrimaryButton
 import com.example.pass.ui.components.PassScaffold
 import com.example.pass.ui.theme.PassColorsDark
@@ -44,25 +45,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(modifier = Modifier.padding(top = 40.dp)) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(52.dp)
-                            .background(PassColorsDark.AccentDim, RoundedCornerShape(8.dp))
-                            .border(1.dp, PassColorsDark.AccentMid, RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_launcher_foreground),
-                        contentDescription = null,
-                        tint = PassColorsDark.Accent,
-                        modifier =
-                            Modifier.size(52.dp).graphicsLayer {
-                                scaleX = 1.6f
-                                scaleY = 1.6f
-                            },
-                    )
-                }
+                PassAppIcon(size = 52.dp)
                 Spacer(Modifier.height(20.dp))
                 Text(
                     text =
