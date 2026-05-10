@@ -157,7 +157,7 @@ fun SessionStartScreen(
                 ) {
                     if (state.loading) {
                         CircularProgressIndicator(
-                            modifier = Modifier.height(18.dp),
+                            modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
                             color = PassColorsDark.Accent,
                         )
