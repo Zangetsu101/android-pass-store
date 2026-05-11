@@ -181,5 +181,4 @@ Default: `Inactive(REBOOT)` — covers fresh install, first launch, actual devic
 - **Biometric cache timeout configurable** — separate slider in Settings
 - **SSH biometric unlock** — optional setting to require biometric for SSH key access
 - **Import unprotected GPG key** — prompt user to set passphrase during import
-- **Autofill NotSupported path** — passphrase entry in autofill flow
 - **Restore Credentials** — `CreateRestoreCredentialRequest` (API 36) for encrypted cross-device key transfer
