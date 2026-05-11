@@ -2,7 +2,9 @@ package com.example.pass.keymanagement
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,19 +20,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.PrivateKey
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val SESSION_PASSPHRASE_BLOB = "session.enc"
 private const val SESSION_KEY_ALIAS = "passdroid_session_key"
 private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
-private const val GCM_TAG_BITS = 128
-private const val GCM_IV_BYTES = 12
+private const val RSA_KEY_SIZE = 2048
+private const val RSA_MAX_PLAINTEXT_BYTES = RSA_KEY_SIZE / 8 - 2 * 32 - 2 // OAEP-SHA256: 190 bytes
+private const val RSA_CIPHER = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
 
 @Singleton
 class SessionManager
@@ -49,12 +51,17 @@ class SessionManager
 
         override suspend fun createSession(passphrase: String) {
             withContext(Dispatchers.IO) {
-                val sessionKey = createSessionKey()
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(Cipher.ENCRYPT_MODE, sessionKey)
-                val iv = cipher.iv
-                val ciphertext = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-                File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(iv + ciphertext)
+                check(passphrase.toByteArray(Charsets.UTF_8).size <= RSA_MAX_PLAINTEXT_BYTES) {
+                    "Passphrase exceeds maximum length ($RSA_MAX_PLAINTEXT_BYTES bytes)"
+                }
+                createSessionKey()
+                val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+                val publicKey = keyStore.getCertificate(SESSION_KEY_ALIAS).publicKey
+                val cipher = Cipher.getInstance(RSA_CIPHER)
+                cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+                File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(
+                    cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8)),
+                )
             }
             _sessionState.value = SessionState.Active
             touchSession()
@@ -88,44 +95,50 @@ class SessionManager
         }
 
         override suspend fun getPassphrase(activity: FragmentActivity): String {
-            val (iv, ciphertext) =
+            val ciphertext =
                 withContext(Dispatchers.IO) {
-                    val blob = File(keysDir(), SESSION_PASSPHRASE_BLOB).readBytes()
-                    blob.copyOfRange(0, GCM_IV_BYTES) to blob.copyOfRange(GCM_IV_BYTES, blob.size)
+                    File(keysDir(), SESSION_PASSPHRASE_BLOB).readBytes()
                 }
-            withContext(Dispatchers.Main) { showBiometricPrompt(activity) }
-            return withContext(Dispatchers.IO) { decryptBlob(iv, ciphertext) }
+            val privateKey =
+                withContext(Dispatchers.IO) {
+                    val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+                    keyStore.getKey(SESSION_KEY_ALIAS, null) as PrivateKey
+                }
+            val cipher = Cipher.getInstance(RSA_CIPHER)
+            try {
+                cipher.init(Cipher.DECRYPT_MODE, privateKey)
+            } catch (e: KeyPermanentlyInvalidatedException) {
+                endSession(EndReason.BIOMETRIC_CHANGED)
+                throw SessionError.NoActiveSession()
+            }
+            val result =
+                withContext(Dispatchers.Main) {
+                    showBiometricPromptWithCrypto(activity, BiometricPrompt.CryptoObject(cipher))
+                }
+            val authenticatedCipher =
+                result.cryptoObject?.cipher
+                    ?: throw BiometricAuthException("No authenticated cipher returned")
+            return withContext(Dispatchers.IO) {
+                String(authenticatedCipher.doFinal(ciphertext), Charsets.UTF_8)
+            }
         }
 
-        private fun decryptBlob(
-            iv: ByteArray,
-            ciphertext: ByteArray,
-        ): String {
-            val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-            val sessionKey = keyStore.getKey(SESSION_KEY_ALIAS, null) as SecretKey
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, sessionKey, GCMParameterSpec(GCM_TAG_BITS, iv))
-            return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
-        }
-
-        private fun createSessionKey(): SecretKey {
+        private fun createSessionKey() {
             val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
             if (keyStore.containsAlias(SESSION_KEY_ALIAS)) {
                 keyStore.deleteEntry(SESSION_KEY_ALIAS)
             }
             val spec =
                 KeyGenParameterSpec
-                    .Builder(
-                        SESSION_KEY_ALIAS,
-                        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-                    ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .setUserAuthenticationRequired(false)
+                    .Builder(SESSION_KEY_ALIAS, KeyProperties.PURPOSE_DECRYPT)
+                    .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+                    .setKeySize(RSA_KEY_SIZE)
+                    .setUserAuthenticationRequired(true)
                     .build()
-            return KeyGenerator
-                .getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
-                .apply { init(spec) }
-                .generateKey()
+            KeyPairGenerator
+                .getInstance(KeyProperties.KEY_ALGORITHM_RSA, KEYSTORE_PROVIDER)
+                .apply { initialize(spec) }
+                .generateKeyPair()
         }
     }

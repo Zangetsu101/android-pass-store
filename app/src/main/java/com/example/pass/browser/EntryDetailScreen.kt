@@ -125,7 +125,6 @@ fun EntryDetailScreen(
                             .padding(start = 18.dp, end = 18.dp, bottom = 24.dp),
                 )
             }
-
         }
     }
 }

@@ -138,18 +138,6 @@ Default: `Inactive(REBOOT)` — covers fresh install, first launch, actual devic
 
 ---
 
-## Missing Implementations
-
-- ⚠️ `SessionManager`/`CryptoService` split not done — currently monolithic `KeyManagementImpl`
-- ⚠️ `SessionOperations` / `CryptoOperations` interfaces not created
-- ⚠️ `startSession()` does not call `touchSession()` — idle sessions never time out
-- ⚠️ Cached passphrase path in `getGpgKey()` does not call `touchSession()` — session timer not reset on every use
-- ⚠️ `isSessionActive()` exists but not behind `SessionOperations` interface yet
-- ⚠️ `createSessionKey()` uses `setUserAuthenticationRequired(false)` — must change to `true` with `CryptoObject` pattern
-- ⚠️ Biometric cache timeout not user-configurable (hardcoded 5 min in `NO_BIOMETRIC_PASSPHRASE_TIMEOUT_MS`)
-
----
-
 ## Autofill
 
 - AutofillService injects `SessionOperations` directly — no `CryptoOperations` dependency

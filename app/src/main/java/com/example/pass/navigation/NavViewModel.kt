@@ -3,7 +3,6 @@ package com.example.pass.navigation
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import com.example.pass.keymanagement.SessionOperations
-import com.example.pass.keymanagement.isBiometricAvailable
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel

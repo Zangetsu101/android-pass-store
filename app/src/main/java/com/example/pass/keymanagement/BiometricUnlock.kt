@@ -11,14 +11,15 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-// Authenticators: prefer strong biometric, fall back to device PIN/password
-private val ALLOWED_AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
+// CryptoObject prompts cannot combine BIOMETRIC_STRONG + DEVICE_CREDENTIAL on API 26–29
+private const val ALLOWED_AUTHENTICATORS = BIOMETRIC_STRONG
 
-suspend fun showBiometricPrompt(
+suspend fun showBiometricPromptWithCrypto(
     activity: FragmentActivity,
+    cryptoObject: BiometricPrompt.CryptoObject,
     title: String = "Authenticate",
-    subtitle: String = "Unlock PassDroid to continue",
-) = suspendCancellableCoroutine<Unit> { cont ->
+    subtitle: String = "Unlock pass.android to continue",
+) = suspendCancellableCoroutine<BiometricPrompt.AuthenticationResult> { cont ->
     val executor = ContextCompat.getMainExecutor(activity)
     val prompt =
         BiometricPrompt(
@@ -26,7 +27,7 @@ suspend fun showBiometricPrompt(
             executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    if (cont.isActive) cont.resume(Unit)
+                    if (cont.isActive) cont.resume(result)
                 }
 
                 override fun onAuthenticationError(
@@ -35,9 +36,7 @@ suspend fun showBiometricPrompt(
                 ) {
                     if (cont.isActive) {
                         val ex =
-                            if (errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS ||
-                                errorCode == BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL
-                            ) {
+                            if (errorCode == BiometricPrompt.ERROR_NO_BIOMETRICS) {
                                 BiometricNotEnrolledException()
                             } else {
                                 BiometricAuthException("Biometric error $errorCode: $errString")
@@ -61,12 +60,7 @@ suspend fun showBiometricPrompt(
             .build()
 
     cont.invokeOnCancellation { /* prompt has no cancel API; activity finish will dismiss it */ }
-    prompt.authenticate(info)
-}
-
-fun isBiometricAvailable(context: Context): Boolean {
-    val mgr = BiometricManager.from(context)
-    return mgr.canAuthenticate(ALLOWED_AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
+    prompt.authenticate(info, cryptoObject)
 }
 
 class BiometricAuthException(
