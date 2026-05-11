@@ -57,6 +57,7 @@ suspend fun showBiometricPromptWithCrypto(
             .setTitle(title)
             .setSubtitle(subtitle)
             .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
+            .setNegativeButtonText("Cancel")
             .build()
 
     cont.invokeOnCancellation { /* prompt has no cancel API; activity finish will dismiss it */ }

@@ -1,6 +1,7 @@
 package com.example.pass.keymanagement
 
 import android.content.Context
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
@@ -23,7 +24,10 @@ import java.io.File
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
+import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
+import javax.crypto.spec.OAEPParameterSpec
+import javax.crypto.spec.PSource
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,7 +36,10 @@ private const val SESSION_KEY_ALIAS = "passdroid_session_key"
 private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
 private const val RSA_KEY_SIZE = 2048
 private const val RSA_MAX_PLAINTEXT_BYTES = RSA_KEY_SIZE / 8 - 2 * 32 - 2 // OAEP-SHA256: 190 bytes
-private const val RSA_CIPHER = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
+private const val RSA_CIPHER = "RSA/ECB/OAEPPadding"
+
+// OAEP hash = SHA-256; MGF1 hash = SHA-1 (Android Keystore hardware only supports SHA-1 for MGF1)
+private val RSA_OAEP_SPEC = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
 
 @Singleton
 class SessionManager
@@ -58,7 +65,7 @@ class SessionManager
                 val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
                 val publicKey = keyStore.getCertificate(SESSION_KEY_ALIAS).publicKey
                 val cipher = Cipher.getInstance(RSA_CIPHER)
-                cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+                cipher.init(Cipher.ENCRYPT_MODE, publicKey, RSA_OAEP_SPEC)
                 File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(
                     cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8)),
                 )
@@ -106,7 +113,7 @@ class SessionManager
                 }
             val cipher = Cipher.getInstance(RSA_CIPHER)
             try {
-                cipher.init(Cipher.DECRYPT_MODE, privateKey)
+                cipher.init(Cipher.DECRYPT_MODE, privateKey, RSA_OAEP_SPEC)
             } catch (e: KeyPermanentlyInvalidatedException) {
                 endSession(EndReason.BIOMETRIC_CHANGED)
                 throw SessionError.NoActiveSession()
@@ -135,7 +142,11 @@ class SessionManager
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
                     .setKeySize(RSA_KEY_SIZE)
                     .setUserAuthenticationRequired(true)
-                    .build()
+                    .apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+                        }
+                    }.build()
             KeyPairGenerator
                 .getInstance(KeyProperties.KEY_ALGORITHM_RSA, KEYSTORE_PROVIDER)
                 .apply { initialize(spec) }
