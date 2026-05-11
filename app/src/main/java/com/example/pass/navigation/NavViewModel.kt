@@ -16,7 +16,7 @@ class NavViewModel
         private val sessionOperations: SessionOperations,
         private val passStore: PassStore,
     ) : ViewModel() {
-        fun requiresSessionStart(context: Context): Boolean = isBiometricAvailable(context) && !sessionOperations.isSessionActive()
+        fun requiresSessionStart(): Boolean = !sessionOperations.isSessionActive()
 
         fun findEntry(path: String): PassEntry? = passStore.index.value.firstOrNull { it.path == path }
     }

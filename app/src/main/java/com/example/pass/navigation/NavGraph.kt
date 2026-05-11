@@ -146,12 +146,11 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
 
                 entry<EntryBrowser> {
                     val navVm: NavViewModel = hiltViewModel()
-                    val context = LocalContext.current
                     val vm: EntryBrowserViewModel = hiltViewModel()
                     EntryBrowserScreen(
                         viewModel = vm,
                         onNavigateToEntryDetail = { entry ->
-                            if (navVm.requiresSessionStart(context)) {
+                            if (navVm.requiresSessionStart()) {
                                 backStack.add(SessionStart(returnEntryPath = entry.path))
                             } else {
                                 backStack.add(EntryDetail(entry.path))
