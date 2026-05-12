@@ -34,9 +34,7 @@ import kotlin.time.Duration.Companion.milliseconds
 sealed class UnlockState {
     data object Idle : UnlockState()
 
-    sealed class Authenticating : UnlockState() {
-        data object Biometric : Authenticating()
-    }
+    data object  Authenticating : UnlockState()
 
     data object Decrypting : UnlockState()
 
@@ -102,7 +100,7 @@ class EntryDetailViewModel
         fun authenticate(activity: FragmentActivity) {
             if (_state.value.unlockState !is UnlockState.Idle) return
             val entry = _state.value.entry
-            _state.update { it.copy(unlockState = UnlockState.Authenticating.Biometric) }
+            _state.update { it.copy(unlockState = UnlockState.Authenticating) }
             viewModelScope.launch {
                 try {
                     val key = cryptoOperations.getGpgKey(activity)

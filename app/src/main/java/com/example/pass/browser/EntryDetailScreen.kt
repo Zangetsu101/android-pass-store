@@ -87,7 +87,7 @@ fun EntryDetailScreen(
                 ) {
                     when (val unlock = state.unlockState) {
                         is UnlockState.Idle,
-                        is UnlockState.Authenticating.Biometric,
+                        is UnlockState.Authenticating,
                         is UnlockState.Decrypting,
                         -> PasswordSkeleton()
 
