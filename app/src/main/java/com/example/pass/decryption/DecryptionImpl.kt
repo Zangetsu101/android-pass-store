@@ -34,17 +34,6 @@ class DecryptionImpl
             return Credentials(password = password, notes = notes)
         }
 
-        override suspend fun decryptWithKey(
-            entry: PassEntry,
-            key: GpgPrivateKey,
-        ): Credentials {
-            val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, key) }
-            val lines = plaintext.lines()
-            val password = (lines.firstOrNull() ?: "").toCharArray()
-            val notes = lines.drop(1).joinToString("\n").trimEnd()
-            return Credentials(password = password, notes = notes)
-        }
-
         override suspend fun decryptForAutofill(
             entry: PassEntry,
             activity: FragmentActivity,
