@@ -84,7 +84,6 @@ class EntryDetailViewModel
             )
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
-        private var blurJob: Job? = null
         private var clipClearJob: Job? = null
 
         init {
@@ -117,17 +116,7 @@ class EntryDetailViewModel
 
         fun toggleReveal() {
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
-            val revealing = !current.passwordRevealed
-            _state.update { it.copy(unlockState = current.copy(passwordRevealed = revealing)) }
-            blurJob?.cancel()
-            if (revealing) {
-                blurJob =
-                    viewModelScope.launch {
-                        delay(45_000.milliseconds)
-                        val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
-                        _state.update { it.copy(unlockState = decrypted.copy(passwordRevealed = false)) }
-                    }
-            }
+            _state.update { it.copy(unlockState = current.copy(passwordRevealed = !current.passwordRevealed)) }
         }
 
         fun copyPassword() {

@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -97,9 +98,12 @@ fun EntryDetailScreen(
 
                     if (state.unlockState !is UnlockState.Decrypted && state.unlockState !is UnlockState.Failed) {
                         Spacer(Modifier.height(6.dp))
+                        // Invisible placeholder — reserves identical height to the real caption in
+                        // DecryptedContent so layout doesn't shift on transition.
                         Text(
-                            "decrypted in-memory · auto-clears in 45s",
+                            "decrypted in-memory",
                             style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
+                            modifier = Modifier.alpha(0f),
                         )
                         Spacer(Modifier.height(20.dp))
                         NotesSkeleton()
@@ -168,7 +172,7 @@ private fun DecryptedContent(
     PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
     Spacer(Modifier.height(6.dp))
     Text(
-        "decrypted in-memory · auto-clears in 45s",
+        "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in 45s" else "",
         style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
     )
     Spacer(Modifier.height(20.dp))
