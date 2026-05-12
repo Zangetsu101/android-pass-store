@@ -7,7 +7,6 @@ import com.example.pass.passstore.PassEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.bouncycastle.openpgp.PGPException
-import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
 import org.pgpainless.key.protection.SecretKeyRingProtector
@@ -46,7 +45,7 @@ class DecryptionImpl
 
         private fun decryptFile(
             entry: PassEntry,
-            secretKeyRing: PGPSecretKeyRing,
+            secretKeyRing: GpgPrivateKey,
         ): String {
             val protector = SecretKeyRingProtector.unprotectedKeys()
 

@@ -4,4 +4,4 @@ import org.bouncycastle.openpgp.PGPSecretKeyRing
 import java.security.KeyPair
 
 typealias GpgPrivateKey = PGPSecretKeyRing
-typealias SshPrivateKey = KeyPair
+typealias SshKeyPair = KeyPair

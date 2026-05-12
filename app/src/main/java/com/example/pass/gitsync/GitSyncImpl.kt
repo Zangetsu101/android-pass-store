@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.pass.keymanagement.SshKeyPair
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -23,7 +24,6 @@ import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
 import java.nio.file.Path
-import java.security.KeyPair
 import java.security.Security
 import java.time.Instant
 import javax.inject.Inject
@@ -52,7 +52,7 @@ class GitSyncImpl
         override suspend fun clone(
             remoteUrl: String,
             localPath: Path,
-            sshKeyPair: KeyPair?,
+            sshKeyPair: SshKeyPair?,
             progressMonitor: ProgressMonitor?,
         ) {
             withContext(Dispatchers.IO) {
@@ -86,7 +86,7 @@ class GitSyncImpl
             }
         }
 
-        override suspend fun pull(sshKeyPair: KeyPair?): SyncResult =
+        override suspend fun pull(sshKeyPair: SshKeyPair?): SyncResult =
             withContext(Dispatchers.IO) {
                 val git = openRepo(repoDir())
                 val beforeHead: ObjectId =
@@ -177,13 +177,13 @@ class GitSyncImpl
             return if (path != null) File(path) else File(context.filesDir, "repo")
         }
 
-        private fun makeSshCallback(keyPair: KeyPair): TransportConfigCallback {
+        private fun makeSshCallback(keyPair: SshKeyPair): TransportConfigCallback {
             val sshDir = File(context.cacheDir, "ssh")
             val factory =
                 object : SshdSessionFactory(null, null) {
                     override fun getSshDirectory(): File = sshDir
 
-                    override fun getDefaultKeys(sshDir: File): List<KeyPair> = listOf(keyPair)
+                    override fun getDefaultKeys(sshDir: File): List<SshKeyPair> = listOf(keyPair)
 
                     override fun getDefaultPreferredAuthentications(): String = "publickey"
 

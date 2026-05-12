@@ -165,7 +165,7 @@ class CryptoService
             return openSshPublicKey(pair.public)
         }
 
-        override fun getSshKey(): SshPrivateKey {
+        override fun getSshKey(): SshKeyPair {
             val privateBytes = blobStore.decrypt(BLOB_SSH_KEY)
             val publicBytes = blobStore.decrypt(BLOB_SSH_PUB_KEY)
             val kf = KeyFactory.getInstance("EC", BouncyCastleProvider())

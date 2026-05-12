@@ -14,7 +14,7 @@ interface CryptoOperations {
 
     fun generateSshKey(): String
 
-    fun getSshKey(): SshPrivateKey
+    fun getSshKey(): SshKeyPair
 
     fun clearAllKeys()
 }
