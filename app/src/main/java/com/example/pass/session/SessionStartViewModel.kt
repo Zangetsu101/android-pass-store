@@ -3,7 +3,10 @@ package com.example.pass.session
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pass.keymanagement.CryptoOperations
+import com.example.pass.keymanagement.EndReason
 import com.example.pass.keymanagement.SessionError
+import com.example.pass.keymanagement.SessionOperations
+import com.example.pass.keymanagement.SessionState
 import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SessionStartUiState(
+    val title: String = "session expired",
     val passphrase: String = "",
     val loading: Boolean = false,
     val error: String? = null,
@@ -26,18 +30,28 @@ class SessionStartViewModel
     @Inject
     constructor(
         private val cryptoOperations: CryptoOperations,
+        sessionOperations: SessionOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(SessionStartUiState())
         val state: StateFlow<SessionStartUiState> = _state.asStateFlow()
 
         init {
+            val reason = (sessionOperations.sessionState.value as? SessionState.Inactive)?.reason
+            _state.update { it.copy(title = titleFor(reason)) }
             viewModelScope.launch {
                 appPreferences.sessionTimeoutMinutes.collect { minutes ->
                     _state.update { it.copy(sessionTimeoutMinutes = minutes) }
                 }
             }
         }
+
+        private fun titleFor(reason: EndReason?) =
+            when (reason) {
+                EndReason.REBOOT -> "start session"
+                EndReason.BIOMETRIC_CHANGED -> "security change detected"
+                else -> "session expired"
+            }
 
         fun setPassphrase(value: String) {
             _state.update { it.copy(passphrase = value, error = null) }

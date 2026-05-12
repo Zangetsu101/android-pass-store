@@ -76,7 +76,7 @@ fun SessionStartScreen(
             ) {
                 PassAppIcon(size = 52.dp)
                 Spacer(Modifier.height(20.dp))
-                Text("session expired", style = PassType.Title, textAlign = TextAlign.Center)
+                Text(state.title, style = PassType.Title, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "enter your gpg key passphrase\nto start a new session",
