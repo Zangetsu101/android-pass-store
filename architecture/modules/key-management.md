@@ -37,8 +37,9 @@ Default: `Inactive(REBOOT)` — covers fresh install, first launch, actual devic
 [Passphrase] ← encrypted under AES-256-GCM Keystore key
                 Keystore key: setUserAuthenticationRequired(true), no validity duration (-1)
                 Cipher.init() only succeeds via CryptoObject from BiometricPrompt — hardware enforced, no time window
-                PIN/pattern accepted as fallback (BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
-                devices with no biometric and no PIN cannot use the app
+                API 30+: PIN/pattern accepted as fallback (BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+                API 26–29: biometric only — OS rejects CryptoObject + DEVICE_CREDENTIAL combination
+                devices with no screen lock and no biometric cannot use the app (by design — see Non-Goals)
 ```
 
 ### Interfaces
@@ -161,6 +162,7 @@ Default: `Inactive(REBOOT)` — covers fresh install, first launch, actual devic
 - Cross-device key restore (Restore Credentials API)
 - SSH biometric unlock
 - Import of unprotected GPG keys (user sets passphrase during import)
+- Passphrase-only unlock for devices with no screen lock and no biometric — hardware-backed CryptoObject auth is a core security requirement; devices without any credential cannot use the app
 
 ---
 

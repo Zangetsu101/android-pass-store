@@ -1,7 +1,6 @@
 package com.example.pass.keymanagement
 
-import android.content.Context
-import androidx.biometric.BiometricManager
+import android.os.Build
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
@@ -11,8 +10,14 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-// CryptoObject prompts cannot combine BIOMETRIC_STRONG + DEVICE_CREDENTIAL on API 26–29
-private const val ALLOWED_AUTHENTICATORS = BIOMETRIC_STRONG
+// API 30+: CryptoObject supports BIOMETRIC_STRONG or DEVICE_CREDENTIAL (PIN/pattern fallback)
+// API 26–29: combining with DEVICE_CREDENTIAL throws IllegalArgumentException — biometric only
+private val ALLOWED_AUTHENTICATORS =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        BIOMETRIC_STRONG or DEVICE_CREDENTIAL
+    } else {
+        BIOMETRIC_STRONG
+    }
 
 suspend fun showBiometricPromptWithCrypto(
     activity: FragmentActivity,
@@ -57,8 +62,10 @@ suspend fun showBiometricPromptWithCrypto(
             .setTitle(title)
             .setSubtitle(subtitle)
             .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
-            .setNegativeButtonText("Cancel")
-            .build()
+            .apply {
+                // setNegativeButtonText is incompatible with DEVICE_CREDENTIAL
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) setNegativeButtonText("Cancel")
+            }.build()
 
     cont.invokeOnCancellation { /* prompt has no cancel API; activity finish will dismiss it */ }
     prompt.authenticate(info, cryptoObject)
