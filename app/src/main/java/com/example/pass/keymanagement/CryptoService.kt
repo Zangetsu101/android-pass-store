@@ -153,6 +153,21 @@ class CryptoService
             )
         }
 
+        override fun getGpgKeyInfo(): Pair<String, String>? {
+            val file = File(keysDir(), GPG_KEY_FILE)
+            if (!file.exists()) return null
+            return try {
+                val ring = PGPainless.readKeyRing().secretKeyRing(file.readText()) ?: return null
+                val master = ring.firstOrNull { it.isMasterKey }?.publicKey ?: return null
+                val shortId = master.keyID and 0xFFFFFFFFL
+                val keyId = "%08X".format(shortId).chunked(4).joinToString(" ")
+                val uid = master.userIDs.asSequence().firstOrNull() ?: ""
+                Pair(keyId, uid)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         override fun clearAllKeys() {
             sessionOperations.endSession()
             blobStore.deleteAll()

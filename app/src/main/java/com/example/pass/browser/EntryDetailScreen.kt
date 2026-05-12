@@ -91,7 +91,7 @@ fun EntryDetailScreen(
                         is UnlockState.Decrypting,
                         -> PasswordSkeleton()
 
-                        is UnlockState.Decrypted -> DecryptedContent(unlock, viewModel)
+                        is UnlockState.Decrypted -> DecryptedContent(unlock, state.clipboardTimeoutSeconds, viewModel)
 
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
@@ -167,12 +167,13 @@ private fun EntryTopBar(
 @Composable
 private fun DecryptedContent(
     unlock: UnlockState.Decrypted,
+    clipboardTimeoutSeconds: Int,
     viewModel: EntryDetailViewModel,
 ) {
     PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
     Spacer(Modifier.height(6.dp))
     Text(
-        "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in 45s" else "",
+        "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
         style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
     )
     Spacer(Modifier.height(20.dp))

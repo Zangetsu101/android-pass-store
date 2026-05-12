@@ -15,6 +15,7 @@ import com.example.pass.keymanagement.BiometricAuthException
 import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.keymanagement.SessionError
 import com.example.pass.passstore.PassEntry
+import com.example.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -61,6 +62,7 @@ data class EntryDetailUiState(
     val entry: PassEntry,
     val unlockState: UnlockState = UnlockState.Idle,
     val gitStatus: GitStatus = GitStatus.Loading,
+    val clipboardTimeoutSeconds: Int = 45,
 )
 
 @HiltViewModel(assistedFactory = EntryDetailViewModel.Factory::class)
@@ -72,6 +74,7 @@ class EntryDetailViewModel
         private val decryption: Decryption,
         private val gitSync: GitSync,
         private val cryptoOperations: CryptoOperations,
+        private val appPreferences: AppPreferences,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
@@ -88,9 +91,15 @@ class EntryDetailViewModel
 
         init {
             viewModelScope.launch {
-                val info = gitSync.lastCommitForFile(entry.path)
-                val gitStatus = if (info != null) GitStatus.Tracked(info) else GitStatus.Untracked
-                _state.update { it.copy(gitStatus = gitStatus) }
+                gitSync.lastCommitForFile(entry.path).let { info ->
+                    val gitStatus = if (info != null) GitStatus.Tracked(info) else GitStatus.Untracked
+                    _state.update { it.copy(gitStatus = gitStatus) }
+                }
+            }
+            viewModelScope.launch {
+                appPreferences.clipboardTimeoutSeconds.collect { seconds ->
+                    _state.update { it.copy(clipboardTimeoutSeconds = seconds) }
+                }
             }
         }
 
@@ -128,7 +137,7 @@ class EntryDetailViewModel
             clipClearJob?.cancel()
             clipClearJob =
                 viewModelScope.launch {
-                    delay(45_000.milliseconds)
+                    delay(_state.value.clipboardTimeoutSeconds * 1000L)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         clipboard.clearPrimaryClip()
                     } else {

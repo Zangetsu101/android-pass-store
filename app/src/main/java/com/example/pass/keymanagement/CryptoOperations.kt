@@ -12,6 +12,8 @@ interface CryptoOperations {
     @Throws(SessionError::class)
     suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey
 
+    fun getGpgKeyInfo(): Pair<String, String>?
+
     fun generateSshKey(): String
 
     fun getSshKey(): SshKeyPair

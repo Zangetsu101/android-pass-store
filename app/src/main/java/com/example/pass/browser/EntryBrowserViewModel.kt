@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.pass.gitsync.GitSync
 import com.example.pass.passstore.PassEntry
 import com.example.pass.passstore.PassStore
+import com.example.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -31,11 +32,17 @@ class EntryBrowserViewModel
         @ApplicationContext private val context: Context,
         private val passStore: PassStore,
         private val gitSync: GitSync,
+        private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(EntryBrowserUiState())
         val state: StateFlow<EntryBrowserUiState> = _state.asStateFlow()
 
         init {
+            viewModelScope.launch {
+                appPreferences.defaultViewTree.collect { tree ->
+                    _state.update { it.copy(treeView = tree) }
+                }
+            }
             viewModelScope.launch {
                 passStore.index.collect { entries ->
                     updateDisplayedEntries(entries, _state.value.searchQuery)
