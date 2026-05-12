@@ -50,8 +50,8 @@ class SessionStartViewModel
                 try {
                     cryptoOperations.startSession(passphrase)
                     _state.update { it.copy(loading = false, success = true) }
-                } catch (e: SessionError.WrongPassphrase) {
-                    _state.update { it.copy(loading = false, error = "Wrong passphrase") }
+                } catch (e: SessionError) {
+                    _state.update { it.copy(loading = false, error = e.message) }
                 } catch (e: Exception) {
                     _state.update { it.copy(loading = false, error = e.message ?: "Failed to start session") }
                 }

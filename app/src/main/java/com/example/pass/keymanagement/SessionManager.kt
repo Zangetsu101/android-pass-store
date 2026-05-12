@@ -58,8 +58,8 @@ class SessionManager
 
         override suspend fun createSession(passphrase: String) {
             withContext(Dispatchers.IO) {
-                check(passphrase.toByteArray(Charsets.UTF_8).size <= RSA_MAX_PLAINTEXT_BYTES) {
-                    "Passphrase exceeds maximum length ($RSA_MAX_PLAINTEXT_BYTES bytes)"
+                if (passphrase.toByteArray(Charsets.UTF_8).size > RSA_MAX_PLAINTEXT_BYTES) {
+                    throw SessionError.PassphraseTooLong()
                 }
                 createSessionKey()
                 val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
