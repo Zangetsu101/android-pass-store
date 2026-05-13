@@ -23,6 +23,7 @@ import com.example.pass.onboarding.CloneRepoViewModel
 import com.example.pass.onboarding.GpgImportViewModel
 import com.example.pass.onboarding.OnboardingGpgImportScreen
 import com.example.pass.onboarding.WelcomeScreen
+import com.example.pass.onboarding.WelcomeViewModel
 import com.example.pass.preferences.AppPreferences
 import com.example.pass.session.SessionStartScreen
 import com.example.pass.session.SessionStartViewModel
@@ -102,7 +103,8 @@ fun PassDroidNavHost(appPreferences: AppPreferences) {
                 }
 
                 entry<Welcome> {
-                    WelcomeScreen(onStart = { backStack.add(CloneRepo) })
+                    val vm: WelcomeViewModel = hiltViewModel()
+                    WelcomeScreen(vm) { backStack.add(CloneRepo) }
                 }
 
                 entry<CloneRepo> {
