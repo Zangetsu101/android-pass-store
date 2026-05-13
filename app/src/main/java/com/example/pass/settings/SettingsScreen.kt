@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -249,7 +252,7 @@ fun SettingsScreen(
             title = { Text("delete local store?", style = PassType.Title.copy(color = PassColorsDark.Danger)) },
             text = {
                 Text(
-                    "This will delete all keys, the cloned repository, and all preferences. You will need to go through onboarding again.",
+                    "this will delete all keys, the cloned repository, and all preferences. you will need to go through onboarding again.",
                     style = PassType.Body,
                 )
             },
@@ -298,6 +301,7 @@ private fun SettingsTopBar(onBack: () -> Unit) {
         modifier =
             Modifier
                 .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
