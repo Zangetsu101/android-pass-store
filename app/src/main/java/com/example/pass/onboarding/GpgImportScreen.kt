@@ -148,7 +148,7 @@ fun OnboardingGpgImportScreen(
         Spacer(Modifier.height(8.dp))
         PassPrimaryButton(
             onClick = onNext,
-            label = "$ git clone",
+            label = "> git clone",
             enabled = state.gpgImported,
         )
     }

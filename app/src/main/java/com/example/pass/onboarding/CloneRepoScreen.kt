@@ -144,7 +144,7 @@ fun CloneRepoScreen(
         Spacer(Modifier.height(20.dp))
         PassPrimaryButton(
             onClick = { if (viewModel.validateRemoteUrl()) onNext(state.remoteUrl.trim()) },
-            label = "$ next",
+            label = "> pass import-key",
         )
     }
 }
