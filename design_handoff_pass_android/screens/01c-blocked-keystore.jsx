@@ -1,5 +1,5 @@
-// 01 · WELCOME — preflight device check (all green, ready state).
-function ScreenWelcome() {
+// 01 · WELCOME — blocked: hardware keystore
+function ScreenWelcomeBlocked_hardwarekeystore() {
   const T = React.useContext(ThemeContext);
   const Row = ({ ok, label, value }) => (
     <div style={{display:"flex", alignItems:"center", gap:8, padding:"4px 0", fontSize:10, lineHeight:1.4}}>
@@ -8,12 +8,14 @@ function ScreenWelcome() {
       <span style={{color: ok ? T.accent : T.danger}}>{value}</span>
     </div>
   );
+
+  const checks = [["biometric","enrolled"],["hardware keystore","available"],["android api","34"]];
+
   return (
     <Phone>
       <div style={{padding:"0 24px", display:"flex", flexDirection:"column", height:"100%", justifyContent:"space-between", paddingBottom:24}}>
         <div style={{paddingTop:40}}>
-          {/* logo mark */}
-          <div style={{marginBottom:28}}>
+          <div style={{marginBottom:24}}>
             <div style={{
               width:52, height:52, borderRadius:8,
               background: T.accentDim, border:`1px solid ${T.accentMid}`,
@@ -34,35 +36,50 @@ function ScreenWelcome() {
             </div>
           </div>
 
-          {/* preflight panel */}
           <div style={{
-            background:T.surface, border:`1px solid ${T.border2}`,
+            background:T.surface, border:`1px solid ${T.danger}55`,
             borderRadius:T.r, padding:"12px 14px",
+            boxShadow:`0 0 18px ${T.danger}15`,
           }}>
             <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:8}}>
               <span style={{color:T.textFaint, fontSize:10}}>$</span>
               <span style={{color:T.text, fontSize:10}}>pass --check-device</span>
             </div>
             <div style={{height:1, background:T.border, marginBottom:6}}/>
-            <Row ok label="biometric" value="enrolled"/>
-            <Row ok label="hardware keystore" value="available"/>
-            <Row ok label="android api" value="34"/>
+            {checks.map(([label, ok_value]) => {
+              const failing = label === "hardware keystore";
+              return <Row key={label} ok={!failing} label={label} value={failing ? "unavailable" : ok_value}/>;
+            })}
             <div style={{height:1, background:T.border, marginTop:6, marginBottom:8}}/>
-            <div style={{color:T.accent, fontSize:9, letterSpacing:"0.08em"}}>
-              device ready · 3 of 3 passed
+            <div style={{color:T.danger, fontSize:9, letterSpacing:"0.08em"}}>
+              blocked · 1 check failed
             </div>
+          </div>
+
+          <div style={{ marginTop:14, color:T.text, fontSize:11, fontWeight:600, marginBottom:6 }}>
+            hardware keystore required
+          </div>
+          <div style={{ color:T.textDim, fontSize:10, lineHeight:1.6 }}>
+            this device doesn’t expose a hardware-backed keystore — pass.android needs one to protect your gpg key at rest. unfortunately your device isn’t supported.
           </div>
         </div>
 
-        {/* actions */}
         <div style={{display:"flex", flexDirection:"column", gap:8}}>
-          <Btn full>$ clone a store</Btn>
+          <Btn full>learn more →</Btn>
+          <div style={{
+            background:"transparent",
+            border:`1px dashed ${T.border2}`,
+            color:T.textFaint,
+            borderRadius:T.r, padding:"10px 16px",
+            fontSize:11, fontWeight:600, textAlign:"center",
+            letterSpacing:"0.05em",
+          }}>$ clone a store</div>
           <div style={{textAlign:"center", color:T.textFaint, fontSize:9, marginTop:4}}>
-            requires git + gpg key
+            re-checks automatically when you return
           </div>
         </div>
       </div>
     </Phone>
   );
 }
-window.ScreenWelcome = ScreenWelcome;
+window.ScreenWelcomeBlocked_hardwarekeystore = ScreenWelcomeBlocked_hardwarekeystore;

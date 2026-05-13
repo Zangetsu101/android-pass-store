@@ -35,6 +35,14 @@ const SCREENS = {
       { id:"l4",  slug:"03b-gpg-loading",   label:"03b · GPG — Loading" },
     ],
   },
+  welcomeBlocked: {
+    title: "Welcome — Blocked States",
+    items: [
+      { id:"wb-bio", slug:"01b-blocked-biometric", label:"01b · Biometric missing" },
+      { id:"wb-ks",  slug:"01c-blocked-keystore",  label:"01c · Keystore unavailable" },
+      { id:"wb-api", slug:"01d-blocked-api",       label:"01d · Android too old" },
+    ],
+  },
   main: {
     title: "Main App",
     items: [
@@ -43,7 +51,6 @@ const SCREENS = {
       { id:"s5",     slug:"05-home-flat",        label:"05 · Home — Flat" },
       { id:"s6pre",  slug:"06a-passphrase",      label:"06a · GPG Passphrase Unlock" },
       { id:"s6bio",  slug:"06b-biometric",       label:"06b · Biometric Unlock" },
-      { id:"s6nobio",slug:"06c-no-biometric",    label:"06c · No Biometric Enrolled" },
       { id:"l2",     slug:"07-entry-decrypting", label:"07 · Entry — Decrypting" },
       { id:"s6",     slug:"07-entry",            label:"07b · Entry Detail" },
       { id:"s9",     slug:"09-settings",         label:"08 · Settings" },
