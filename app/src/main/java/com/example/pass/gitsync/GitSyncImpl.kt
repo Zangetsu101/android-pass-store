@@ -10,6 +10,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.apache.sshd.common.config.keys.KeyUtils
+import org.apache.sshd.common.digest.BuiltinDigests
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.MergeCommand.FastForwardMode
@@ -28,6 +30,13 @@ import java.security.Security
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private val GITHUB_HOST_FINGERPRINTS =
+    setOf(
+        "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU", // ed25519
+        "SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM", // ecdsa-nistp256
+        "SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s", // rsa
+    )
 
 private val Context.gitSyncDataStore by preferencesDataStore("git_sync")
 private val KEY_LAST_SYNC = longPreferencesKey("last_sync_epoch_ms")
@@ -198,14 +207,16 @@ class GitSyncImpl
                                 config: ServerKeyDatabase.Configuration,
                             ): List<java.security.PublicKey> = emptyList()
 
-                            // @todo: check GitHub's host key against a known-hosts file
                             override fun accept(
                                 connectAddress: String,
                                 remoteAddress: java.net.InetSocketAddress,
                                 serverKey: java.security.PublicKey,
                                 config: ServerKeyDatabase.Configuration,
                                 provider: org.eclipse.jgit.transport.CredentialsProvider?,
-                            ): Boolean = true
+                            ): Boolean {
+                                val fp = KeyUtils.getFingerPrint(BuiltinDigests.sha256, serverKey)
+                                return fp in GITHUB_HOST_FINGERPRINTS
+                            }
                         }
                 }
             return TransportConfigCallback { transport ->
