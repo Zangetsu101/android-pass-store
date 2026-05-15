@@ -32,3 +32,6 @@
 # --- Apache Commons Text (Levenshtein) ---
 -keep class org.apache.commons.text.** { *; }
 -dontwarn org.apache.commons.text.**
+
+# --- SLF4J (no Android impl; suppress missing StaticLoggerBinder) ---
+-dontwarn org.slf4j.impl.StaticLoggerBinder
