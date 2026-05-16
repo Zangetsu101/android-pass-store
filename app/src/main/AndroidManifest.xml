@@ -55,7 +55,7 @@
         <activity
             android:name=".credentialprovider.CredentialAuthActivity"
             android:exported="false"
-            android:theme="@style/Theme.Pass"
+            android:theme="@style/Theme.Pass.Transparent"
             tools:ignore="Instantiatable"
             tools:targetApi="34" />
 
