@@ -1,11 +1,23 @@
 {
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/kotlin-queue.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "git diff --name-only HEAD 2>/dev/null | grep -q '\\.kt$' && ./gradlew formatKotlin 2>/dev/null || true",
+            "command": ".claude/hooks/kotlin-flush.sh",
             "statusMessage": "Formatting Kotlin..."
           }
         ]
