@@ -60,10 +60,20 @@ class PassStoreImpl
         }
 
         override fun resolveByPackage(packageName: String): List<PassEntry> {
-            // com.github.android → github.com
-            val parts = packageName.split(".")
-            val domain = if (parts.size >= 2) "${parts[1]}.${parts[0]}" else packageName
-            return resolve(domain)
+            // Reverse package → domain: com.github.android → android.github.com
+            // Match any entry domain contained within reversed package (dot-bounded).
+            // bd.com.ucb.unet → unet.ucb.com.bd — contains ".ucb.com" and ".unet.ucb.com" ✓
+            val reversed =
+                packageName
+                    .split(".")
+                    .reversed()
+                    .joinToString(".")
+                    .lowercase()
+            return _index.value
+                .filter { entry ->
+                    val d = entry.domain?.lowercase() ?: return@filter false
+                    reversed == d || reversed.contains(".$d") || reversed.startsWith("$d.")
+                }.sortedByDescending { it.domain?.length ?: 0 }
         }
 
         private fun parseEntry(
