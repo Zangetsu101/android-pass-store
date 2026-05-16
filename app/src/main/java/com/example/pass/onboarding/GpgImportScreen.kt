@@ -44,13 +44,12 @@ fun OnboardingGpgImportScreen(
     val filePicker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             uri?.let {
-                val text =
+                val bytes =
                     context.contentResolver
                         .openInputStream(it)
-                        ?.bufferedReader()
-                        ?.readText()
+                        ?.readBytes()
                         ?: return@let
-                viewModel.setGpgKeyText(text)
+                viewModel.setGpgKeyFromBytes(bytes)
             }
         }
 

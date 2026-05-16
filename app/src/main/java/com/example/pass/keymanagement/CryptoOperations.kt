@@ -6,6 +6,9 @@ interface CryptoOperations {
     @Throws(KeyImportError::class)
     fun importGpgKey(armoredKey: String)
 
+    @Throws(KeyImportError::class)
+    fun armorGpgKey(bytes: ByteArray): String
+
     @Throws(SessionError::class)
     suspend fun startSession(passphrase: String)
 

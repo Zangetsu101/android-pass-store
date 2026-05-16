@@ -35,6 +35,22 @@ class GpgImportViewModel
             _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
         }
 
+        fun setGpgKeyFromBytes(bytes: ByteArray) {
+            val text = bytes.toString(Charsets.UTF_8)
+            if (text.trimStart().startsWith("-----BEGIN PGP")) {
+                setGpgKeyText(text)
+                return
+            }
+            viewModelScope.launch {
+                try {
+                    val armored = withContext(Dispatchers.IO) { cryptoOperations.armorGpgKey(bytes) }
+                    setGpgKeyText(armored)
+                } catch (e: KeyImportError) {
+                    _state.update { it.copy(gpgImportError = "Invalid or unrecognized key file") }
+                }
+            }
+        }
+
         fun importGpgKey() {
             viewModelScope.launch {
                 try {

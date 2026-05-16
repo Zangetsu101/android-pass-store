@@ -83,6 +83,20 @@ class CryptoService
             File(keysDir(), GPG_KEY_FILE).writeText(armoredKey)
         }
 
+        @Throws(KeyImportError::class)
+        override fun armorGpgKey(bytes: ByteArray): String {
+            val ring =
+                try {
+                    PGPainless.readKeyRing().secretKeyRing(bytes.inputStream())
+                        ?: throw KeyImportError.Malformed()
+                } catch (e: KeyImportError) {
+                    throw e
+                } catch (e: Exception) {
+                    throw KeyImportError.Malformed(e)
+                }
+            return PGPainless.asciiArmor(ring)
+        }
+
         @Throws(SessionError::class)
         override suspend fun startSession(passphrase: String) {
             val gpgFile = File(keysDir(), GPG_KEY_FILE)
