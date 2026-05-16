@@ -38,6 +38,11 @@ class PassDroidAutofillService : AutofillService() {
         val structure = context.structure
         val packageName = structure.activityComponent.packageName
 
+        if (packageName == applicationContext.packageName) {
+            callback.onSuccess(null)
+            return
+        }
+
         val webDomain = findWebDomain(structure)
         val candidates =
             if (webDomain != null) {
