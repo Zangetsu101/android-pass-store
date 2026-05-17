@@ -37,12 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.zangetsu101.pass.R
 import com.zangetsu101.pass.ui.components.PassAppIcon
-import com.zangetsu101.pass.ui.theme.JetBrainsMono
 import com.zangetsu101.pass.ui.theme.PassColorsDark
+import com.zangetsu101.pass.ui.theme.PassType
 
 @Composable
 fun SplashScreen() {
@@ -88,20 +87,16 @@ fun SplashScreen() {
                             append(".android")
                         }
                     },
-                fontSize = 26.sp,
-                letterSpacing = (-0.02).em,
-                fontFamily = JetBrainsMono,
-                lineHeight = 26.sp,
+                style = PassType.Display,
             )
 
             Spacer(Modifier.height(6.dp))
 
             Text(
                 text = "the unix password manager",
-                fontSize = 10.sp,
-                letterSpacing = 0.15.em,
+                style = PassType.Body,
                 color = PassColorsDark.TextFaint,
-                fontFamily = JetBrainsMono,
+                letterSpacing = 0.15.em,
             )
         }
 
@@ -140,9 +135,8 @@ fun SplashScreen() {
 
             Text(
                 text = "initialising…",
-                fontSize = 9.sp,
+                style = PassType.Label,
                 color = PassColorsDark.TextFaint,
-                fontFamily = JetBrainsMono,
             )
         }
     }

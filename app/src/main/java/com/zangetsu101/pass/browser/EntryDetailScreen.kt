@@ -346,6 +346,7 @@ private fun PasswordSkeleton() {
 
 @Composable
 private fun NotesSkeleton() {
+    val bodyHeight = with(LocalDensity.current) { PassType.Body.fontSize.toDp() }
     Text("notes", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
@@ -358,8 +359,8 @@ private fun NotesSkeleton() {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ShimmerBlock(height = 10.dp, modifier = Modifier.fillMaxWidth(0.85f))
-        ShimmerBlock(height = 10.dp, modifier = Modifier.fillMaxWidth(0.60f))
+        ShimmerBlock(height = bodyHeight, modifier = Modifier.fillMaxWidth(0.85f))
+        ShimmerBlock(height = bodyHeight, modifier = Modifier.fillMaxWidth(0.60f))
     }
 }
 

@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassSecondaryButton
@@ -151,6 +152,7 @@ fun CloneRepoScreen(
 
 @Composable
 private fun SshKeyShimmer() {
+    val captionHeight = with(LocalDensity.current) { PassType.Caption.fontSize.toDp() }
     val transition = rememberInfiniteTransition(label = "shimmer")
     val offsetX by transition.animateFloat(
         initialValue = -600f,
@@ -173,8 +175,8 @@ private fun SshKeyShimmer() {
                 .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.size(width = 140.dp, height = 9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(width = 140.dp, height = captionHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
         Box(Modifier.fillMaxWidth().height(9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
-        Box(Modifier.size(width = 100.dp, height = 9.dp).background(shimmerBrush, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(width = 100.dp, height = captionHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
     }
 }

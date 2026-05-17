@@ -87,7 +87,7 @@ fun WelcomeScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "the standard unix password manager — on your phone",
+                    text = "the standard unix password manager —\non your phone",
                     style = PassType.Body,
                     color = PassColorsDark.TextDim,
                 )

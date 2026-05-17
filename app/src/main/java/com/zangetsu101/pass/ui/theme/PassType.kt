@@ -21,21 +21,21 @@ object PassType {
         TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             color = PassColorsDark.Accent,
         )
     val Body =
         TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Normal,
-            fontSize = 11.sp,
+            fontSize = 13.sp,
             color = PassColorsDark.TextPrimary,
         )
     val Label =
         TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             letterSpacing = 0.12.em,
             color = PassColorsDark.Accent,
         )
@@ -43,14 +43,14 @@ object PassType {
         TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Normal,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = PassColorsDark.TextDim,
         )
     val Display =
         TextStyle(
             fontFamily = JetBrainsMono,
             fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
+            fontSize = 26.sp,
             letterSpacing = (-0.02).em,
             color = PassColorsDark.Accent,
         )
