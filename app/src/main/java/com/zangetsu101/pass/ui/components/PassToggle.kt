@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 
@@ -56,7 +57,7 @@ fun PassToggle(
         Box(
             modifier =
                 Modifier
-                    .offset(x = thumbOffset)
+                    .offset { IntOffset(thumbOffset.roundToPx(), 0) }
                     .size(12.dp)
                     .clip(CircleShape)
                     .background(if (checked) PassColorsDark.Border2 else Color.White),

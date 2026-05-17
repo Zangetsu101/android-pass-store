@@ -19,8 +19,8 @@ import com.zangetsu101.pass.ui.theme.PassType
 fun PassPrimaryButton(
     onClick: () -> Unit,
     label: String,
-    enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Button(
         onClick = onClick,

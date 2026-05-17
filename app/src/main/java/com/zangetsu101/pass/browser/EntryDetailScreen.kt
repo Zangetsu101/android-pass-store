@@ -1,5 +1,6 @@
 package com.zangetsu101.pass.browser
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -62,7 +62,7 @@ fun EntryDetailScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
-    val activity = LocalContext.current as FragmentActivity
+    val activity = LocalActivity.current as FragmentActivity
 
     LaunchedEffect(Unit) {
         viewModel.authenticate(activity)
@@ -386,8 +386,8 @@ private fun MetadataSkeleton() {
 @Composable
 private fun ShimmerBlock(
     height: Dp,
-    width: Dp? = null,
     modifier: Modifier = Modifier,
+    width: Dp? = null,
 ) {
     Box(
         modifier =
