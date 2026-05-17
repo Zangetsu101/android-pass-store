@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.pass"
+    namespace = "com.zangetsu101.pass"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.pass"
+        applicationId = "com.zangetsu101.pass"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
