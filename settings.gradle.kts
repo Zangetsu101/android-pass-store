@@ -22,5 +22,5 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Pass"
+rootProject.name = "pass.android"
 include(":app")
