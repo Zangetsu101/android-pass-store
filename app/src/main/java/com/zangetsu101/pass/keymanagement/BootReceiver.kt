@@ -15,7 +15,7 @@ class BootReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            sessionOperations.endSession(EndReason.REBOOT)
+            sessionOperations.endSession(EndReason.MANUAL)
         }
     }
 }

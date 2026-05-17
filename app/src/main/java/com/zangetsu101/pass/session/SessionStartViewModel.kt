@@ -48,9 +48,9 @@ class SessionStartViewModel
 
         private fun titleFor(reason: EndReason?) =
             when (reason) {
-                EndReason.REBOOT -> "start session"
+                EndReason.MANUAL, null -> "start session"
                 EndReason.BIOMETRIC_CHANGED -> "security change detected"
-                else -> "session expired"
+                EndReason.TIMEOUT -> "session expired"
             }
 
         fun setPassphrase(value: String) {

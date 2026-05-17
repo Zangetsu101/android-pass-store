@@ -130,7 +130,7 @@ class CryptoService
                 return withContext(Dispatchers.IO) { unlockGpgKey(p) }
             }
 
-            if (!sessionOperations.isSessionActive()) throw SessionError.NoActiveSession()
+            if (sessionOperations.sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
 
             val passphrase = sessionOperations.getPassphrase(activity)
             cachePassphrase(passphrase)

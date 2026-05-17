@@ -8,4 +8,4 @@ sealed class SessionState {
     ) : SessionState()
 }
 
-enum class EndReason { TIMEOUT, MANUAL, REBOOT, BIOMETRIC_CHANGED }
+enum class EndReason { TIMEOUT, MANUAL, BIOMETRIC_CHANGED }

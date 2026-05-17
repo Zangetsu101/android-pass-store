@@ -13,8 +13,6 @@ interface SessionOperations {
 
     fun touchSession()
 
-    fun isSessionActive(): Boolean
-
     @Throws(SessionError::class)
     suspend fun getPassphrase(activity: FragmentActivity): String
 }

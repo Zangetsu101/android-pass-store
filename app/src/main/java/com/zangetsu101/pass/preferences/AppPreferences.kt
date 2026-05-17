@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,6 +30,7 @@ class AppPreferences
         val gpgImported: Flow<Boolean> = store.data.map { it[KEY_GPG_IMPORTED] ?: false }
         val clipboardTimeoutSeconds: Flow<Int> = store.data.map { it[KEY_CLIPBOARD_TIMEOUT] ?: 45 }
         val defaultViewTree: Flow<Boolean> = store.data.map { it[KEY_DEFAULT_VIEW_TREE] ?: true }
+        val sessionLastTouched: Flow<Long> = store.data.map { it[KEY_SESSION_LAST_TOUCHED] ?: -1L }
 
         suspend fun setRemoteUrl(url: String) = store.edit { it[KEY_REMOTE_URL] = url }
 
@@ -44,6 +46,8 @@ class AppPreferences
 
         suspend fun setDefaultViewTree(tree: Boolean) = store.edit { it[KEY_DEFAULT_VIEW_TREE] = tree }
 
+        suspend fun setSessionLastTouched(timestamp: Long) = store.edit { it[KEY_SESSION_LAST_TOUCHED] = timestamp }
+
         suspend fun clearAll() = store.edit { it.clear() }
 
         companion object {
@@ -53,5 +57,6 @@ class AppPreferences
             private val KEY_GPG_IMPORTED = booleanPreferencesKey("gpg_imported")
             private val KEY_CLIPBOARD_TIMEOUT = intPreferencesKey("clipboard_timeout_seconds")
             private val KEY_DEFAULT_VIEW_TREE = booleanPreferencesKey("default_view_tree")
+            private val KEY_SESSION_LAST_TOUCHED = longPreferencesKey("session_last_touched")
         }
     }

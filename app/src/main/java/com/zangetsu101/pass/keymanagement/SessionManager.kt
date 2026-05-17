@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.KeyPairGenerator
@@ -51,10 +52,35 @@ class SessionManager
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var timeoutJob: Job? = null
 
-        private val _sessionState = MutableStateFlow<SessionState>(SessionState.Inactive(EndReason.REBOOT))
+        private val _sessionState = MutableStateFlow<SessionState>(SessionState.Inactive(EndReason.MANUAL))
         override val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
         private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
+
+        init {
+            val lastTouched = runBlocking { appPreferences.sessionLastTouched.first() }
+            val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+            val hasKey = keyStore.containsAlias(SESSION_KEY_ALIAS)
+            val hasBlob = File(keysDir(), SESSION_PASSPHRASE_BLOB).exists()
+            val hasSession = hasKey && hasBlob
+
+            when {
+                lastTouched != -1L && hasSession -> {
+                    _sessionState.value = SessionState.Active
+                    scope.launch {
+                        val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
+                        val elapsed = System.currentTimeMillis() - lastTouched
+                        startTimeout(timeoutMs - elapsed)
+                    }
+                }
+
+                hasSession -> {
+                    // migration: existing devices without lastTouched — clean up orphaned session
+                    keyStore.deleteEntry(SESSION_KEY_ALIAS)
+                    File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
+                }
+            }
+        }
 
         override suspend fun createSession(passphrase: String) {
             withContext(Dispatchers.IO) {
@@ -69,6 +95,7 @@ class SessionManager
                 File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(
                     cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8)),
                 )
+                appPreferences.setSessionLastTouched(System.currentTimeMillis())
             }
             _sessionState.value = SessionState.Active
             touchSession()
@@ -81,24 +108,31 @@ class SessionManager
                 keyStore.deleteEntry(SESSION_KEY_ALIAS)
             }
             File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
+            // lastTouched intentionally not cleared — used to derive EndReason on process-death restore
             _sessionState.value = SessionState.Inactive(reason)
         }
 
         override fun touchSession() {
             timeoutJob?.cancel()
-            timeoutJob =
-                scope.launch {
-                    val timeoutMinutes = appPreferences.sessionTimeoutMinutes.first()
-                    val timeoutMs = timeoutMinutes * 60_000L
-                    if (timeoutMs <= 0L) return@launch
-                    delay(timeoutMs)
-                    endSession(EndReason.TIMEOUT)
-                }
+            scope.launch {
+                val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
+                if (timeoutMs <= 0L) return@launch
+                appPreferences.setSessionLastTouched(System.currentTimeMillis())
+                startTimeout(timeoutMs)
+            }
         }
 
-        override fun isSessionActive(): Boolean {
-            val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-            return keyStore.containsAlias(SESSION_KEY_ALIAS)
+        private fun startTimeout(delayMs: Long) {
+            timeoutJob?.cancel()
+            if (delayMs <= 0L) {
+                endSession(EndReason.TIMEOUT)
+                return
+            }
+            timeoutJob =
+                scope.launch {
+                    delay(timeMillis = delayMs)
+                    endSession(EndReason.TIMEOUT)
+                }
         }
 
         override suspend fun getPassphrase(activity: FragmentActivity): String {
