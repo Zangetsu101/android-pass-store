@@ -271,7 +271,7 @@ private fun DirHeader(
             Modifier
                 .fillMaxWidth()
                 .clickable(enabled = enabled, onClick = onToggle)
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+                .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -296,7 +296,7 @@ private fun TreeEntryRow(
             Modifier
                 .fillMaxWidth()
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+                .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = entry.username, style = PassType.Body, modifier = Modifier.weight(1f))
