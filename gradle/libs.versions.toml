@@ -28,7 +28,7 @@ serializationJson = "1.11.0"
 robolectric = "4.16.1"
 coroutinesTest = "1.11.0"
 androidxTestCore = "1.7.0"
-mockitoKotlin = "5.4.0"
+mockitoKotlin = "6.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
