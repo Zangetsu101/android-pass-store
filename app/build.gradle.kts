@@ -14,7 +14,7 @@ android {
     defaultConfig {
         applicationId = "com.zangetsu101.pass"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -64,7 +64,7 @@ android {
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "org.bouncycastle" && requested.name == "bcpg-jdk18on") {
-            useVersion("1.81")
+            useVersion("1.84")
         }
     }
 }

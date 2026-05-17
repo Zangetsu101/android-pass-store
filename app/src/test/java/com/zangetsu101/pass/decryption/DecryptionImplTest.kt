@@ -4,7 +4,7 @@ import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.keymanagement.CryptoOperations
 import com.zangetsu101.pass.passstore.PassEntry
 import kotlinx.coroutines.test.runTest
-import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.bouncycastle.openpgp.api.OpenPGPKey
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -28,7 +28,7 @@ import java.nio.file.Files
 
 @RunWith(JUnit4::class)
 class DecryptionImplTest {
-    private lateinit var testKey: PGPSecretKeyRing
+    private lateinit var testKey: OpenPGPKey
     private lateinit var keyManagement: CryptoOperations
     private lateinit var decryption: DecryptionImpl
     private lateinit var tmpDir: File
@@ -47,7 +47,7 @@ class DecryptionImplTest {
     }
 
     private fun encryptText(plaintext: String): ByteArray {
-        val publicKey = PGPainless.extractCertificate(testKey)
+        val publicKey = PGPainless.extractCertificate(testKey.getPGPSecretKeyRing())
         val output = ByteArrayOutputStream()
         val encStream =
             PGPainless

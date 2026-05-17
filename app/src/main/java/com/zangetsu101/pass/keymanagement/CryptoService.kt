@@ -19,6 +19,7 @@ import org.bouncycastle.jce.spec.ECPublicKeySpec
 import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.bouncycastle.openpgp.api.OpenPGPKey
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.pgpainless.PGPainless
@@ -68,8 +69,11 @@ class CryptoService
         override fun importGpgKey(armoredKey: String) {
             val keys: PGPSecretKeyRing =
                 try {
-                    PGPainless.readKeyRing().secretKeyRing(armoredKey)
-                        ?: throw KeyImportError.Malformed()
+                    PGPainless
+                        .getInstance()
+                        .readKey()
+                        .parseKey(armoredKey)
+                        .getPGPSecretKeyRing()
                 } catch (e: KeyImportError) {
                     throw e
                 } catch (e: Exception) {
@@ -85,10 +89,13 @@ class CryptoService
 
         @Throws(KeyImportError::class)
         override fun armorGpgKey(bytes: ByteArray): String {
-            val ring =
+            val ring: PGPSecretKeyRing =
                 try {
-                    PGPainless.readKeyRing().secretKeyRing(bytes.inputStream())
-                        ?: throw KeyImportError.Malformed()
+                    PGPainless
+                        .getInstance()
+                        .readKey()
+                        .parseKey(bytes.inputStream())
+                        .getPGPSecretKeyRing()
                 } catch (e: KeyImportError) {
                     throw e
                 } catch (e: Exception) {
@@ -104,8 +111,11 @@ class CryptoService
 
             val keys =
                 withContext(Dispatchers.IO) {
-                    PGPainless.readKeyRing().secretKeyRing(gpgFile.readText())
-                        ?: error("Corrupted GPG key file")
+                    PGPainless
+                        .getInstance()
+                        .readKey()
+                        .parseKey(gpgFile.readText())
+                        .getPGPSecretKeyRing()
                 }
 
             val decryptor =
@@ -151,19 +161,24 @@ class CryptoService
         private fun unlockGpgKey(passphrase: String): GpgPrivateKey {
             val armoredKey = File(keysDir(), GPG_KEY_FILE).readText()
             val keys =
-                PGPainless.readKeyRing().secretKeyRing(armoredKey)
-                    ?: error("Corrupted GPG key file")
+                PGPainless
+                    .getInstance()
+                    .readKey()
+                    .parseKey(armoredKey)
+                    .getPGPSecretKeyRing()
             val decryptor =
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                     .build(passphrase.toCharArray())
-            return PGPSecretKeyRing(
-                keys.map { secretKey ->
-                    if (secretKey.s2KUsage != 0) {
-                        PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
-                    } else {
-                        secretKey
-                    }
-                },
+            return OpenPGPKey(
+                PGPSecretKeyRing(
+                    keys.map { secretKey ->
+                        if (secretKey.s2KUsage != 0) {
+                            PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
+                        } else {
+                            secretKey
+                        }
+                    },
+                ),
             )
         }
 
@@ -171,7 +186,12 @@ class CryptoService
             val file = File(keysDir(), GPG_KEY_FILE)
             if (!file.exists()) return null
             return try {
-                val ring = PGPainless.readKeyRing().secretKeyRing(file.readText()) ?: return null
+                val ring =
+                    PGPainless
+                        .getInstance()
+                        .readKey()
+                        .parseKey(file.readText())
+                        .getPGPSecretKeyRing()
                 val master = ring.firstOrNull { it.isMasterKey }?.publicKey ?: return null
                 val shortId = master.keyID and 0xFFFFFFFFL
                 val keyId = "%08X".format(shortId).chunked(4).joinToString(" ")

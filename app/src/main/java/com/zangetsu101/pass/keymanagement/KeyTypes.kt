@@ -1,7 +1,7 @@
 package com.zangetsu101.pass.keymanagement
 
-import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.bouncycastle.openpgp.api.OpenPGPKey
 import java.security.KeyPair
 
-typealias GpgPrivateKey = PGPSecretKeyRing
+typealias GpgPrivateKey = OpenPGPKey
 typealias SshKeyPair = KeyPair

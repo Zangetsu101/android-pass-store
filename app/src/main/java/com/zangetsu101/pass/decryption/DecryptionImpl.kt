@@ -9,7 +9,6 @@ import kotlinx.coroutines.withContext
 import org.bouncycastle.openpgp.PGPException
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
-import org.pgpainless.key.protection.SecretKeyRingProtector
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
@@ -46,20 +45,19 @@ class DecryptionImpl
         private fun decryptFile(
             entry: PassEntry,
             secretKeyRing: GpgPrivateKey,
-        ): String {
-            val protector = SecretKeyRingProtector.unprotectedKeys()
-
-            return try {
+        ): String =
+            try {
                 val ciphertext = entry.encryptedFile.readBytes()
                 val output = ByteArrayOutputStream()
                 val stream =
                     PGPainless
-                        .decryptAndOrVerify()
+                        .getInstance()
+                        .processMessage()
                         .onInputStream(ByteArrayInputStream(ciphertext))
                         .withOptions(
                             ConsumerOptions
                                 .get()
-                                .addDecryptionKey(secretKeyRing, protector),
+                                .addDecryptionKey(secretKeyRing),
                         )
                 stream.use { it.copyTo(output) }
                 if (!stream.metadata.isEncrypted) {
@@ -73,5 +71,4 @@ class DecryptionImpl
             } catch (e: Exception) {
                 throw DecryptionError("Decryption failed: ${e.message}", e)
             }
-        }
     }
