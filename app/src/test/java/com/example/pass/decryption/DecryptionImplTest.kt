@@ -1,7 +1,7 @@
 package com.example.pass.decryption
 
 import androidx.fragment.app.FragmentActivity
-import com.example.pass.keymanagement.KeyManagement
+import com.example.pass.keymanagement.CryptoOperations
 import com.example.pass.passstore.PassEntry
 import kotlinx.coroutines.test.runTest
 import org.bouncycastle.openpgp.PGPSecretKeyRing
@@ -29,7 +29,7 @@ import java.nio.file.Files
 @RunWith(JUnit4::class)
 class DecryptionImplTest {
     private lateinit var testKey: PGPSecretKeyRing
-    private lateinit var keyManagement: KeyManagement
+    private lateinit var keyManagement: CryptoOperations
     private lateinit var decryption: DecryptionImpl
     private lateinit var tmpDir: File
 
