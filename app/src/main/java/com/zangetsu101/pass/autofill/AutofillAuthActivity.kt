@@ -12,7 +12,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
-import com.zangetsu101.pass.keymanagement.SessionError
+import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.session.SessionStartActivity
 import dagger.hilt.android.AndroidEntryPoint
@@ -23,7 +23,8 @@ import javax.inject.Inject
 class AutofillAuthActivity : FragmentActivity() {
     @Inject lateinit var passStore: PassStore
 
-    @Inject lateinit var decryption: Decryption
+    @AutofillDecryption @Inject
+    lateinit var decryption: Decryption
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,7 +54,7 @@ class AutofillAuthActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             try {
-                val creds = decryption.decryptForAutofill(entry, this@AutofillAuthActivity)
+                val creds = decryption.decrypt(entry, this@AutofillAuthActivity)
 
                 val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
                 val presentation =

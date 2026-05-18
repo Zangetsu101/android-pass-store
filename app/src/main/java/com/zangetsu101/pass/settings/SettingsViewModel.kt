@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
-import com.zangetsu101.pass.keymanagement.CryptoOperations
-import com.zangetsu101.pass.keymanagement.SessionOperations
+import com.zangetsu101.pass.keymanagement.KeyManagement
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.session.SessionOperations
+import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,7 +36,8 @@ class SettingsViewModel
     constructor(
         @ApplicationContext private val context: Context,
         private val sessionOperations: SessionOperations,
-        private val cryptoOperations: CryptoOperations,
+        private val keyManagement: KeyManagement,
+        private val gpgKeyOperations: GpgKeyOperations,
         private val appPreferences: AppPreferences,
         private val gitSync: GitSync,
     ) : ViewModel() {
@@ -46,7 +49,7 @@ class SettingsViewModel
 
         val sessionActive: StateFlow<Boolean> =
             sessionOperations.sessionState
-                .map { it is com.zangetsu101.pass.keymanagement.SessionState.Active }
+                .map { it is SessionState.Active }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
         val sshPublicKey: StateFlow<String?> =
@@ -75,7 +78,7 @@ class SettingsViewModel
                 _state.update { it.copy(lastSyncTime = status?.lastSyncTime) }
             }
             viewModelScope.launch(Dispatchers.IO) {
-                _gpgKeyInfo.value = cryptoOperations.getGpgKeyInfo()
+                _gpgKeyInfo.value = gpgKeyOperations.getGpgKeyInfo()
             }
         }
 
@@ -99,7 +102,7 @@ class SettingsViewModel
             _state.update { it.copy(clearing = true) }
             viewModelScope.launch {
                 withContext(Dispatchers.IO) {
-                    cryptoOperations.clearAllKeys()
+                    keyManagement.clearAllKeys()
                     File(context.filesDir, "repo").deleteRecursively()
                 }
                 appPreferences.clearAll()

@@ -1,4 +1,4 @@
-package com.zangetsu101.pass.keymanagement
+package com.zangetsu101.pass.keymanagement.session
 
 import android.os.Build
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG

@@ -11,9 +11,8 @@ import com.zangetsu101.pass.decryption.Credentials
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.gitsync.GitSync
-import com.zangetsu101.pass.keymanagement.BiometricAuthException
-import com.zangetsu101.pass.keymanagement.CryptoOperations
-import com.zangetsu101.pass.keymanagement.SessionError
+import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
+import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
@@ -73,7 +72,6 @@ class EntryDetailViewModel
         @ApplicationContext private val context: Context,
         private val decryption: Decryption,
         private val gitSync: GitSync,
-        private val cryptoOperations: CryptoOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         @AssistedFactory

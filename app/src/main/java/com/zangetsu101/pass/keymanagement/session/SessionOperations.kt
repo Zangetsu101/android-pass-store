@@ -1,9 +1,9 @@
-package com.zangetsu101.pass.keymanagement
+package com.zangetsu101.pass.keymanagement.session
 
 import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.flow.StateFlow
 
-interface SessionOperations {
+interface SessionOperations : PassphraseProvider {
     val sessionState: StateFlow<SessionState>
 
     @Throws(SessionError::class)
@@ -12,7 +12,4 @@ interface SessionOperations {
     fun endSession(reason: EndReason = EndReason.MANUAL)
 
     fun touchSession()
-
-    @Throws(SessionError::class)
-    suspend fun getPassphrase(activity: FragmentActivity): String
 }

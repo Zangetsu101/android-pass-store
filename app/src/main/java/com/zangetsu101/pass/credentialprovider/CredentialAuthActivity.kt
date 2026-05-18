@@ -42,7 +42,7 @@ class CredentialAuthActivity : FragmentActivity() {
 
         lifecycleScope.launch {
             try {
-                val creds = decryption.decryptForAutofill(entry, this@CredentialAuthActivity)
+                val creds = decryption.decrypt(entry, this@CredentialAuthActivity)
                 val credential = PasswordCredential(creds.username, String(creds.password))
                 creds.zero()
 

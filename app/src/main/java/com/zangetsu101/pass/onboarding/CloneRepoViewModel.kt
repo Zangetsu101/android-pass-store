@@ -2,7 +2,7 @@ package com.zangetsu101.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.CryptoOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +24,7 @@ data class CloneRepoUiState(
 class CloneRepoViewModel
     @Inject
     constructor(
-        private val cryptoOperations: CryptoOperations,
+        private val cryptoOperations: SshKeyOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(CloneRepoUiState())

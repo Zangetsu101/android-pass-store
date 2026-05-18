@@ -1,4 +1,4 @@
-package com.zangetsu101.pass.keymanagement
+package com.zangetsu101.pass.keymanagement.gpg
 
 sealed class KeyImportError(
     message: String,

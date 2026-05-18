@@ -1,4 +1,4 @@
-package com.zangetsu101.pass.keymanagement
+package com.zangetsu101.pass.keymanagement.session
 
 import android.content.Context
 import android.os.Build
@@ -136,6 +136,7 @@ class SessionManager
         }
 
         override suspend fun getPassphrase(activity: FragmentActivity): String {
+            if (sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
             val ciphertext =
                 withContext(Dispatchers.IO) {
                     File(keysDir(), SESSION_PASSPHRASE_BLOB).readBytes()

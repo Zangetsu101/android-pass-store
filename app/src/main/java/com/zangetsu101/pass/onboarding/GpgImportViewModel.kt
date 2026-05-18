@@ -2,8 +2,8 @@ package com.zangetsu101.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.CryptoOperations
-import com.zangetsu101.pass.keymanagement.KeyImportError
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +25,7 @@ data class GpgImportUiState(
 class GpgImportViewModel
     @Inject
     constructor(
-        private val cryptoOperations: CryptoOperations,
+        private val cryptoOperations: GpgKeyOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(GpgImportUiState())

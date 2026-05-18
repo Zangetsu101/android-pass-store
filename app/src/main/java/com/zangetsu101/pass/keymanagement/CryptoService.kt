@@ -2,15 +2,12 @@ package com.zangetsu101.pass.keymanagement
 
 import android.content.Context
 import android.util.Base64
-import androidx.fragment.app.FragmentActivity
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
+import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.keymanagement.session.SessionOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -34,10 +31,9 @@ import java.security.spec.X509EncodedKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal const val GPG_KEY_FILENAME = "gpg.asc"
 internal const val BLOB_SSH_KEY = "ssh_key"
 internal const val BLOB_SSH_PUB_KEY = "ssh_pub_key"
-private const val GPG_KEY_FILE = "gpg.asc"
-private const val BIOMETRIC_CACHE_TIMEOUT_MS = 5 * 60 * 1000L
 
 @Singleton
 class CryptoService
@@ -45,35 +41,22 @@ class CryptoService
     constructor(
         @ApplicationContext private val context: Context,
         private val sessionOperations: SessionOperations,
-    ) : CryptoOperations {
+    ) : GpgKeyOperations,
+        SshKeyOperations,
+        KeyManagement {
         internal val blobStore = KeyBlobStore(context)
-
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private var cachedPassphrase: String? = null
-        private var biometricCacheJob: Job? = null
-
-        init {
-            scope.launch {
-                sessionOperations.sessionState.collect { state ->
-                    if (state is SessionState.Inactive) {
-                        cachedPassphrase = null
-                        biometricCacheJob?.cancel()
-                    }
-                }
-            }
-        }
 
         private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
 
         @Throws(KeyImportError::class)
         override fun importGpgKey(armoredKey: String) {
-            val keys: PGPSecretKeyRing =
+            val keys =
                 try {
                     PGPainless
                         .getInstance()
                         .readKey()
                         .parseKey(armoredKey)
-                        .getPGPSecretKeyRing()
+                        .pgpSecretKeyRing
                 } catch (e: KeyImportError) {
                     throw e
                 } catch (e: Exception) {
@@ -84,18 +67,18 @@ class CryptoService
                 throw KeyImportError.NoPassphrase()
             }
 
-            File(keysDir(), GPG_KEY_FILE).writeText(armoredKey)
+            File(keysDir(), GPG_KEY_FILENAME).writeText(armoredKey)
         }
 
         @Throws(KeyImportError::class)
         override fun armorGpgKey(bytes: ByteArray): String {
-            val ring: PGPSecretKeyRing =
+            val ring =
                 try {
                     PGPainless
                         .getInstance()
                         .readKey()
                         .parseKey(bytes.inputStream())
-                        .getPGPSecretKeyRing()
+                        .pgpSecretKeyRing
                 } catch (e: KeyImportError) {
                     throw e
                 } catch (e: Exception) {
@@ -105,67 +88,36 @@ class CryptoService
         }
 
         @Throws(SessionError::class)
-        override suspend fun startSession(passphrase: String) {
-            val gpgFile = File(keysDir(), GPG_KEY_FILE)
+        override fun validatePassphrase(passphrase: String) {
+            val gpgFile = File(keysDir(), GPG_KEY_FILENAME)
             check(gpgFile.exists()) { "No GPG key imported" }
-
             val keys =
-                withContext(Dispatchers.IO) {
-                    PGPainless
-                        .getInstance()
-                        .readKey()
-                        .parseKey(gpgFile.readText())
-                        .getPGPSecretKeyRing()
-                }
-
+                PGPainless
+                    .getInstance()
+                    .readKey()
+                    .parseKey(gpgFile.readText())
+                    .pgpSecretKeyRing
             val decryptor =
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                     .build(passphrase.toCharArray())
             val primaryKey = keys.firstOrNull { it.isMasterKey } ?: keys.first()
             try {
                 if (primaryKey.s2KUsage != 0) {
-                    withContext(Dispatchers.IO) { primaryKey.extractPrivateKey(decryptor) }
+                    primaryKey.extractPrivateKey(decryptor)
                 }
             } catch (e: PGPException) {
                 throw SessionError.WrongPassphrase()
             }
-
-            sessionOperations.createSession(passphrase)
         }
 
-        @Throws(SessionError::class)
-        override suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey {
-            cachedPassphrase?.let { p ->
-                sessionOperations.touchSession()
-                return withContext(Dispatchers.IO) { unlockGpgKey(p) }
-            }
-
-            if (sessionOperations.sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
-
-            val passphrase = sessionOperations.getPassphrase(activity)
-            cachePassphrase(passphrase)
-            sessionOperations.touchSession()
-            return withContext(Dispatchers.IO) { unlockGpgKey(passphrase) }
-        }
-
-        private fun cachePassphrase(passphrase: String) {
-            cachedPassphrase = passphrase
-            biometricCacheJob?.cancel()
-            biometricCacheJob =
-                scope.launch {
-                    delay(BIOMETRIC_CACHE_TIMEOUT_MS)
-                    cachedPassphrase = null
-                }
-        }
-
-        private fun unlockGpgKey(passphrase: String): GpgPrivateKey {
-            val armoredKey = File(keysDir(), GPG_KEY_FILE).readText()
+        override fun loadAndUnlock(passphrase: String): GpgPrivateKey {
+            val gpgFile = File(keysDir(), GPG_KEY_FILENAME)
             val keys =
                 PGPainless
                     .getInstance()
                     .readKey()
-                    .parseKey(armoredKey)
-                    .getPGPSecretKeyRing()
+                    .parseKey(gpgFile.readText())
+                    .pgpSecretKeyRing
             val decryptor =
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                     .build(passphrase.toCharArray())
@@ -183,7 +135,7 @@ class CryptoService
         }
 
         override fun getGpgKeyInfo(): Pair<String, String>? {
-            val file = File(keysDir(), GPG_KEY_FILE)
+            val file = File(keysDir(), GPG_KEY_FILENAME)
             if (!file.exists()) return null
             return try {
                 val ring =
@@ -191,7 +143,7 @@ class CryptoService
                         .getInstance()
                         .readKey()
                         .parseKey(file.readText())
-                        .getPGPSecretKeyRing()
+                        .pgpSecretKeyRing
                 val master = ring.firstOrNull { it.isMasterKey }?.publicKey ?: return null
                 val shortId = master.keyID and 0xFFFFFFFFL
                 val keyId = "%08X".format(shortId).chunked(4).joinToString(" ")

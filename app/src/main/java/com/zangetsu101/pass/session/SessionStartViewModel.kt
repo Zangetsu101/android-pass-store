@@ -2,18 +2,20 @@ package com.zangetsu101.pass.session
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.CryptoOperations
-import com.zangetsu101.pass.keymanagement.EndReason
-import com.zangetsu101.pass.keymanagement.SessionError
-import com.zangetsu101.pass.keymanagement.SessionOperations
-import com.zangetsu101.pass.keymanagement.SessionState
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.session.EndReason
+import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.keymanagement.session.SessionOperations
+import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class SessionStartUiState(
@@ -29,8 +31,8 @@ data class SessionStartUiState(
 class SessionStartViewModel
     @Inject
     constructor(
-        private val cryptoOperations: CryptoOperations,
-        sessionOperations: SessionOperations,
+        private val gpgKeyOperations: GpgKeyOperations,
+        private val sessionOperations: SessionOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
         private val _state = MutableStateFlow(SessionStartUiState())
@@ -62,7 +64,8 @@ class SessionStartViewModel
             _state.update { it.copy(loading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    cryptoOperations.startSession(passphrase)
+                    withContext(Dispatchers.IO) { gpgKeyOperations.validatePassphrase(passphrase) }
+                    sessionOperations.createSession(passphrase)
                     _state.update { it.copy(loading = false, success = true) }
                 } catch (e: SessionError) {
                     _state.update { it.copy(loading = false, error = e.message) }

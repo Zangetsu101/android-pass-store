@@ -1,4 +1,4 @@
-package com.zangetsu101.pass.keymanagement
+package com.zangetsu101.pass.keymanagement.session
 
 sealed class SessionState {
     data object Active : SessionState()
