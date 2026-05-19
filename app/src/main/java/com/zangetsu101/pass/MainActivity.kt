@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
-import com.zangetsu101.pass.navigation.PassDroidNavHost
+import com.zangetsu101.pass.navigation.PassAndroidNavHost
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.ui.theme.PassTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -19,7 +19,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             PassTheme {
-                PassDroidNavHost(appPreferences)
+                PassAndroidNavHost(appPreferences)
             }
         }
     }

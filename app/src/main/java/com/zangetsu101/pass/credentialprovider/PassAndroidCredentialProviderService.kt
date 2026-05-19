@@ -25,7 +25,7 @@ import javax.inject.Inject
 // Upgrade the dependency when that version stabilises to enable inline biometric on API 35+.
 @RequiresApi(34)
 @AndroidEntryPoint
-class PassDroidCredentialProviderService : CredentialProviderService() {
+class PassAndroidCredentialProviderService : CredentialProviderService() {
     @Inject lateinit var passStore: PassStore
 
     override fun onBeginGetCredentialRequest(
@@ -56,7 +56,7 @@ class PassDroidCredentialProviderService : CredentialProviderService() {
         cancellationSignal: android.os.CancellationSignal,
         callback: OutcomeReceiver<BeginCreateCredentialResponse, CreateCredentialException>,
     ) {
-        callback.onError(CreateCredentialUnknownException("PassDroid is read-only"))
+        callback.onError(CreateCredentialUnknownException("PassAndroid is read-only"))
     }
 
     override fun onClearCredentialStateRequest(

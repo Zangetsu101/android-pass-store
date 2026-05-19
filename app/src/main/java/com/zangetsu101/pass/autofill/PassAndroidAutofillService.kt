@@ -21,7 +21,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class PassDroidAutofillService : AutofillService() {
+class PassAndroidAutofillService : AutofillService() {
     @Inject lateinit var passStore: PassStore
 
     override fun onFillRequest(

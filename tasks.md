@@ -1,4 +1,4 @@
-# PassDroid — Implementation Tasks
+# PassAndroid — Implementation Tasks
 
 ## Manual Verification (Final)
 
@@ -71,7 +71,7 @@ Run once after task 11 is complete. Sign off each item before shipping.
 
 ### AutofillService
 
-- [ ] PassDroid appears in Android Settings → Autofill service
+- [ ] PassAndroid appears in Android Settings → Autofill service
 - [ ] suggestions appear in Chrome browser login form
 - [ ] suggestions appear in a native app login form
 - [ ] suggestions ranked (exact above fuzzy)

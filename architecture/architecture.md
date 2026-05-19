@@ -1,4 +1,4 @@
-# PassDroid — Architecture
+# PassAndroid — Architecture
 
 > Read-only Android client for the `pass` password store with autofill integration.
 

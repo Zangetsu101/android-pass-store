@@ -47,7 +47,7 @@ AutofillService injects `SessionOperations` directly — no `CryptoOperations` d
 ## Acceptance Checklist
 
 ```
-[manual] PassDroid appears as option in Android Settings → Autofill service
+[manual] PassAndroid appears as option in Android Settings → Autofill service
 [manual] autofill suggestions appear in Chrome browser login form
 [manual] autofill suggestions appear in a native app login form
            (test with at least one app matching a pass entry by package name)

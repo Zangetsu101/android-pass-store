@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name=".PassDroidApp"
+        android:name=".PassAndroidApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -46,7 +46,7 @@
             tools:ignore="Instantiatable" />
 
         <service
-            android:name=".autofill.PassDroidAutofillService"
+            android:name=".autofill.PassAndroidAutofillService"
             android:exported="true"
             android:permission="android.permission.BIND_AUTOFILL_SERVICE">
             <intent-filter>
@@ -90,7 +90,7 @@
         </receiver>
 
         <service
-            android:name=".credentialprovider.PassDroidCredentialProviderService"
+            android:name=".credentialprovider.PassAndroidCredentialProviderService"
             android:exported="true"
             android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
             tools:ignore="Instantiatable"

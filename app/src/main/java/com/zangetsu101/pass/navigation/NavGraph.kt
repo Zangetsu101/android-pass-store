@@ -67,7 +67,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Serializable data object Settings : NavKey
 
 @Composable
-fun PassDroidNavHost(appPreferences: AppPreferences) {
+fun PassAndroidNavHost(appPreferences: AppPreferences) {
     val backStack = rememberNavBackStack(Splash)
 
     NavDisplay(
