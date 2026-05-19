@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:ignore="SystemPermissionTypo" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".PassDroidApp"
@@ -21,6 +24,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize"
             tools:ignore="Instantiatable">
             <intent-filter>
@@ -63,6 +67,19 @@
         <receiver
             android:name=".browser.ClipboardClearReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".notification.SessionClearReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".notification.SessionTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="This app is a password manager. A foreground service maintains a persistent notification showing the remaining session time, allowing users to monitor and clear their active decryption session." />
+        </service>
 
         <receiver
             android:name=".keymanagement.BootReceiver"

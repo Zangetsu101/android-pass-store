@@ -7,6 +7,7 @@ import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
+import com.zangetsu101.pass.notification.SessionTimerService
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -67,6 +68,7 @@ class SessionManager
             when {
                 lastTouched != -1L && hasSession -> {
                     _sessionState.value = SessionState.Active
+                    SessionTimerService.start(context)
                     scope.launch {
                         val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
                         val elapsed = System.currentTimeMillis() - lastTouched
@@ -110,9 +112,11 @@ class SessionManager
             File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
             // lastTouched intentionally not cleared — used to derive EndReason on process-death restore
             _sessionState.value = SessionState.Inactive(reason)
+            SessionTimerService.stop(context)
         }
 
         override fun touchSession() {
+            SessionTimerService.start(context)
             timeoutJob?.cancel()
             scope.launch {
                 val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
@@ -160,9 +164,12 @@ class SessionManager
             val authenticatedCipher =
                 result.cryptoObject?.cipher
                     ?: throw BiometricAuthException("No authenticated cipher returned")
-            return withContext(Dispatchers.IO) {
-                String(authenticatedCipher.doFinal(ciphertext), Charsets.UTF_8)
-            }
+            val passphrase =
+                withContext(Dispatchers.IO) {
+                    String(authenticatedCipher.doFinal(ciphertext), Charsets.UTF_8)
+                }
+            touchSession()
+            return passphrase
         }
 
         private fun createSessionKey() {

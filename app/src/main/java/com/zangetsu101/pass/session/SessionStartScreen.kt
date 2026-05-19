@@ -1,5 +1,9 @@
 package com.zangetsu101.pass.session
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,6 +59,11 @@ fun SessionStartScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var showPassphrase by remember { mutableStateOf(false) }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+        LaunchedEffect(Unit) { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+    }
 
     LaunchedEffect(state.success) {
         if (state.success) onSuccess()
