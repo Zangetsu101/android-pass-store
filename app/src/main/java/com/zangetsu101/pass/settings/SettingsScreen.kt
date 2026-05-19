@@ -99,7 +99,7 @@ fun SettingsScreen(
         ) {
             // GIT
             SettingsSection(label = "git") {
-                MetaRow("remote url", if (remoteUrl.isNotEmpty()) remoteUrl else "not configured")
+                MetaRow("remote url", remoteUrl.ifEmpty { "not configured" })
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 MetaRow(
                     "last sync",

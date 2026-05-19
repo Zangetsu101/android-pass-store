@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:ignore="SystemPermissionTypo" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".PassDroidApp"
@@ -58,6 +59,10 @@
             android:theme="@style/Theme.Pass.Transparent"
             tools:ignore="Instantiatable"
             tools:targetApi="34" />
+
+        <receiver
+            android:name=".browser.ClipboardClearReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".keymanagement.BootReceiver"

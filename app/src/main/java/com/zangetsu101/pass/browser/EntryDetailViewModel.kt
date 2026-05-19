@@ -3,7 +3,6 @@ package com.zangetsu101.pass.browser
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.os.Build
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -132,15 +131,13 @@ class EntryDetailViewModel
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
             _state.update { it.copy(unlockState = current.copy(clipboardCopied = true)) }
+            val timeoutMillis = _state.value.clipboardTimeoutSeconds * 1000L
+            ClipboardClearReceiver.cancel(context)
+            ClipboardClearReceiver.schedule(context, timeoutMillis)
             clipClearJob?.cancel()
             clipClearJob =
                 viewModelScope.launch {
-                    delay(_state.value.clipboardTimeoutSeconds * 1000L)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        clipboard.clearPrimaryClip()
-                    } else {
-                        clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
-                    }
+                    delay(timeMillis = timeoutMillis)
                     val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
                     _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false)) }
                 }
