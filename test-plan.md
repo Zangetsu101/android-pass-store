@@ -67,49 +67,44 @@ Setup: mock `PassphraseProvider` (delegate) + mock `SessionOperations`. Inject `
 
 ---
 
-### CryptoService — 16 tests
+### CryptoService / GpgKeyOperations — 13 tests
 
-Setup: mock `SessionOperations` + mock `KeyBlobStore`. Real PGPainless (generate test keys inline, consistent with `DecryptionImplTest` pattern). Temp `filesDir` for GPG key file.
+Setup: mock `Context` (`filesDir` → temp dir) + mock `SessionOperations`. Real PGPainless (generate passphrase-protected test keys inline). No Robolectric needed — pure JVM.
+
+**Production change required:** `loadAndUnlock` must catch `PGPException` → `SessionError.WrongPassphrase` (same as `validatePassphrase`).
 
 **importGpgKey (3)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | Valid passphrase-protected armored key | File written, no exception |
+| 1 | Valid passphrase-protected armored key | File written to temp dir, no exception |
 | 2 | Key with no passphrase (`s2KUsage == 0`) | throws `KeyImportError.NoPassphrase` |
 | 3 | Malformed / non-PGP text | throws `KeyImportError.Malformed` |
 
-**startSession (4)**
+**armorGpgKey (2)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 4 | Correct passphrase | `sessionOperations.createSession` called |
-| 5 | Passphrase > 190 bytes | throws `SessionError.PassphraseTooLong` |
-| 6 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
-| 7 | No GPG file on disk | throws `IllegalStateException` |
+| 4 | Valid raw key bytes (binary PGP packet) | Returns armored string; round-trip key IDs match |
+| 5 | Malformed bytes | throws `KeyImportError.Malformed` |
 
-**getGpgKey (3)**
+**validatePassphrase (3)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 8 | Passphrase cached | returns key, `sessionOperations.getPassphrase` NOT called |
-| 9 | No cache, session active | calls `getPassphrase`, caches result |
-| 10 | Session inactive | throws `SessionError.NoActiveSession` |
+| 6 | Correct passphrase | No exception |
+| 7 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
+| 8 | No GPG file on disk | throws `IllegalStateException` |
 
-**Passphrase cache lifecycle (2)**
+**loadAndUnlock (2)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 11 | `sessionState` emits `Inactive` | `cachedPassphrase` cleared immediately |
-| 12 | `advanceTimeBy(BIOMETRIC_CACHE_TIMEOUT_MS)` | cache cleared, next `getGpgKey` calls `getPassphrase` again |
+| 9 | Correct passphrase | Returns `OpenPGPKey` usable for decryption (decrypt a test ciphertext) |
+| 10 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
 
-**Key info / management (3)**
+**getGpgKeyInfo (3)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 13 | `getGpgKeyInfo` — no file | returns `null` |
-| 14 | `getGpgKeyInfo` — valid key | returns `(keyId, uid)` pair |
-| 15 | `clearAllKeys` | `endSession` called + `blobStore.deleteAll` called |
-
-**SSH round-trip (1)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 16 | `generateSshKey` then `getSshKey` | returned `KeyPair` reconstructed from stored blobs |
+| 11 | No file on disk | returns `null` |
+| 12 | Valid key file | returns `(keyId, uid)` pair with correct format |
+| 13 | Corrupted file content | returns `null` (exception swallowed) |
 
 ---
 
