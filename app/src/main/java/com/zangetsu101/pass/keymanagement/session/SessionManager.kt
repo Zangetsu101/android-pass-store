@@ -65,21 +65,13 @@ class SessionManager
             val hasBlob = File(keysDir(), SESSION_PASSPHRASE_BLOB).exists()
             val hasSession = hasKey && hasBlob
 
-            when {
-                lastTouched != -1L && hasSession -> {
-                    _sessionState.value = SessionState.Active
-                    SessionTimerService.start(context)
-                    scope.launch {
-                        val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
-                        val elapsed = System.currentTimeMillis() - lastTouched
-                        startTimeout(timeoutMs - elapsed)
-                    }
-                }
-
-                hasSession -> {
-                    // migration: existing devices without lastTouched — clean up orphaned session
-                    keyStore.deleteEntry(SESSION_KEY_ALIAS)
-                    File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
+            if (lastTouched != -1L && hasSession) {
+                _sessionState.value = SessionState.Active
+                SessionTimerService.start(context)
+                scope.launch {
+                    val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
+                    val elapsed = System.currentTimeMillis() - lastTouched
+                    startTimeout(timeoutMs - elapsed)
                 }
             }
         }
