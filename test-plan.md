@@ -13,7 +13,10 @@ No coverage gate yet — add tests first.
 
 ## Production Code Changes Required
 
-- **Extract `CryptoKeyStore` interface** from `SessionManager`: wraps Android KeyStore + Cipher ops. `SessionManager` depends on interface; tests mock it.
+- **Extract `SessionKeyStore` interface** from `SessionManager`: wraps all keystore + blob file ops (`hasSession`, `createKey`, `storeEncryptedPassphrase`, `readEncryptedPassphrase`, `deleteSession`, `getDecryptCipher`). `getDecryptCipher` owns cipher init and may throw `KeyPermanentlyInvalidatedException`. Inject into `SessionManager`.
+- **Extract `BiometricPrompter` interface** from `SessionManager`: single `suspend fun prompt(activity, cipher): Cipher`. Inject into `SessionManager`.
+- **Inject `CoroutineScope`** into `SessionManager` constructor — required for `TestCoroutineScheduler` time control in unit tests.
+- ~~Migration path in `SessionManager.init` (`lastTouched == -1L && hasSession`)~~ — removed.
 - **Remove `https://`** from `CloneRepoViewModel.validateRemoteUrl` — accepted by validation but SSH-key-only auth means it silently fails at clone time.
 - **TODO**: verify `file://` protocol actually works end-to-end before treating it as supported.
 
@@ -21,23 +24,50 @@ No coverage gate yet — add tests first.
 
 ## Test Cases
 
-### SessionManager — 7 tests
+### SessionManager — 11 unit tests
 
-Setup: mock `CryptoKeyStore` + mock `AppPreferences`. Use `runTest` + `TestCoroutineScheduler` for timeout tests.
+Setup: mock `SessionKeyStore` + mock `BiometricPrompter` + mock `AppPreferences`. Inject `TestScope(TestCoroutineScheduler)`. Use `runTest` + `advanceTimeBy`. Turbine for `sessionState` flow.
 
-| #   | Test                                         | Assertion                                          |
-| --- | -------------------------------------------- | -------------------------------------------------- |
-| 1   | `createSession` valid passphrase             | `sessionState` emits `Active`                      |
-| 2   | `createSession` passphrase > 190 bytes       | throws `PassphraseTooLong`, state stays `Inactive` |
-| 3   | `endSession(MANUAL)`                         | `sessionState` emits `Inactive(MANUAL)`            |
-| 4   | `endSession` after `createSession`           | no `TIMEOUT` emission after end                    |
-| 5   | `createSession` → `advanceTimeBy(timeoutMs)` | `sessionState` emits `Inactive(TIMEOUT)`           |
-| 6   | `touchSession` called before deadline        | timer resets, no early `Inactive`                  |
-| 7   | `sessionTimeoutMinutes = 0`                  | session never auto-expires                         |
+| #   | Test                                                                                      | Assertion                                                                |
+| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1   | Init: `lastTouched` set + `hasSession=true`, time remaining                               | `sessionState` emits `Active`; timer scheduled for remaining ms          |
+| 2   | Init: `lastTouched` set + `hasSession=true`, elapsed > timeout                            | immediate `Inactive(TIMEOUT)`                                            |
+| 3   | Init: `lastTouched = -1` or `hasSession=false`                                            | stays `Inactive(MANUAL)`                                                 |
+| 4   | `createSession` passphrase > 190 bytes                                                    | throws `PassphraseTooLong`, state unchanged                              |
+| 5   | `createSession` success                                                                   | `sessionState` emits `Active`; `keyStore.createKey` + `store` called     |
+| 6   | `endSession(MANUAL)`                                                                      | `sessionState` emits `Inactive(MANUAL)`; `keyStore.deleteSession` called |
+| 7   | `touchSession` → `advanceTimeBy(timeoutMs)`                                               | `sessionState` emits `Inactive(TIMEOUT)`                                 |
+| 8   | `touchSession` called before deadline, then `advanceTimeBy(timeoutMs)`                    | timer resets; no early expiry                                            |
+| 9   | `touchSession` with `timeoutMs = 0`                                                       | no timer launched, session stays `Active` indefinitely                   |
+| 10  | `getPassphrase` when `Inactive`                                                           | throws `NoActiveSession`                                                 |
+| 11  | `getPassphrase` → `keyStore.getDecryptCipher` throws `KeyPermanentlyInvalidatedException` | `endSession(BIOMETRIC_CHANGED)` called; throws `NoActiveSession`         |
 
 ---
 
-### CryptoService — 15 tests
+### SessionManager — 1 instrumented test
+
+Setup: real `AndroidKeyStore` impl of `SessionKeyStore`; mock `BiometricPrompter` returns pre-initialized cipher.
+
+| #   | Test                                                    | Assertion                     |
+| --- | ------------------------------------------------------- | ----------------------------- |
+| 1   | `createSession(passphrase)` → `getPassphrase(activity)` | returns original `passphrase` |
+
+---
+
+### CachingPassphraseProvider — 4 unit tests
+
+Setup: mock `PassphraseProvider` (delegate) + mock `SessionOperations`. Inject `TestScope(TestCoroutineScheduler)`. Use `runTest` + `advanceTimeBy`.
+
+| #   | Test                                            | Assertion                                                         |
+| --- | ----------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | Cache miss: first call                          | delegates to provider; result cached; `touchSession` called       |
+| 2   | Cache hit: second call before 5 min             | cached value returned; delegate NOT called; `touchSession` called |
+| 3   | Cache expires: `advanceTimeBy(5 min)` then call | delegate called again                                             |
+| 4   | `sessionState` emits `Inactive`                 | `cachedPassphrase` cleared immediately                            |
+
+---
+
+### CryptoService — 16 tests
 
 Setup: mock `SessionOperations` + mock `KeyBlobStore`. Real PGPainless (generate test keys inline, consistent with `DecryptionImplTest` pattern). Temp `filesDir` for GPG key file.
 
@@ -48,37 +78,38 @@ Setup: mock `SessionOperations` + mock `KeyBlobStore`. Real PGPainless (generate
 | 2 | Key with no passphrase (`s2KUsage == 0`) | throws `KeyImportError.NoPassphrase` |
 | 3 | Malformed / non-PGP text | throws `KeyImportError.Malformed` |
 
-**startSession (3)**
+**startSession (4)**
 | # | Test | Assertion |
 |---|------|-----------|
 | 4 | Correct passphrase | `sessionOperations.createSession` called |
-| 5 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
-| 6 | No GPG file on disk | throws `IllegalStateException` |
+| 5 | Passphrase > 190 bytes | throws `SessionError.PassphraseTooLong` |
+| 6 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
+| 7 | No GPG file on disk | throws `IllegalStateException` |
 
 **getGpgKey (3)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 7 | Passphrase cached | returns key, `sessionOperations.getPassphrase` NOT called |
-| 8 | No cache, session active | calls `getPassphrase`, caches result |
-| 9 | Session inactive | throws `SessionError.NoActiveSession` |
+| 8 | Passphrase cached | returns key, `sessionOperations.getPassphrase` NOT called |
+| 9 | No cache, session active | calls `getPassphrase`, caches result |
+| 10 | Session inactive | throws `SessionError.NoActiveSession` |
 
 **Passphrase cache lifecycle (2)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 10 | `sessionState` emits `Inactive` | `cachedPassphrase` cleared immediately |
-| 11 | `advanceTimeBy(BIOMETRIC_CACHE_TIMEOUT_MS)` | cache cleared, next `getGpgKey` calls `getPassphrase` again |
+| 11 | `sessionState` emits `Inactive` | `cachedPassphrase` cleared immediately |
+| 12 | `advanceTimeBy(BIOMETRIC_CACHE_TIMEOUT_MS)` | cache cleared, next `getGpgKey` calls `getPassphrase` again |
 
 **Key info / management (3)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 12 | `getGpgKeyInfo` — no file | returns `null` |
-| 13 | `getGpgKeyInfo` — valid key | returns `(keyId, uid)` pair |
-| 14 | `clearAllKeys` | `endSession` called + `blobStore.deleteAll` called |
+| 13 | `getGpgKeyInfo` — no file | returns `null` |
+| 14 | `getGpgKeyInfo` — valid key | returns `(keyId, uid)` pair |
+| 15 | `clearAllKeys` | `endSession` called + `blobStore.deleteAll` called |
 
 **SSH round-trip (1)**
 | # | Test | Assertion |
 |---|------|-----------|
-| 15 | `generateSshKey` then `getSshKey` | returned `KeyPair` reconstructed from stored blobs |
+| 16 | `generateSshKey` then `getSshKey` | returned `KeyPair` reconstructed from stored blobs |
 
 ---
 
