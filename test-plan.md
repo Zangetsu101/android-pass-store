@@ -16,6 +16,7 @@ No coverage gate yet — add tests first.
 - **Extract `SessionKeyStore` interface** from `SessionManager`: wraps all keystore + blob file ops (`hasSession`, `createKey`, `storeEncryptedPassphrase`, `readEncryptedPassphrase`, `deleteSession`, `getDecryptCipher`). `getDecryptCipher` owns cipher init and may throw `KeyPermanentlyInvalidatedException`. Inject into `SessionManager`.
 - **Extract `BiometricPrompter` interface** from `SessionManager`: single `suspend fun prompt(activity, cipher): Cipher`. Inject into `SessionManager`.
 - **Inject `CoroutineScope`** into `SessionManager` constructor — required for `TestCoroutineScheduler` time control in unit tests.
+- **Inject `CoroutineScope`** into `CachingPassphraseProvider` constructor — required for `TestCoroutineScheduler` time control in unit tests.
 - ~~Migration path in `SessionManager.init` (`lastTouched == -1L && hasSession`)~~ — removed.
 - **Remove `https://`** from `CloneRepoViewModel.validateRemoteUrl` — accepted by validation but SSH-key-only auth means it silently fails at clone time.
 - **TODO**: verify `file://` protocol actually works end-to-end before treating it as supported.
@@ -123,11 +124,11 @@ Setup: `PreferenceDataStoreFactory.create()` with temp file in `TestScope`. No m
 
 ### SessionStartViewModel — 7 tests
 
-Setup: mock `CryptoOperations` + mock `SessionOperations` + mock `AppPreferences`. Use `StandardTestDispatcher`.
+Setup: mock `GpgKeyOperations` + mock `SessionOperations` + mock `AppPreferences`. Use `StandardTestDispatcher`.
 
 | #   | Test                                    | Assertion                                              |
 | --- | --------------------------------------- | ------------------------------------------------------ |
-| 1   | Init with `EndReason.REBOOT`            | `title = "start session"`                              |
+| 1   | Init with `EndReason.MANUAL`            | `title = "start session"`                              |
 | 2   | Init with `EndReason.BIOMETRIC_CHANGED` | `title = "security change detected"`                   |
 | 3   | Init with `EndReason.TIMEOUT`           | `title = "session expired"`                            |
 | 4   | `sessionTimeoutMinutes` pref changes    | state reflects new value                               |
@@ -139,7 +140,7 @@ Setup: mock `CryptoOperations` + mock `SessionOperations` + mock `AppPreferences
 
 ### GpgImportViewModel — 4 tests
 
-Setup: mock `CryptoOperations` + mock `AppPreferences`.
+Setup: mock `GpgKeyOperations` + mock `AppPreferences`.
 
 | #   | Test                            | Assertion                                                             |
 | --- | ------------------------------- | --------------------------------------------------------------------- |
@@ -150,19 +151,20 @@ Setup: mock `CryptoOperations` + mock `AppPreferences`.
 
 ---
 
-### CloneRepoViewModel — 7 tests
+### CloneRepoViewModel — 8 tests
 
-Setup: mock `CryptoOperations` + mock `AppPreferences`.
+Setup: mock `SshKeyOperations` + mock `AppPreferences`.
 
 | #   | Test                                             | Assertion                                                                            |
 | --- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
 | 1   | Init                                             | SSH key generated, `state.sshPublicKey` set, `appPreferences.setSshPublicKey` called |
 | 2   | `validateRemoteUrl` empty string                 | error "Remote URL is required", returns `false`                                      |
 | 3   | `validateRemoteUrl` invalid (e.g. `"ftp://..."`) | error "Enter a valid git remote URL", returns `false`                                |
-| 4   | `validateRemoteUrl("git@github.com:x/y.git")`    | `remoteUrlError=null`, returns `true`                                                |
-| 5   | `validateRemoteUrl("ssh://git@github.com/x/y")`  | valid, returns `true`                                                                |
-| 6   | `validateRemoteUrl("file:///local/repo")`        | valid, returns `true` _(TODO: confirm file:// works end-to-end)_                     |
-| 7   | `regenerateSshKey`                               | new key generated, prefs updated                                                     |
+| 4   | `validateRemoteUrl("https://github.com/x/y")`    | error "Enter a valid git remote URL", returns `false`                                |
+| 5   | `validateRemoteUrl("git@github.com:x/y.git")`    | `remoteUrlError=null`, returns `true`                                                |
+| 6   | `validateRemoteUrl("ssh://git@github.com/x/y")`  | valid, returns `true`                                                                |
+| 7   | `validateRemoteUrl("file:///local/repo")`        | valid, returns `true` _(TODO: confirm file:// works end-to-end)_                     |
+| 8   | `regenerateSshKey`                               | new key generated, prefs updated                                                     |
 
 ---
 
@@ -181,7 +183,7 @@ Setup: mock `GitSync` + mock `PassStore`.
 
 ### EntryDetailViewModel — 10 tests
 
-Setup: mock `Decryption` + mock `GitSync` + mock `CryptoOperations` + mock `AppPreferences`. `FragmentActivity` passed as `mockk()` (not used beyond delegation to mocked `Decryption`). Mock `ClipboardManager` via Robolectric for `copyPassword` test.
+Setup: mock `Decryption` + mock `GitSync` + mock `AppPreferences` + mock `Context`. `FragmentActivity` passed as `mockk()` (not used beyond delegation to mocked `Decryption`). Mock `ClipboardManager` via Robolectric for `copyPassword` test.
 
 | #   | Test                                            | Assertion                                                                            |
 | --- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
