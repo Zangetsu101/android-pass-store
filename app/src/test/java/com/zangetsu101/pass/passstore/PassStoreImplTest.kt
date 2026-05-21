@@ -85,24 +85,13 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `resolve fuzzy fallback returns github dot com for githubb dot com`() {
-        createGpgFile("web/github.com/alice.gpg")
-        store.buildIndex()
-
-        val results = store.resolve("githubb.com")
-
-        assertTrue(results.isNotEmpty())
-        assertEquals("github.com", results.first().domain)
-    }
-
-    @Test
     fun `resolve returns empty list when no candidates`() {
         createGpgFile("web/github.com/alice.gpg")
         store.buildIndex()
 
         val results = store.resolve("totally-unrelated-xyz-12345.io")
 
-        assertTrue(results is List<*>)
+        assertTrue(results.isEmpty())
     }
 
     @Test
@@ -127,9 +116,9 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `search ranks closer matches higher`() {
+    fun `search ranks startsWith match above contains match`() {
         createGpgFile("web/github.com/alice.gpg")
-        createGpgFile("web/example.com/bob.gpg")
+        createGpgFile("web/mygithub.com/alice.gpg")
         store.buildIndex()
 
         val results = store.search("github")

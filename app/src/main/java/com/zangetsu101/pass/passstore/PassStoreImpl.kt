@@ -56,7 +56,7 @@ class PassStoreImpl
                 }
             if (subdomain.isNotEmpty()) return subdomain
 
-            return search(q).take(5)
+            return emptyList()
         }
 
         override fun resolveByPackage(packageName: String): List<PassEntry> {
