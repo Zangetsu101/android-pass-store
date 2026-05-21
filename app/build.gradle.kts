@@ -47,6 +47,7 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
+            it.useJUnitPlatform()
             it.jvmArgs(
                 "--add-opens", "java.base/java.security=ALL-UNNAMED",
                 "--add-opens", "java.base/java.lang=ALL-UNNAMED",
@@ -129,8 +130,13 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.vintage.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
     testImplementation(libs.robolectric)
-    testImplementation(libs.mockito.kotlin)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.junit)

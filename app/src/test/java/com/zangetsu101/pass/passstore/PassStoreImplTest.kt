@@ -102,7 +102,6 @@ class PassStoreImplTest {
 
         val results = store.resolve("totally-unrelated-xyz-12345.io")
 
-        // Fuzzy may return something; just confirm it doesn't throw
         assertTrue(results is List<*>)
     }
 
