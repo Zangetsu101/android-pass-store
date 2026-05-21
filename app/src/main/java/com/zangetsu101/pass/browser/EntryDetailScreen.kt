@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -251,13 +252,15 @@ private fun NotesCard(notes: String) {
                 .heightIn(min = 60.dp)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        Text(
-            notes.ifEmpty { "no notes" },
-            style =
-                PassType.Body.copy(
-                    color = if (notes.isEmpty()) PassColorsDark.TextFaint else PassColorsDark.TextPrimary,
-                ),
-        )
+        SelectionContainer {
+            Text(
+                notes.ifEmpty { "no notes" },
+                style =
+                    PassType.Body.copy(
+                        color = if (notes.isEmpty()) PassColorsDark.TextFaint else PassColorsDark.TextPrimary,
+                    ),
+            )
+        }
     }
 }
 
