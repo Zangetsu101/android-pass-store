@@ -49,8 +49,7 @@ class CloneRepoViewModel
                 return false
             }
             val valid =
-                url.startsWith("git@") || url.startsWith("ssh://") ||
-                    url.startsWith("https://") || url.startsWith("file://")
+                url.startsWith("git@") || url.startsWith("ssh://") || url.startsWith("file://")
             if (!valid) {
                 _state.update { it.copy(remoteUrlError = "Enter a valid git remote URL") }
                 return false
