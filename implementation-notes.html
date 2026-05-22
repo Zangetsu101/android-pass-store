@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GpgImportViewModelTest — Implementation Notes</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 800px;
+        margin: 2rem auto;
+        line-height: 1.6;
+        color: #222;
+      }
+      h1 {
+        border-bottom: 2px solid #444;
+        padding-bottom: 0.3em;
+      }
+      h2 {
+        color: #333;
+        margin-top: 2rem;
+      }
+      code {
+        background: #f4f4f4;
+        padding: 0.1em 0.4em;
+        border-radius: 3px;
+        font-family: monospace;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+        border-radius: 4px;
+        overflow-x: auto;
+      }
+      .decision,
+      .deviation,
+      .tradeoff,
+      .question {
+        border-left: 4px solid #888;
+        padding: 0.5rem 1rem;
+        margin: 0.8rem 0;
+        background: #fafafa;
+      }
+      .decision {
+        border-color: #4a90d9;
+      }
+      .deviation {
+        border-color: #e67e22;
+      }
+      .tradeoff {
+        border-color: #27ae60;
+      }
+      .question {
+        border-color: #c0392b;
+      }
+      .label {
+        font-weight: bold;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>GpgImportViewModelTest — Implementation Notes</h1>
+    <p>
+      <em
+        >File:
+        <code
+          >app/src/test/java/com/zangetsu101/pass/onboarding/GpgImportViewModelTest.kt</code
+        ></em
+      >
+    </p>
+
+    <h2>Design Decisions</h2>
+
+    <div class="decision">
+      <p class="label">
+        Decision — <code>every</code> vs <code>coEvery</code> for
+        <code>importGpgKey</code>
+      </p>
+      <p>
+        <code>GpgKeyOperations.importGpgKey</code> is a regular (non-suspend)
+        function annotated with <code>@Throws(KeyImportError::class)</code>. It
+        is called inside <code>withContext(Dispatchers.IO)</code> in the
+        ViewModel, but that doesn't make the function itself a suspend function.
+        MockK's <code>every</code> is correct here; <code>coEvery</code>
+        would also work but is semantically wrong.
+      </p>
+    </div>
+
+    <div class="decision">
+      <p class="label">
+        Decision — <code>relaxed = true</code> on
+        <code>AppPreferences</code> mock
+      </p>
+      <p>
+        <code>AppPreferences</code> is a concrete class (not an interface) with
+        a suspend function <code>setGpgImported</code>. Using
+        <code>relaxed = true</code> means MockK auto-stubs all methods,
+        preventing <code>UnstubbedMockKException</code> on any calls not
+        explicitly set up. In the success test, <code>coJustRun</code> is still
+        explicitly set for clarity and to enable <code>coVerify</code>.
+      </p>
+    </div>
+
+    <div class="decision">
+      <p class="label">
+        Decision — Shared <code>StandardTestDispatcher</code> between
+        <code>setMain</code> and <code>runTest</code>
+      </p>
+      <p>
+        The same <code>testDispatcher</code> instance is passed to both
+        <code>Dispatchers.setMain()</code> and
+        <code>runTest(testDispatcher)</code>. This ensures
+        <code>viewModelScope</code> (which uses <code>Dispatchers.Main</code>)
+        and the test coroutine share the same
+        <code>TestCoroutineScheduler</code>, so
+        <code>advanceUntilIdle()</code> drains all pending coroutines on both
+        sides.
+      </p>
+    </div>
+
+    <div class="decision">
+      <p class="label">
+        Decision — Direct constructor instantiation of
+        <code>GpgImportViewModel</code>
+      </p>
+      <p>
+        Although the ViewModel is annotated with <code>@HiltViewModel</code>,
+        Hilt injection is only needed at runtime. In unit tests the constructor
+        is public and accepts the two dependencies directly, so
+        <code>GpgImportViewModel(cryptoOperations, appPreferences)</code> works
+        without any Hilt test infrastructure.
+      </p>
+    </div>
+
+    <h2>Deviations from Spec</h2>
+
+    <div class="deviation">
+      <p class="label">
+        Deviation — ViewModel modified to expose
+        <code>internal var ioDispatcher</code>
+      </p>
+      <p>
+        The spec asks only for test code, but the ViewModel hard-codes
+        <code>Dispatchers.IO</code>. With <code>StandardTestDispatcher</code>,
+        <code>withContext(Dispatchers.IO)</code> dispatches to the real thread
+        pool; <code>advanceUntilIdle()</code> drains only the test scheduler and
+        returns before the IO continuation posts back — all three coroutine
+        tests failed with stale state. Fix: added
+        <code
+          >internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO</code
+        >
+        to the ViewModel and set it to <code>testDispatcher</code> in
+        <code>@BeforeEach</code>. Production behaviour is unchanged (default
+        stays <code>Dispatchers.IO</code>; Hilt does not inject it). Adding it
+        as a constructor parameter was rejected because Hilt treats every
+        constructor parameter as a required binding and fails with
+        <em>MissingBinding</em> for <code>CoroutineDispatcher</code>.
+      </p>
+    </div>
+
+    <div class="deviation">
+      <p class="label">
+        Deviation — <code>coJustRun</code> instead of
+        <code>coEvery { … } just Runs</code>
+      </p>
+      <p>
+        The spec does not prescribe a specific MockK idiom.
+        <code>coJustRun { appPreferences.setGpgImported(true) }</code> is the
+        idiomatic shorthand for stubbing a suspend function that returns
+        <code>Unit</code>; it is equivalent to
+        <code>coEvery { … } just Runs</code> but more concise.
+      </p>
+    </div>
+
+    <div class="deviation">
+      <p class="label">
+        Deviation — <code>assertNotNull</code> for error message, not exact
+        string match
+      </p>
+      <p>
+        Spec says "gpgImportError set" without specifying the exact string.
+        Tests verify
+        <code>assertNotNull(state.gpgImportError)</code>. Exact string matching
+        would couple tests to <code>KeyImportError</code> message literals,
+        making them brittle to wording changes.
+      </p>
+    </div>
+
+    <h2>Tradeoffs</h2>
+
+    <div class="tradeoff">
+      <p class="label">
+        Tradeoff — <code>StandardTestDispatcher</code> vs
+        <code>UnconfinedTestDispatcher</code>
+      </p>
+      <p>
+        Spec mandates <code>StandardTestDispatcher</code>. This dispatcher does
+        not execute coroutines eagerly — manual
+        <code>advanceUntilIdle()</code> is required. The risk is a race between
+        <code>withContext(Dispatchers.IO)</code> (real thread pool) and
+        <code>advanceUntilIdle()</code> returning too early. In practice this is
+        safe because MockK stubs return synchronously, so the IO thread
+        completes and posts the continuation back to Main before the scheduler
+        checks for idle. <code>UnconfinedTestDispatcher</code> would eliminate
+        this concern entirely but violates the spec.
+      </p>
+    </div>
+
+    <div class="tradeoff">
+      <p class="label">
+        Tradeoff — Mocking concrete <code>AppPreferences</code> vs extracting
+        interface
+      </p>
+      <p>
+        <code>AppPreferences</code> has no interface. Options: (a) mock the
+        concrete class with MockK (chosen — zero code changes), (b) introduce an
+        <code>AppPreferencesInterface</code> and update the ViewModel. Option
+        (a) keeps the change minimal and self-contained. Option (b) is better
+        long-term but out of scope for this task.
+      </p>
+    </div>
+
+    <h2>Open Questions</h2>
+
+    <div class="question">
+      <p class="label">Question — IO dispatcher substitution (resolved)</p>
+      <p>
+        Originally flagged as a potential flakiness risk. Confirmed as the root
+        cause: tests 2–4 all failed because
+        <code>advanceUntilIdle()</code> returned before the real IO dispatcher
+        posted the continuation back to Main. Resolved by adding
+        <code>internal var ioDispatcher</code> to the ViewModel (see
+        Deviations).
+      </p>
+    </div>
+
+    <div class="question">
+      <p class="label">Question — <code>setGpgKeyFromBytes</code> coverage</p>
+      <p>
+        The spec does not include tests for <code>setGpgKeyFromBytes</code>,
+        which also launches a coroutine and uses <code>Dispatchers.IO</code>.
+        The armoring path (non-PGP-header bytes) and error path (<code
+          >KeyImportError</code
+        >
+        thrown by <code>armorGpgKey</code>) are untested. Confirm whether these
+        are intentionally deferred.
+      </p>
+    </div>
+  </body>
+</html>

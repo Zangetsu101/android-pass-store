@@ -6,6 +6,7 @@ import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ class GpgImportViewModel
         private val cryptoOperations: GpgKeyOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
+        internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
         private val _state = MutableStateFlow(GpgImportUiState())
         val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
 
@@ -43,7 +45,7 @@ class GpgImportViewModel
             }
             viewModelScope.launch {
                 try {
-                    val armored = withContext(Dispatchers.IO) { cryptoOperations.armorGpgKey(bytes) }
+                    val armored = withContext(ioDispatcher) { cryptoOperations.armorGpgKey(bytes) }
                     setGpgKeyText(armored)
                 } catch (e: KeyImportError) {
                     _state.update { it.copy(gpgImportError = "Invalid or unrecognized key file") }
@@ -55,7 +57,7 @@ class GpgImportViewModel
             viewModelScope.launch {
                 try {
                     val text = _state.value.gpgKeyText
-                    withContext(Dispatchers.IO) { cryptoOperations.importGpgKey(text) }
+                    withContext(ioDispatcher) { cryptoOperations.importGpgKey(text) }
                     _state.update { it.copy(gpgImported = true, gpgImportError = null) }
                     appPreferences.setGpgImported(true)
                 } catch (e: KeyImportError) {
