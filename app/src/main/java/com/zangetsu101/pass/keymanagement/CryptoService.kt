@@ -112,6 +112,7 @@ class CryptoService
 
         override fun loadAndUnlock(passphrase: String): GpgPrivateKey {
             val gpgFile = File(keysDir(), GPG_KEY_FILENAME)
+            check(gpgFile.exists()) { "No GPG key imported" }
             val keys =
                 PGPainless
                     .getInstance()
@@ -121,17 +122,21 @@ class CryptoService
             val decryptor =
                 BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                     .build(passphrase.toCharArray())
-            return OpenPGPKey(
-                PGPSecretKeyRing(
-                    keys.map { secretKey ->
-                        if (secretKey.s2KUsage != 0) {
-                            PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
-                        } else {
-                            secretKey
-                        }
-                    },
-                ),
-            )
+            try {
+                return OpenPGPKey(
+                    PGPSecretKeyRing(
+                        keys.map { secretKey ->
+                            if (secretKey.s2KUsage != 0) {
+                                PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
+                            } else {
+                                secretKey
+                            }
+                        },
+                    ),
+                )
+            } catch (e: PGPException) {
+                throw SessionError.WrongPassphrase()
+            }
         }
 
         override fun getGpgKeyInfo(): Pair<String, String>? {
