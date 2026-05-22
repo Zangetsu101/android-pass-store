@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AppPreferencesTest — Implementation Notes</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 860px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+        color: #222;
+      }
+      h1 {
+        border-bottom: 2px solid #333;
+        padding-bottom: 0.4rem;
+      }
+      h2 {
+        margin-top: 2rem;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 0.2rem;
+      }
+      code {
+        background: #f4f4f4;
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 0.92em;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+        border-radius: 5px;
+        overflow-x: auto;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 0.75em;
+        padding: 1px 6px;
+        border-radius: 3px;
+        margin-right: 4px;
+        font-weight: 600;
+      }
+      .decision {
+        background: #d0e8ff;
+        color: #003d80;
+      }
+      .deviation {
+        background: #ffe0c0;
+        color: #7a3000;
+      }
+      .tradeoff {
+        background: #ddffd0;
+        color: #1a5c00;
+      }
+      .open {
+        background: #f0e0ff;
+        color: #4a006e;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+      }
+      th {
+        background: #f0f0f0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AppPreferencesTest — Implementation Notes</h1>
+    <p>
+      <strong>Task:</strong> Write unit tests for
+      <code>AppPreferences</code> per spec.<br />
+      <strong>Date:</strong> 2026-05-22
+    </p>
+
+    <h2>Design Decisions</h2>
+
+    <h3>
+      <span class="tag decision">DECISION</span> Refactor
+      <code>AppPreferences</code> to accept
+      <code>DataStore&lt;Preferences&gt;</code> directly
+    </h3>
+    <p>
+      The spec mandates JUnit5 unit tests using
+      <code>PreferenceDataStoreFactory.create()</code>. The original
+      <code>AppPreferences</code> constructed its DataStore internally via a
+      <code>Context</code>-extension property (<code>preferencesDataStore</code>
+      delegate). JUnit5 unit tests run on the JVM without an Android runtime, so
+      there is no Android <code>Context</code> available. To satisfy the spec
+      without Robolectric, the constructor was changed to accept
+      <code>DataStore&lt;Preferences&gt;</code> directly, making the class
+      context-free and trivially testable.
+    </p>
+
+    <h3>
+      <span class="tag decision">DECISION</span> Added
+      <code>PreferencesModule</code> Hilt module
+    </h3>
+    <p>
+      Extracting Context from <code>AppPreferences</code> moves the
+      responsibility for constructing the DataStore to DI. A new
+      <code>PreferencesModule</code> provides a singleton
+      <code>DataStore&lt;Preferences&gt;</code> using the original
+      <code>preferencesDataStore("app_prefs")</code> delegate. All existing
+      callers (ViewModels, <code>MainActivity</code>, etc.) continue to receive
+      the same injected <code>AppPreferences</code>
+      singleton — no callsite changes required.
+    </p>
+
+    <h3>
+      <span class="tag decision">DECISION</span> One shared
+      <code>TestScope(UnconfinedTestDispatcher())</code> per test method,
+      recreated in <code>@BeforeEach</code>
+    </h3>
+    <p>
+      The DataStore's coroutine scope must outlive the
+      <code>runTest</code> block (it is used as the DataStore's background
+      scope). Creating a fresh <code>TestScope</code> per test in
+      <code>@BeforeEach</code> and cancelling it in
+      <code>@AfterEach</code> gives each test an isolated scope and avoids scope
+      leaks. <code>UnconfinedTestDispatcher</code> causes DataStore I/O to run
+      eagerly without explicit <code>advanceUntilIdle()</code> calls.
+    </p>
+
+    <h2>Deviations from Spec</h2>
+
+    <h3>
+      <span class="tag deviation">DEVIATION</span>
+      <code>AppPreferences.kt</code> modified (not mentioned in spec)
+    </h3>
+    <p>
+      The spec lists only one file to <em>create</em>. However, the original
+      implementation cannot be exercised by JUnit5+<code
+        >PreferenceDataStoreFactory</code
+      >
+      without a Context. The minimal source change (swap constructor param) was
+      necessary to satisfy all other spec constraints simultaneously.
+      Alternatives are discussed in <em>Tradeoffs</em> below.
+    </p>
+
+    <h3>
+      <span class="tag deviation">DEVIATION</span>
+      <code>PreferencesModule.kt</code> created (not mentioned in spec)
+    </h3>
+    <p>
+      Required to restore prod DI after removing Context from
+      <code>AppPreferences</code>. Without it, Hilt would fail to satisfy the
+      <code>DataStore&lt;Preferences&gt;</code> dependency at compile time.
+    </p>
+
+    <h2>Tradeoffs</h2>
+
+    <table>
+      <tr>
+        <th>Approach</th>
+        <th>Pros</th>
+        <th>Cons</th>
+        <th>Chosen?</th>
+      </tr>
+      <tr>
+        <td>Inject <code>DataStore&lt;Preferences&gt;</code> (implemented)</td>
+        <td>
+          Pure JVM tests; no Robolectric; idiomatic DI;
+          <code>AppPreferences</code> has no Android dep
+        </td>
+        <td>Requires touching prod source + adding a Hilt module</td>
+        <td>✅</td>
+      </tr>
+      <tr>
+        <td>Robolectric + JUnit4 (existing pattern in codebase)</td>
+        <td>No prod refactor needed; matches existing test style</td>
+        <td>
+          Violates spec (JUnit5 mandated); DataStore singleton per context
+          causes cross-test bleed unless manually cleared
+        </td>
+        <td>✗</td>
+      </tr>
+      <tr>
+        <td>
+          Robolectric + JUnit5 (<code>@ExtendWith(RobolectricExtension)</code>)
+        </td>
+        <td>JUnit5 compliant; no prod refactor</td>
+        <td>
+          Requires <code>robolectric-junit5</code> dep not in project; still has
+          DataStore singleton bleed risk; more complex setup
+        </td>
+        <td>✗</td>
+      </tr>
+      <tr>
+        <td>Internal/package-private secondary constructor for tests</td>
+        <td>Avoids DI changes</td>
+        <td>Test-only code in prod source; non-idiomatic Kotlin DI pattern</td>
+        <td>✗</td>
+      </tr>
+    </table>
+
+    <h2>Open Questions</h2>
+
+    <ul>
+      <li>
+        <span class="tag open">OPEN</span>
+        <strong
+          >Test 7 covers all 6 spec prefs but not
+          <code>sessionLastTouched</code>.</strong
+        >
+        The source has 7 prefs; the spec enumerates only 6 (no
+        <code>sessionLastTouched</code> in defaults list or round-trip
+        requirement). Tests follow the spec exactly. Confirm whether
+        <code>sessionLastTouched</code>
+        should be included in tests 1, 7, and/or 9.
+      </li>
+      <li>
+        <span class="tag open">OPEN</span>
+        <strong
+          >Should <code>testScope.cancel()</code> flush pending DataStore writes
+          before deletion?</strong
+        >
+        With <code>UnconfinedTestDispatcher</code>, writes are synchronous so
+        this is not an issue in practice. If the dispatcher changes, teardown
+        may need an explicit <code>advanceUntilIdle()</code> before cancel.
+      </li>
+      <li>
+        <span class="tag open">OPEN</span>
+        <strong>Turbine not used.</strong>
+        The spec tests only the latest emitted value (<code>first()</code>).
+        Turbine would add value for testing emission sequences (e.g., verifying
+        intermediate states during <code>clearAll</code>). Include if emission
+        ordering matters.
+      </li>
+    </ul>
+  </body>
+</html>

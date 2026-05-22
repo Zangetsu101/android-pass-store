@@ -1,28 +1,23 @@
 package com.zangetsu101.pass.preferences
 
-import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.appPrefsDataStore by preferencesDataStore("app_prefs")
-
 @Singleton
 class AppPreferences
     @Inject
     constructor(
-        @ApplicationContext private val context: Context,
+        private val store: DataStore<Preferences>,
     ) {
-        private val store = context.appPrefsDataStore
-
         // empty string = not configured (onboarding needed); non-empty = configured
         val remoteUrl: Flow<String> = store.data.map { it[KEY_REMOTE_URL] ?: "" }
         val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
