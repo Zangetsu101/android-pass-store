@@ -10,8 +10,7 @@ import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -25,7 +24,7 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CloneRepoViewModelTest {
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var sshKeyOps: SshKeyOperations
     private lateinit var appPrefs: AppPreferences
     private lateinit var viewModel: CloneRepoViewModel
@@ -48,7 +47,6 @@ class CloneRepoViewModelTest {
     @Test
     fun `init generates SSH key, sets state, and persists to prefs`() =
         runTest(testDispatcher) {
-            advanceUntilIdle()
             assertEquals("ssh-ed25519 TESTKEY", viewModel.state.value.sshPublicKey)
             coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 TESTKEY") }
         }
@@ -104,10 +102,8 @@ class CloneRepoViewModelTest {
     @Test
     fun `regenerateSshKey generates new key and updates prefs`() =
         runTest(testDispatcher) {
-            advanceUntilIdle() // let init complete
             every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 NEWKEY"
             viewModel.regenerateSshKey()
-            advanceUntilIdle()
             assertEquals("ssh-ed25519 NEWKEY", viewModel.state.value.sshPublicKey)
             coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 NEWKEY") }
         }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Named
 
 data class GpgImportUiState(
     val gpgKeyText: String = "",
@@ -28,8 +29,8 @@ class GpgImportViewModel
     constructor(
         private val cryptoOperations: GpgKeyOperations,
         private val appPreferences: AppPreferences,
+        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModel() {
-        internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
         private val _state = MutableStateFlow(GpgImportUiState())
         val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
 

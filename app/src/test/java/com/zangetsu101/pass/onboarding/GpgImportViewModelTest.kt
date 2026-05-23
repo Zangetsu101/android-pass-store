@@ -3,14 +3,15 @@ package com.zangetsu101.pass.onboarding
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
-import io.mockk.coJustRun
+import io.mockk.Awaits
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GpgImportViewModelTest {
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
     private val cryptoOperations = mockk<GpgKeyOperations>()
     private val appPreferences = mockk<AppPreferences>(relaxed = true)
     private lateinit var viewModel: GpgImportViewModel
@@ -33,9 +34,7 @@ class GpgImportViewModelTest {
     @BeforeEach
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = GpgImportViewModel(cryptoOperations, appPreferences).also {
-            it.ioDispatcher = testDispatcher
-        }
+        viewModel = GpgImportViewModel(cryptoOperations, appPreferences, testDispatcher)
     }
 
     @AfterEach
@@ -57,10 +56,9 @@ class GpgImportViewModelTest {
     fun `importGpgKey success sets gpgImported true and persists via appPreferences`() =
         runTest(testDispatcher) {
             every { cryptoOperations.importGpgKey(any()) } returns Unit
-            coJustRun { appPreferences.setGpgImported(true) }
+            coEvery { appPreferences.setGpgImported(true) } just Awaits
 
             viewModel.importGpgKey()
-            advanceUntilIdle()
 
             assertTrue(viewModel.state.value.gpgImported)
             assertNull(viewModel.state.value.gpgImportError)
@@ -73,7 +71,6 @@ class GpgImportViewModelTest {
             every { cryptoOperations.importGpgKey(any()) } throws KeyImportError.NoPassphrase()
 
             viewModel.importGpgKey()
-            advanceUntilIdle()
 
             assertNotNull(viewModel.state.value.gpgImportError)
             assertFalse(viewModel.state.value.gpgImported)
@@ -85,7 +82,6 @@ class GpgImportViewModelTest {
             every { cryptoOperations.importGpgKey(any()) } throws KeyImportError.Malformed()
 
             viewModel.importGpgKey()
-            advanceUntilIdle()
 
             assertNotNull(viewModel.state.value.gpgImportError)
         }
