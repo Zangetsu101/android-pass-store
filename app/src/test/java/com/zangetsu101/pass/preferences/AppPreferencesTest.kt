@@ -1,6 +1,7 @@
 package com.zangetsu101.pass.preferences
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.File
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AppPreferencesTest {
     private lateinit var testScope: TestScope
     private lateinit var tempFile: File
@@ -75,6 +77,12 @@ class AppPreferencesTest {
         }
 
     @Test
+    fun `default sessionLastTouched is -1`() =
+        testScope.runTest {
+            assertEquals(-1L, prefs.sessionLastTouched.first())
+        }
+
+    @Test
     fun `round-trip write and read survives DataStore serialization`() =
         testScope.runTest {
             prefs.setRemoteUrl("https://git.example.com/repo.git")
@@ -94,6 +102,9 @@ class AppPreferencesTest {
 
             prefs.setDefaultViewTree(false)
             assertFalse(prefs.defaultViewTree.first())
+
+            prefs.setSessionLastTouched(1_700_000_000_000L)
+            assertEquals(1_700_000_000_000L, prefs.sessionLastTouched.first())
         }
 
     @Test
@@ -113,6 +124,7 @@ class AppPreferencesTest {
             prefs.setGpgImported(true)
             prefs.setClipboardTimeout(10)
             prefs.setDefaultViewTree(false)
+            prefs.setSessionLastTouched(1_700_000_000_000L)
 
             prefs.clearAll()
 
@@ -122,5 +134,6 @@ class AppPreferencesTest {
             assertFalse(prefs.gpgImported.first())
             assertEquals(45, prefs.clipboardTimeoutSeconds.first())
             assertTrue(prefs.defaultViewTree.first())
+            assertEquals(-1L, prefs.sessionLastTouched.first())
         }
 }
