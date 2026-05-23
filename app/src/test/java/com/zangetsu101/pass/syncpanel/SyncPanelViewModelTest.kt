@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -85,6 +86,8 @@ class SyncPanelViewModelTest {
                 )
 
             viewModel.pull()
+            assertTrue(viewModel.state.value.pulling)
+
             advanceUntilIdle()
 
             coVerify(exactly = 1) { passStore.buildIndex() }
@@ -100,10 +103,55 @@ class SyncPanelViewModelTest {
 
             coEvery { gitSync.pull() } throws RuntimeException("Connection reset")
             viewModel.pull()
+            assertTrue(viewModel.state.value.pulling)
+
             advanceUntilIdle()
 
             assertNotNull(viewModel.state.value.pullError)
             // init loadStatus + loadStatus from pull catch block
             coVerify(exactly = 2) { gitSync.syncStatus() }
+        }
+
+    @Test
+    fun `pullSuccess is not reset by subsequent loadStatus`() =
+        runTest(testDispatcher) {
+            advanceUntilIdle() // settle init
+
+            val pullTime: Instant = Instant.parse("2024-06-01T00:00:00Z")
+            coEvery { gitSync.pull() } returns
+                SyncResult(
+                    newEntries = emptyList(),
+                    removedEntries = emptyList(),
+                    lastSyncTime = pullTime,
+                )
+
+            viewModel.pull()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.pullSuccess)
+
+            viewModel.loadStatus()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.pullSuccess)
+        }
+
+    @Test
+    fun `pull resets pullSuccess before launching`() =
+        runTest(testDispatcher) {
+            advanceUntilIdle() // settle init
+
+            val pullTime: Instant = Instant.parse("2024-06-01T00:00:00Z")
+            coEvery { gitSync.pull() } returns
+                SyncResult(
+                    newEntries = emptyList(),
+                    removedEntries = emptyList(),
+                    lastSyncTime = pullTime,
+                )
+
+            viewModel.pull()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.pullSuccess)
+
+            viewModel.pull()
+            assertFalse(viewModel.state.value.pullSuccess)
         }
 }
