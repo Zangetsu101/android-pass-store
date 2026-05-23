@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Named
 
 data class CloneRepoUiState(
     val remoteUrl: String = "",
@@ -26,13 +28,14 @@ class CloneRepoViewModel
     constructor(
         private val cryptoOperations: SshKeyOperations,
         private val appPreferences: AppPreferences,
+        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : ViewModel() {
         private val _state = MutableStateFlow(CloneRepoUiState())
         val state: StateFlow<CloneRepoUiState> = _state.asStateFlow()
 
         init {
             viewModelScope.launch {
-                val publicKey = withContext(Dispatchers.IO) { cryptoOperations.generateSshKey() }
+                val publicKey = withContext(ioDispatcher) { cryptoOperations.generateSshKey() }
                 _state.update { it.copy(sshPublicKey = publicKey) }
                 appPreferences.setSshPublicKey(publicKey)
             }
@@ -60,7 +63,7 @@ class CloneRepoViewModel
 
         fun regenerateSshKey() {
             viewModelScope.launch {
-                val publicKey = withContext(Dispatchers.IO) { cryptoOperations.generateSshKey() }
+                val publicKey = withContext(ioDispatcher) { cryptoOperations.generateSshKey() }
                 _state.update { it.copy(sshPublicKey = publicKey) }
                 appPreferences.setSshPublicKey(publicKey)
             }

@@ -2,13 +2,14 @@ package com.zangetsu101.pass.onboarding
 
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
 import com.zangetsu101.pass.preferences.AppPreferences
-import io.mockk.Runs
+import io.mockk.Awaits
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CloneRepoViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var sshKeyOps: SshKeyOperations
@@ -34,8 +36,8 @@ class CloneRepoViewModelTest {
         sshKeyOps = mockk()
         appPrefs = mockk()
         every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 TESTKEY"
-        coEvery { appPrefs.setSshPublicKey(any()) } just Runs
-        viewModel = CloneRepoViewModel(sshKeyOps, appPrefs)
+        coEvery { appPrefs.setSshPublicKey(any()) } just Awaits
+        viewModel = CloneRepoViewModel(sshKeyOps, appPrefs, testDispatcher)
     }
 
     @AfterEach
@@ -44,11 +46,12 @@ class CloneRepoViewModelTest {
     }
 
     @Test
-    fun `init generates SSH key, sets state, and persists to prefs`() = runTest(testDispatcher) {
-        advanceUntilIdle()
-        assertEquals("ssh-ed25519 TESTKEY", viewModel.state.value.sshPublicKey)
-        coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 TESTKEY") }
-    }
+    fun `init generates SSH key, sets state, and persists to prefs`() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+            assertEquals("ssh-ed25519 TESTKEY", viewModel.state.value.sshPublicKey)
+            coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 TESTKEY") }
+        }
 
     @Test
     fun `validateRemoteUrl empty string sets required error and returns false`() {
@@ -99,12 +102,13 @@ class CloneRepoViewModelTest {
     }
 
     @Test
-    fun `regenerateSshKey generates new key and updates prefs`() = runTest(testDispatcher) {
-        advanceUntilIdle() // let init complete
-        every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 NEWKEY"
-        viewModel.regenerateSshKey()
-        advanceUntilIdle()
-        assertEquals("ssh-ed25519 NEWKEY", viewModel.state.value.sshPublicKey)
-        coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 NEWKEY") }
-    }
+    fun `regenerateSshKey generates new key and updates prefs`() =
+        runTest(testDispatcher) {
+            advanceUntilIdle() // let init complete
+            every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 NEWKEY"
+            viewModel.regenerateSshKey()
+            advanceUntilIdle()
+            assertEquals("ssh-ed25519 NEWKEY", viewModel.state.value.sshPublicKey)
+            coVerify(exactly = 1) { appPrefs.setSshPublicKey("ssh-ed25519 NEWKEY") }
+        }
 }
