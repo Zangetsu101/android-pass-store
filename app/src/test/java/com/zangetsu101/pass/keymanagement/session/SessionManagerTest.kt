@@ -1,6 +1,7 @@
 package com.zangetsu101.pass.keymanagement.session
 
 import android.security.keystore.KeyPermanentlyInvalidatedException
+import app.cash.turbine.test
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.every
 import io.mockk.mockk
@@ -54,6 +55,7 @@ class SessionManagerTest {
     }
 
     // Test 1: init with active session, time still remaining → Active
+    // init sets Active synchronously before Turbine subscribes; Inactive(MANUAL) is never observed
     @Test
     fun `init with recent lastTouched and hasSession emits Active`() =
         testScope.runTest {
@@ -63,10 +65,14 @@ class SessionManagerTest {
 
             val manager = buildManager()
 
-            assertEquals(SessionState.Active, manager.sessionState.value)
+            manager.sessionState.test {
+                assertEquals(SessionState.Active, awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 2: init with elapsed > timeout → immediate Inactive(TIMEOUT)
+    // init sets Active synchronously, then a launched coroutine calls startTimeout(negative) → endSession(TIMEOUT)
     @Test
     fun `init with elapsed greater than timeout emits Inactive TIMEOUT`() =
         testScope.runTest {
@@ -76,17 +82,27 @@ class SessionManagerTest {
             every { keyStore.hasSession() } returns true
 
             val manager = buildManager()
-            advanceUntilIdle()
 
-            assertEquals(SessionState.Inactive(EndReason.TIMEOUT), manager.sessionState.value)
+            manager.sessionState.test {
+                assertEquals(SessionState.Active, awaitItem())
+                advanceUntilIdle()
+                assertEquals(SessionState.Inactive(EndReason.TIMEOUT), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 3: init with no session → stays Inactive(MANUAL)
     @Test
-    fun `init with no session stays Inactive MANUAL`() {
-        val manager = buildManager()
-        assertEquals(SessionState.Inactive(EndReason.MANUAL), manager.sessionState.value)
-    }
+    fun `init with no session stays Inactive MANUAL`() =
+        testScope.runTest {
+            val manager = buildManager()
+
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     // Test 4: createSession passphrase over limit → PassphraseTooLong, state unchanged
     @Test
@@ -94,10 +110,15 @@ class SessionManagerTest {
         testScope.runTest {
             val manager = buildManager()
 
-            val ex = runCatching { manager.createSession("a".repeat(200)) }.exceptionOrNull()
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            assertTrue(ex is SessionError.PassphraseTooLong)
-            assertEquals(SessionState.Inactive(EndReason.MANUAL), manager.sessionState.value)
+                val ex = runCatching { manager.createSession("a".repeat(200)) }.exceptionOrNull()
+                assertTrue(ex is SessionError.PassphraseTooLong)
+
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 5: createSession success → Active; createKey + storeEncryptedPassphrase called
@@ -105,21 +126,35 @@ class SessionManagerTest {
     fun `createSession success emits Active and calls keyStore createKey and store`() =
         testScope.runTest {
             val manager = buildManager()
-            manager.createSession("mypassphrase")
 
-            assertEquals(SessionState.Active, manager.sessionState.value)
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
+
+                manager.createSession("mypassphrase")
+                assertEquals(SessionState.Active, awaitItem())
+
+                cancelAndIgnoreRemainingEvents()
+            }
+
             verify { keyStore.createKey() }
             verify { keyStore.storeEncryptedPassphrase(any()) }
         }
 
-    // Test 6: endSession(MANUAL) → Inactive(MANUAL); deleteSession called
+    // Test 6: endSession(MANUAL) from Inactive → no state change (StateFlow deduplicates equal values); deleteSession called
     @Test
-    fun `endSession MANUAL emits Inactive MANUAL and calls deleteSession`() =
+    fun `endSession MANUAL calls deleteSession and emits no new state`() =
         testScope.runTest {
             val manager = buildManager()
-            manager.endSession(EndReason.MANUAL)
 
-            assertEquals(SessionState.Inactive(EndReason.MANUAL), manager.sessionState.value)
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
+
+                manager.endSession(EndReason.MANUAL)
+                expectNoEvents()
+
+                cancelAndIgnoreRemainingEvents()
+            }
+
             verify { keyStore.deleteSession() }
         }
 
@@ -128,12 +163,18 @@ class SessionManagerTest {
     fun `touchSession fires timeout after timeoutMs`() =
         testScope.runTest {
             val manager = buildManager()
-            manager.createSession("mypassphrase")
-            advanceUntilIdle()
 
-            advanceTimeBy(delayTimeMillis = 5 * 60_000L + 1)
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            assertEquals(SessionState.Inactive(EndReason.TIMEOUT), manager.sessionState.value)
+                manager.createSession("mypassphrase")
+                assertEquals(SessionState.Active, awaitItem())
+
+                advanceTimeBy(delayTimeMillis = 5 * 60_000L + 1)
+                assertEquals(SessionState.Inactive(EndReason.TIMEOUT), awaitItem())
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 8: touchSession before deadline, second touchSession → timer resets; no early expiry
@@ -141,18 +182,26 @@ class SessionManagerTest {
     fun `touchSession before deadline resets timer and prevents early expiry`() =
         testScope.runTest {
             val manager = buildManager()
-            manager.createSession("mypassphrase")
-            runCurrent() // run launched coroutine, set up timer; don't advance clock
 
-            advanceTimeBy(delayTimeMillis = 4 * 60_000L) // T=4min; original timer fires at T=5min
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            manager.touchSession() // reset: new timer fires at T=4min + 5min = T=9min
-            runCurrent() // run the second touchSession coroutine
+                manager.createSession("mypassphrase")
+                runCurrent() // run launched coroutine, set up timer; don't advance clock
+                assertEquals(SessionState.Active, awaitItem())
 
-            advanceTimeBy(delayTimeMillis = 60_000L + 1) // T=5min+1ms; original timer would have fired, but was cancelled
+                advanceTimeBy(delayTimeMillis = 4 * 60_000L) // T=4min; original timer fires at T=5min
 
-            // new timer fires at T=9min; we're at T=5min — no expiry yet
-            assertEquals(SessionState.Active, manager.sessionState.value)
+                manager.touchSession() // reset: new timer fires at T=4min + 5min = T=9min
+                runCurrent() // run the second touchSession coroutine
+
+                advanceTimeBy(delayTimeMillis = 60_000L + 1) // T=5min+1ms; original timer would have fired, but was cancelled
+
+                // new timer fires at T=9min; we're at T=5min — no expiry yet
+                expectNoEvents()
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 9: touchSession with timeoutMs = 0 → no timer, session stays Active indefinitely
@@ -162,12 +211,18 @@ class SessionManagerTest {
             every { appPreferences.sessionTimeoutMinutes } returns flowOf(0)
 
             val manager = buildManager()
-            manager.createSession("passphrase")
-            advanceUntilIdle()
 
-            advanceTimeBy(delayTimeMillis = 24 * 60 * 60_000L) // 24 hours
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            assertEquals(SessionState.Active, manager.sessionState.value)
+                manager.createSession("passphrase")
+                assertEquals(SessionState.Active, awaitItem())
+
+                advanceTimeBy(delayTimeMillis = 24 * 60 * 60_000L) // 24 hours
+                expectNoEvents()
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 10: getPassphrase when Inactive → throws NoActiveSession
@@ -195,13 +250,20 @@ class SessionManagerTest {
                 }
 
             val manager = buildManager()
-            manager.createSession("mypassphrase")
-            runCurrent()
 
-            changeSignal.complete(10)
-            advanceUntilIdle()
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            assertEquals(SessionState.Inactive(EndReason.TIMEOUT_CHANGED), manager.sessionState.value)
+                manager.createSession("mypassphrase")
+                runCurrent()
+                assertEquals(SessionState.Active, awaitItem())
+
+                changeSignal.complete(10)
+                advanceUntilIdle()
+                assertEquals(SessionState.Inactive(EndReason.TIMEOUT_CHANGED), awaitItem())
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 11b: sessionTimeoutMinutes changes while Inactive → no state change
@@ -216,16 +278,25 @@ class SessionManagerTest {
                 }
 
             val manager = buildManager()
-            runCurrent()
 
-            changeSignal.complete(10)
-            advanceUntilIdle()
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            assertEquals(SessionState.Inactive(EndReason.MANUAL), manager.sessionState.value)
+                runCurrent()
+                changeSignal.complete(10)
+                advanceUntilIdle()
+                expectNoEvents()
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     // Test 11: getPassphrase → getDecryptCipher throws KeyPermanentlyInvalidatedException
     //          → endSession(BIOMETRIC_CHANGED); throws NoActiveSession
+    // Turbine not used: endSession(BIOMETRIC_CHANGED) fires from withContext(Dispatchers.IO), so the
+    // emission lands on the IO thread. Turbine's collector runs on UnconfinedTestDispatcher (different
+    // thread), so it's still queued when awaitItem() is called — Turbine calls advanceUntilIdle()
+    // internally, firing the 5-min timer before the BIOMETRIC_CHANGED emission is collected.
     @Test
     fun `getPassphrase with key invalidated ends session with BIOMETRIC_CHANGED and throws NoActiveSession`() =
         testScope.runTest {
