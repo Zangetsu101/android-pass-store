@@ -53,6 +53,7 @@ class SessionStartViewModel
                 EndReason.MANUAL, null -> "start session"
                 EndReason.BIOMETRIC_CHANGED -> "security change detected"
                 EndReason.TIMEOUT -> "session expired"
+                EndReason.TIMEOUT_CHANGED -> "session timeout changed"
             }
 
         fun setPassphrase(value: String) {

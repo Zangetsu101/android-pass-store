@@ -5,8 +5,10 @@ import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
@@ -179,6 +181,49 @@ class SessionManagerTest {
             assertTrue(ex is SessionError.NoActiveSession)
         }
 
+    // Test 11a: sessionTimeoutMinutes changes while Active → Inactive(TIMEOUT_CHANGED)
+    // Uses a cold flow backed by CompletableDeferred: emits 5 (for first() callers), then emits
+    // the deferred value and completes — ensuring the collect coroutine terminates cleanly.
+    @Test
+    fun `timeout preference change while Active emits Inactive TIMEOUT_CHANGED`() =
+        testScope.runTest {
+            val changeSignal = CompletableDeferred<Int>()
+            every { appPreferences.sessionTimeoutMinutes } returns
+                flow {
+                    emit(5)
+                    emit(changeSignal.await())
+                }
+
+            val manager = buildManager()
+            manager.createSession("mypassphrase")
+            runCurrent()
+
+            changeSignal.complete(10)
+            advanceUntilIdle()
+
+            assertEquals(SessionState.Inactive(EndReason.TIMEOUT_CHANGED), manager.sessionState.value)
+        }
+
+    // Test 11b: sessionTimeoutMinutes changes while Inactive → no state change
+    @Test
+    fun `timeout preference change while Inactive has no effect`() =
+        testScope.runTest {
+            val changeSignal = CompletableDeferred<Int>()
+            every { appPreferences.sessionTimeoutMinutes } returns
+                flow {
+                    emit(5)
+                    emit(changeSignal.await())
+                }
+
+            val manager = buildManager()
+            runCurrent()
+
+            changeSignal.complete(10)
+            advanceUntilIdle()
+
+            assertEquals(SessionState.Inactive(EndReason.MANUAL), manager.sessionState.value)
+        }
+
     // Test 11: getPassphrase → getDecryptCipher throws KeyPermanentlyInvalidatedException
     //          → endSession(BIOMETRIC_CHANGED); throws NoActiveSession
     @Test
@@ -189,8 +234,7 @@ class SessionManagerTest {
 
             val manager = buildManager()
             manager.createSession("passphrase")
-            // state is set to Active synchronously in createSession; don't drain — draining
-            // would advance past the 5-min timer set by touchSession(), triggering TIMEOUT first
+            runCurrent() // set up timeoutJob so endSession(BIOMETRIC_CHANGED) can cancel it
 
             assertEquals(SessionState.Active, manager.sessionState.value)
 
