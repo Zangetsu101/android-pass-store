@@ -13,37 +13,12 @@ No coverage gate yet — add tests first.
 
 ## Production Code Changes Required
 
-- **Extract `SessionKeyStore` interface** from `SessionManager`: wraps all keystore + blob file ops (`hasSession`, `createKey`, `storeEncryptedPassphrase`, `readEncryptedPassphrase`, `deleteSession`, `getDecryptCipher`). `getDecryptCipher` owns cipher init and may throw `KeyPermanentlyInvalidatedException`. Inject into `SessionManager`.
-- **Extract `BiometricPrompter` interface** from `SessionManager`: single `suspend fun prompt(activity, cipher): Cipher`. Inject into `SessionManager`.
-- **Inject `CoroutineScope`** into `SessionManager` constructor — required for `TestCoroutineScheduler` time control in unit tests.
 - **Inject `CoroutineScope`** into `CachingPassphraseProvider` constructor — required for `TestCoroutineScheduler` time control in unit tests.
-- ~~Migration path in `SessionManager.init` (`lastTouched == -1L && hasSession`)~~ — removed.
-- **Remove `https://`** from `CloneRepoViewModel.validateRemoteUrl` — accepted by validation but SSH-key-only auth means it silently fails at clone time.
 - **TODO**: verify `file://` protocol actually works end-to-end before treating it as supported.
 
 ---
 
 ## Test Cases
-
-### SessionManager — 11 unit tests
-
-Setup: mock `SessionKeyStore` + mock `BiometricPrompter` + mock `AppPreferences`. Inject `TestScope(TestCoroutineScheduler)`. Use `runTest` + `advanceTimeBy`. Turbine for `sessionState` flow.
-
-| #   | Test                                                                                      | Assertion                                                                |
-| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1   | Init: `lastTouched` set + `hasSession=true`, time remaining                               | `sessionState` emits `Active`; timer scheduled for remaining ms          |
-| 2   | Init: `lastTouched` set + `hasSession=true`, elapsed > timeout                            | immediate `Inactive(TIMEOUT)`                                            |
-| 3   | Init: `lastTouched = -1` or `hasSession=false`                                            | stays `Inactive(MANUAL)`                                                 |
-| 4   | `createSession` passphrase > 190 bytes                                                    | throws `PassphraseTooLong`, state unchanged                              |
-| 5   | `createSession` success                                                                   | `sessionState` emits `Active`; `keyStore.createKey` + `store` called     |
-| 6   | `endSession(MANUAL)`                                                                      | `sessionState` emits `Inactive(MANUAL)`; `keyStore.deleteSession` called |
-| 7   | `touchSession` → `advanceTimeBy(timeoutMs)`                                               | `sessionState` emits `Inactive(TIMEOUT)`                                 |
-| 8   | `touchSession` called before deadline, then `advanceTimeBy(timeoutMs)`                    | timer resets; no early expiry                                            |
-| 9   | `touchSession` with `timeoutMs = 0`                                                       | no timer launched, session stays `Active` indefinitely                   |
-| 10  | `getPassphrase` when `Inactive`                                                           | throws `NoActiveSession`                                                 |
-| 11  | `getPassphrase` → `keyStore.getDecryptCipher` throws `KeyPermanentlyInvalidatedException` | `endSession(BIOMETRIC_CHANGED)` called; throws `NoActiveSession`         |
-
----
 
 ### SessionManager — 1 instrumented test
 
@@ -68,60 +43,6 @@ Setup: mock `PassphraseProvider` (delegate) + mock `SessionOperations`. Inject `
 
 ---
 
-### CryptoService / GpgKeyOperations — 13 tests
-
-Setup: mock `Context` (`filesDir` → temp dir) + mock `SessionOperations`. Real PGPainless (generate passphrase-protected test keys inline). No Robolectric needed — pure JVM.
-
-**Production change required:** `loadAndUnlock` must catch `PGPException` → `SessionError.WrongPassphrase` (same as `validatePassphrase`).
-
-**importGpgKey (3)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 1 | Valid passphrase-protected armored key | File written to temp dir, no exception |
-| 2 | Key with no passphrase (`s2KUsage == 0`) | throws `KeyImportError.NoPassphrase` |
-| 3 | Malformed / non-PGP text | throws `KeyImportError.Malformed` |
-
-**armorGpgKey (2)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 4 | Valid raw key bytes (binary PGP packet) | Returns armored string; round-trip key IDs match |
-| 5 | Malformed bytes | throws `KeyImportError.Malformed` |
-
-**validatePassphrase (3)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 6 | Correct passphrase | No exception |
-| 7 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
-| 8 | No GPG file on disk | throws `IllegalStateException` |
-
-**loadAndUnlock (2)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 9 | Correct passphrase | Returns `OpenPGPKey` usable for decryption (decrypt a test ciphertext) |
-| 10 | Wrong passphrase | throws `SessionError.WrongPassphrase` |
-
-**getGpgKeyInfo (3)**
-| # | Test | Assertion |
-|---|------|-----------|
-| 11 | No file on disk | returns `null` |
-| 12 | Valid key file | returns `(keyId, uid)` pair with correct format |
-| 13 | Corrupted file content | returns `null` (exception swallowed) |
-
----
-
-### AppPreferences — ~9 tests
-
-Setup: `PreferenceDataStoreFactory.create()` with temp file in `TestScope`. No mocking needed.
-
-| #   | Test                                          | Assertion                                                                                                                                 |
-| --- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1–6 | Default value for each of 6 prefs (no writes) | `remoteUrl=""`, `sessionTimeoutMinutes=5`, `sshPublicKey=null`, `gpgImported=false`, `clipboardTimeoutSeconds=45`, `defaultViewTree=true` |
-| 7   | Round-trip: write + read each pref            | value survives DataStore serialization                                                                                                    |
-| 8   | `clearRemoteUrl`                              | `remoteUrl` flow emits `""`                                                                                                               |
-| 9   | `clearAll`                                    | all flows emit defaults                                                                                                                   |
-
----
-
 ### SessionStartViewModel — 7 tests
 
 Setup: mock `GpgKeyOperations` + mock `SessionOperations` + mock `AppPreferences`. Use `StandardTestDispatcher`.
@@ -135,49 +56,6 @@ Setup: mock `GpgKeyOperations` + mock `SessionOperations` + mock `AppPreferences
 | 5   | `submit` with empty passphrase          | no state change                                        |
 | 6   | `submit` success                        | Turbine: `loading=true` → `success=true`               |
 | 7   | `submit` with `WrongPassphrase`         | Turbine: `loading=true` → `error` set, `loading=false` |
-
----
-
-### GpgImportViewModel — 4 tests
-
-Setup: mock `GpgKeyOperations` + mock `AppPreferences`.
-
-| #   | Test                            | Assertion                                                             |
-| --- | ------------------------------- | --------------------------------------------------------------------- |
-| 1   | `setGpgKeyText("foo")`          | state: `gpgKeyText="foo"`, `gpgImportError=null`, `gpgImported=false` |
-| 2   | `importGpgKey` success          | `gpgImported=true`, `appPreferences.setGpgImported(true)` called      |
-| 3   | `importGpgKey` → `NoPassphrase` | `gpgImportError` set, `gpgImported=false`                             |
-| 4   | `importGpgKey` → `Malformed`    | `gpgImportError` set                                                  |
-
----
-
-### CloneRepoViewModel — 8 tests
-
-Setup: mock `SshKeyOperations` + mock `AppPreferences`.
-
-| #   | Test                                             | Assertion                                                                            |
-| --- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 1   | Init                                             | SSH key generated, `state.sshPublicKey` set, `appPreferences.setSshPublicKey` called |
-| 2   | `validateRemoteUrl` empty string                 | error "Remote URL is required", returns `false`                                      |
-| 3   | `validateRemoteUrl` invalid (e.g. `"ftp://..."`) | error "Enter a valid git remote URL", returns `false`                                |
-| 4   | `validateRemoteUrl("https://github.com/x/y")`    | error "Enter a valid git remote URL", returns `false`                                |
-| 5   | `validateRemoteUrl("git@github.com:x/y.git")`    | `remoteUrlError=null`, returns `true`                                                |
-| 6   | `validateRemoteUrl("ssh://git@github.com/x/y")`  | valid, returns `true`                                                                |
-| 7   | `validateRemoteUrl("file:///local/repo")`        | valid, returns `true` _(TODO: confirm file:// works end-to-end)_                     |
-| 8   | `regenerateSshKey`                               | new key generated, prefs updated                                                     |
-
----
-
-### SyncPanelViewModel — 4 tests
-
-Setup: mock `GitSync` + mock `PassStore`.
-
-| #   | Test                                    | Assertion                                                                   |
-| --- | --------------------------------------- | --------------------------------------------------------------------------- |
-| 1   | Init                                    | `remoteReachable` + `lastSyncTime` populated from `syncStatus()`            |
-| 2   | `loadStatus` when `syncStatus()` throws | `remoteReachable=false`, no crash                                           |
-| 3   | `pull` success                          | `passStore.buildIndex()` called, `pullSuccess=true`, `lastSyncTime` updated |
-| 4   | `pull` failure                          | `pullError` set, `loadStatus()` called again                                |
 
 ---
 
