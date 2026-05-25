@@ -28,7 +28,7 @@ class CloneRepoViewModel
     constructor(
         private val cryptoOperations: SshKeyOperations,
         private val appPreferences: AppPreferences,
-        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         private val _state = MutableStateFlow(CloneRepoUiState())
         val state: StateFlow<CloneRepoUiState> = _state.asStateFlow()

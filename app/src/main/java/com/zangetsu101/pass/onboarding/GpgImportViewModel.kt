@@ -29,7 +29,7 @@ class GpgImportViewModel
     constructor(
         private val cryptoOperations: GpgKeyOperations,
         private val appPreferences: AppPreferences,
-        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
         private val _state = MutableStateFlow(GpgImportUiState())
         val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
