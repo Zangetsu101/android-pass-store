@@ -13,6 +13,7 @@ import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -20,7 +21,6 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
-import io.mockk.Runs
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
@@ -52,18 +52,20 @@ class EntryDetailViewModelTest {
     private val mockContext = mockk<Context>(relaxed = true)
     private val mockActivity = mockk<FragmentActivity>(relaxed = true)
 
-    private val fakeEntry = PassEntry(
-        path = "test/secret.gpg",
-        domain = "example.com",
-        username = "user@example.com",
-        encryptedFile = File("test/secret.gpg"),
-    )
+    private val fakeEntry =
+        PassEntry(
+            path = "test/secret.gpg",
+            domain = "example.com",
+            username = "user@example.com",
+            encryptedFile = File("test/secret.gpg"),
+        )
 
-    private val fakeCredentials = Credentials(
-        password = "p4ssw0rd".toCharArray(),
-        notes = "",
-        username = "user@example.com",
-    )
+    private val fakeCredentials =
+        Credentials(
+            password = "p4ssw0rd".toCharArray(),
+            notes = "",
+            username = "user@example.com",
+        )
 
     @BeforeEach
     fun setUp() {
@@ -84,21 +86,23 @@ class EntryDetailViewModelTest {
         unmockkObject(ClipboardClearReceiver.Companion)
     }
 
-    private fun createViewModel() = EntryDetailViewModel(
-        entry = fakeEntry,
-        context = mockContext,
-        decryption = mockDecryption,
-        gitSync = mockGitSync,
-        appPreferences = mockAppPreferences,
-    )
+    private fun createViewModel() =
+        EntryDetailViewModel(
+            entry = fakeEntry,
+            context = mockContext,
+            decryption = mockDecryption,
+            gitSync = mockGitSync,
+            appPreferences = mockAppPreferences,
+        )
 
     @Test
     fun `init - lastCommitForFile returns commit info sets GitStatus Tracked`() =
         runTest(testDispatcher) {
-            val commitInfo = FileCommitInfo(
-                commitHash = "abc123",
-                commitTime = Instant.parse("2024-01-01T00:00:00Z"),
-            )
+            val commitInfo =
+                FileCommitInfo(
+                    commitHash = "abc123",
+                    commitTime = Instant.parse("2024-01-01T00:00:00Z"),
+                )
             coEvery { mockGitSync.lastCommitForFile(fakeEntry.path) } returns commitInfo
             val viewModel = createViewModel()
 
