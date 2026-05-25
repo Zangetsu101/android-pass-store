@@ -1,16 +1,15 @@
 package com.zangetsu101.pass.keymanagement.session
 
 import androidx.fragment.app.FragmentActivity
+import com.zangetsu101.pass.di.AppBackgroundScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private const val BIOMETRIC_CACHE_TIMEOUT_MS = 5 * 60 * 1000L
+internal const val BIOMETRIC_CACHE_TIMEOUT_MS = 5 * 60 * 1000L
 
 @Singleton
 class CachingPassphraseProvider
@@ -18,8 +17,8 @@ class CachingPassphraseProvider
     constructor(
         @DirectPassphrase private val delegate: PassphraseProvider,
         private val sessionOperations: SessionOperations,
+        @AppBackgroundScope private val scope: CoroutineScope,
     ) : PassphraseProvider {
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var cachedPassphrase: String? = null
         private var cacheJob: Job? = null
 

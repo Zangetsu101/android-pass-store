@@ -70,7 +70,7 @@ abstract class KeyManagementModule {
     companion object {
         @Provides
         @Singleton
-        @SessionManagerScope
-        fun provideSessionManagerScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        @AppBackgroundScope
+        fun provideAppBackgroundScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

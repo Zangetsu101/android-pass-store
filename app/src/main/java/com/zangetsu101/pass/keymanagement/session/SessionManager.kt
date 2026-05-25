@@ -2,7 +2,7 @@ package com.zangetsu101.pass.keymanagement.session
 
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import androidx.fragment.app.FragmentActivity
-import com.zangetsu101.pass.di.SessionManagerScope
+import com.zangetsu101.pass.di.AppBackgroundScope
 import com.zangetsu101.pass.preferences.AppPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +27,7 @@ class SessionManager
         private val biometricPrompter: BiometricPrompter,
         private val sessionTimer: SessionTimer,
         private val appPreferences: AppPreferences,
-        @SessionManagerScope private val scope: CoroutineScope,
+        @AppBackgroundScope private val scope: CoroutineScope,
     ) : SessionOperations {
         private var timeoutJob: Job? = null
 
