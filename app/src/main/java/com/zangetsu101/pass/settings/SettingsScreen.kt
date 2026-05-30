@@ -173,8 +173,12 @@ fun SettingsScreen(
                 )
             }
 
+            val versionName =
+                remember {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+                }
             Text(
-                "pass.android · v0.1.0 · linux pass compatible",
+                "pass.android · v$versionName · linux pass compatible",
                 style = PassType.Caption,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
