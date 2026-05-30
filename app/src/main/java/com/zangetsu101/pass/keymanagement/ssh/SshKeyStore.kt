@@ -1,8 +1,9 @@
 package com.zangetsu101.pass.keymanagement.ssh
 
 import com.zangetsu101.pass.keymanagement.SshKeyPair
+import com.zangetsu101.pass.keymanagement.crypto.CryptoStore
 
-interface SshKeyOperations {
+interface SshKeyStore : CryptoStore {
     fun generateSshKey(): String
 
     fun getSshKey(): SshKeyPair

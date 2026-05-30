@@ -1,11 +1,9 @@
 package com.zangetsu101.pass.keymanagement
 
-import android.content.Context
+import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.keymanagement.session.SessionError
-import io.mockk.every
-import io.mockk.mockk
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -19,24 +17,29 @@ import org.pgpainless.encryption_signing.EncryptionOptions
 import org.pgpainless.encryption_signing.ProducerOptions
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.File
-import java.nio.file.Files
 
-class CryptoServiceTest {
-    private lateinit var tmpDir: File
-    private lateinit var cryptoService: CryptoService
+private class InMemoryPlainCryptoStore : PlainCryptoStore {
+    private var data: ByteArray? = null
+
+    override fun store(data: ByteArray) {
+        this.data = data.copyOf()
+    }
+
+    override fun get(): ByteArray = checkNotNull(data) { "Nothing stored" }
+
+    override fun exists(): Boolean = data != null
+
+    override fun delete() {
+        data = null
+    }
+}
+
+class GpgKeyStoreImplTest {
+    private lateinit var gpgKeyStore: GpgKeyStoreImpl
 
     @BeforeEach
     fun setup() {
-        tmpDir = Files.createTempDirectory("crypto_test").toFile()
-        val context = mockk<Context>()
-        every { context.filesDir } returns tmpDir
-        cryptoService = CryptoService(context, mockk())
-    }
-
-    @AfterEach
-    fun teardown() {
-        tmpDir.deleteRecursively()
+        gpgKeyStore = GpgKeyStoreImpl(InMemoryPlainCryptoStore())
     }
 
     private fun armoredProtectedKey(
@@ -47,31 +50,26 @@ class CryptoServiceTest {
     private fun armoredUnprotectedKey(): String =
         PGPainless.getInstance().toAsciiArmor(PGPainless().generateKey().modernKeyRing("Test <test@example.com>"))
 
-    private fun writeKeyToDisk(armoredKey: String) {
-        File(tmpDir, "keys").mkdirs()
-        File(tmpDir, "keys/$GPG_KEY_FILENAME").writeText(armoredKey)
-    }
-
     // importGpgKey
 
     @Test
-    fun `importGpgKey with passphrase-protected key writes file to keys dir`() {
-        cryptoService.importGpgKey(armoredProtectedKey())
+    fun `importGpgKey with passphrase-protected key stores key`() {
+        gpgKeyStore.importGpgKey(armoredProtectedKey())
 
-        assertTrue(File(tmpDir, "keys/$GPG_KEY_FILENAME").exists())
+        assertTrue(gpgKeyStore.exists())
     }
 
     @Test
     fun `importGpgKey with unprotected key throws NoPassphrase`() {
         assertThrows<KeyImportError.NoPassphrase> {
-            cryptoService.importGpgKey(armoredUnprotectedKey())
+            gpgKeyStore.importGpgKey(armoredUnprotectedKey())
         }
     }
 
     @Test
     fun `importGpgKey with malformed text throws Malformed`() {
         assertThrows<KeyImportError.Malformed> {
-            cryptoService.importGpgKey("not a pgp key at all")
+            gpgKeyStore.importGpgKey("not a pgp key at all")
         }
     }
 
@@ -83,7 +81,7 @@ class CryptoServiceTest {
         val originalRing = key.pgpSecretKeyRing
         val binaryBytes = ByteArrayOutputStream().also { originalRing.encode(it) }.toByteArray()
 
-        val armored = cryptoService.armorGpgKey(binaryBytes)
+        val armored = gpgKeyStore.armorGpgKey(binaryBytes)
 
         assertTrue(armored.contains("BEGIN PGP PRIVATE KEY BLOCK"))
         val resultRing = PGPainless().readKey().parseKey(armored).pgpSecretKeyRing
@@ -95,7 +93,7 @@ class CryptoServiceTest {
     @Test
     fun `armorGpgKey with malformed bytes throws Malformed`() {
         assertThrows<KeyImportError.Malformed> {
-            cryptoService.armorGpgKey("garbage bytes".toByteArray())
+            gpgKeyStore.armorGpgKey("garbage bytes".toByteArray())
         }
     }
 
@@ -103,22 +101,22 @@ class CryptoServiceTest {
 
     @Test
     fun `validatePassphrase with correct passphrase does not throw`() {
-        writeKeyToDisk(armoredProtectedKey("correct"))
-        cryptoService.validatePassphrase("correct")
+        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
+        gpgKeyStore.validatePassphrase("correct")
     }
 
     @Test
     fun `validatePassphrase with wrong passphrase throws WrongPassphrase`() {
-        writeKeyToDisk(armoredProtectedKey("correct"))
+        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
         assertThrows<SessionError.WrongPassphrase> {
-            cryptoService.validatePassphrase("wrong")
+            gpgKeyStore.validatePassphrase("wrong")
         }
     }
 
     @Test
-    fun `validatePassphrase with no GPG file throws IllegalStateException`() {
+    fun `validatePassphrase with no GPG key throws IllegalStateException`() {
         assertThrows<IllegalStateException> {
-            cryptoService.validatePassphrase("any")
+            gpgKeyStore.validatePassphrase("any")
         }
     }
 
@@ -128,7 +126,7 @@ class CryptoServiceTest {
     fun `loadAndUnlock with correct passphrase returns key usable for decryption`() {
         val passphrase = "correct"
         val protectedKey = PGPainless().generateKey().modernKeyRing("Test <test@example.com>", passphrase)
-        writeKeyToDisk(PGPainless.getInstance().toAsciiArmor(protectedKey))
+        gpgKeyStore.importGpgKey(PGPainless.getInstance().toAsciiArmor(protectedKey))
 
         val plaintext = "secret-test-content"
         val ciphertext =
@@ -146,7 +144,7 @@ class CryptoServiceTest {
                     encStream.use { it.write(plaintext.toByteArray()) }
                 }.toByteArray()
 
-        val unlockedKey = cryptoService.loadAndUnlock(passphrase)
+        val unlockedKey = gpgKeyStore.loadAndUnlock(passphrase)
 
         val output = ByteArrayOutputStream()
         val decryptStream =
@@ -161,24 +159,24 @@ class CryptoServiceTest {
 
     @Test
     fun `loadAndUnlock with wrong passphrase throws WrongPassphrase`() {
-        writeKeyToDisk(armoredProtectedKey("correct"))
+        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
         assertThrows<SessionError.WrongPassphrase> {
-            cryptoService.loadAndUnlock("wrong")
+            gpgKeyStore.loadAndUnlock("wrong")
         }
     }
 
     // getGpgKeyInfo
 
     @Test
-    fun `getGpgKeyInfo returns null when no file on disk`() {
-        assertNull(cryptoService.getGpgKeyInfo())
+    fun `getGpgKeyInfo returns null when no key stored`() {
+        assertNull(gpgKeyStore.getGpgKeyInfo())
     }
 
     @Test
     fun `getGpgKeyInfo returns keyId and uid with correct format`() {
-        writeKeyToDisk(armoredProtectedKey("pass", "Alice <alice@example.com>"))
+        gpgKeyStore.importGpgKey(armoredProtectedKey("pass", "Alice <alice@example.com>"))
 
-        val info = cryptoService.getGpgKeyInfo()
+        val info = gpgKeyStore.getGpgKeyInfo()
 
         assertNotNull(info)
         requireNotNull(info)
@@ -188,10 +186,9 @@ class CryptoServiceTest {
     }
 
     @Test
-    fun `getGpgKeyInfo returns null for corrupted file`() {
-        File(tmpDir, "keys").mkdirs()
-        File(tmpDir, "keys/$GPG_KEY_FILENAME").writeText("corrupted content - not a valid pgp key")
+    fun `getGpgKeyInfo returns null for corrupted stored data`() {
+        gpgKeyStore.store("corrupted content - not a valid pgp key".toByteArray())
 
-        assertNull(cryptoService.getGpgKeyInfo())
+        assertNull(gpgKeyStore.getGpgKeyInfo())
     }
 }

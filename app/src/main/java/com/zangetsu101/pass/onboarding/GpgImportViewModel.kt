@@ -2,7 +2,7 @@ package com.zangetsu101.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,7 +27,7 @@ data class GpgImportUiState(
 class GpgImportViewModel
     @Inject
     constructor(
-        private val cryptoOperations: GpgKeyOperations,
+        private val cryptoOperations: GpgKeyStore,
         private val appPreferences: AppPreferences,
         @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {

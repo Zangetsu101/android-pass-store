@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.KeyManagement
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -37,7 +37,7 @@ class SettingsViewModel
         @ApplicationContext private val context: Context,
         private val sessionOperations: SessionOperations,
         private val keyManagement: KeyManagement,
-        private val gpgKeyOperations: GpgKeyOperations,
+        private val gpgKeyOperations: GpgKeyStore,
         private val appPreferences: AppPreferences,
         private val gitSync: GitSync,
     ) : ViewModel() {

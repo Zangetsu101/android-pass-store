@@ -1,26 +1,33 @@
 package com.zangetsu101.pass.di
 
-import com.zangetsu101.pass.keymanagement.CryptoService
+import android.content.Context
 import com.zangetsu101.pass.keymanagement.KeyManagement
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
-import com.zangetsu101.pass.keymanagement.session.AndroidSessionKeyStore
+import com.zangetsu101.pass.keymanagement.KeyManager
+import com.zangetsu101.pass.keymanagement.crypto.AesGcmCryptoStore
+import com.zangetsu101.pass.keymanagement.crypto.AndroidBiometricCryptoStore
+import com.zangetsu101.pass.keymanagement.crypto.BiometricCryptoStore
+import com.zangetsu101.pass.keymanagement.crypto.CryptoStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
 import com.zangetsu101.pass.keymanagement.session.AndroidSessionTimer
 import com.zangetsu101.pass.keymanagement.session.BiometricPrompter
 import com.zangetsu101.pass.keymanagement.session.CachedPassphrase
 import com.zangetsu101.pass.keymanagement.session.CachingPassphraseProvider
 import com.zangetsu101.pass.keymanagement.session.DirectPassphrase
 import com.zangetsu101.pass.keymanagement.session.PassphraseProvider
-import com.zangetsu101.pass.keymanagement.session.SessionKeyStore
 import com.zangetsu101.pass.keymanagement.session.SessionManager
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionTimer
 import com.zangetsu101.pass.keymanagement.session.SystemBiometricPrompter
-import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStoreImpl
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +42,7 @@ abstract class KeyManagementModule {
 
     @Binds
     @Singleton
-    abstract fun bindSessionKeyStore(impl: AndroidSessionKeyStore): SessionKeyStore
+    abstract fun bindBiometricCryptoStore(impl: AndroidBiometricCryptoStore): BiometricCryptoStore
 
     @Binds
     @Singleton
@@ -47,15 +54,15 @@ abstract class KeyManagementModule {
 
     @Binds
     @Singleton
-    abstract fun bindGpgKeyOperations(impl: CryptoService): GpgKeyOperations
+    abstract fun bindGpgKeyStore(impl: GpgKeyStoreImpl): GpgKeyStore
 
     @Binds
     @Singleton
-    abstract fun bindSshKeyOperations(impl: CryptoService): SshKeyOperations
+    abstract fun bindSshKeyStore(impl: SshKeyStoreImpl): SshKeyStore
 
     @Binds
     @Singleton
-    abstract fun bindKeyManagement(impl: CryptoService): KeyManagement
+    abstract fun bindKeyManagement(impl: KeyManager): KeyManagement
 
     @Binds
     @Singleton
@@ -67,10 +74,36 @@ abstract class KeyManagementModule {
     @CachedPassphrase
     abstract fun bindCachingPassphraseProvider(impl: CachingPassphraseProvider): PassphraseProvider
 
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindGpgIntoKeySet(impl: GpgKeyStoreImpl): CryptoStore
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindSshIntoKeySet(impl: SshKeyStoreImpl): CryptoStore
+
     companion object {
         @Provides
         @Singleton
         @AppBackgroundScope
         fun provideAppBackgroundScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        @Provides
+        @Singleton
+        fun provideGpgKeyStoreImpl(
+            @ApplicationContext context: Context,
+        ): GpgKeyStoreImpl = GpgKeyStoreImpl(AesGcmCryptoStore(context, "gpg"))
+
+        @Provides
+        @Singleton
+        fun provideSshKeyStoreImpl(
+            @ApplicationContext context: Context,
+        ): SshKeyStoreImpl =
+            SshKeyStoreImpl(
+                AesGcmCryptoStore(context, "ssh_key"),
+                AesGcmCryptoStore(context, "ssh_pub_key"),
+            )
     }
 }

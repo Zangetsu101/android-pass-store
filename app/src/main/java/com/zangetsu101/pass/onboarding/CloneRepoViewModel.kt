@@ -2,7 +2,7 @@ package com.zangetsu101.pass.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -26,7 +26,7 @@ data class CloneRepoUiState(
 class CloneRepoViewModel
     @Inject
     constructor(
-        private val cryptoOperations: SshKeyOperations,
+        private val cryptoOperations: SshKeyStore,
         private val appPreferences: AppPreferences,
         @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {

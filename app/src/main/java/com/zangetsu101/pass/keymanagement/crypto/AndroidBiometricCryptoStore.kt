@@ -1,4 +1,4 @@
-package com.zangetsu101.pass.keymanagement.session
+package com.zangetsu101.pass.keymanagement.crypto
 
 import android.content.Context
 import android.os.Build
@@ -15,7 +15,6 @@ import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
 import javax.inject.Inject
 
-private const val SESSION_PASSPHRASE_BLOB = "session.enc"
 private const val SESSION_KEY_ALIAS = "passdroid_session_key"
 private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
 private const val RSA_KEY_SIZE = 2048
@@ -23,25 +22,28 @@ private const val RSA_MAX_PLAINTEXT_BYTES = RSA_KEY_SIZE / 8 - 2 * 32 - 2 // OAE
 private const val RSA_CIPHER = "RSA/ECB/OAEPPadding"
 
 // OAEP hash = SHA-256; MGF1 hash = SHA-1 (Android Keystore hardware only supports SHA-1 for MGF1)
-private val RSA_OAEP_SPEC = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
+private val RSA_OAEP_SPEC =
+    OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
 
-class AndroidSessionKeyStore
+class AndroidBiometricCryptoStore
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
-    ) : SessionKeyStore {
-        override val maxPassphraseBytes: Int = RSA_MAX_PLAINTEXT_BYTES
+    ) : BiometricCryptoStore {
+        override val maxBytes: Int = RSA_MAX_PLAINTEXT_BYTES
 
         private fun keysDir(): File = File(context.filesDir, "keys").also { it.mkdirs() }
 
+        private fun blobFile(): File = File(keysDir(), "session.enc")
+
         private fun keyStore() = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
 
-        override fun hasSession(): Boolean {
+        override fun exists(): Boolean {
             val ks = keyStore()
-            return ks.containsAlias(SESSION_KEY_ALIAS) && File(keysDir(), SESSION_PASSPHRASE_BLOB).exists()
+            return ks.containsAlias(SESSION_KEY_ALIAS) && blobFile().exists()
         }
 
-        override fun createKey() {
+        override fun store(data: ByteArray) {
             val ks = keyStore()
             if (ks.containsAlias(SESSION_KEY_ALIAS)) {
                 ks.deleteEntry(SESSION_KEY_ALIAS)
@@ -62,23 +64,10 @@ class AndroidSessionKeyStore
                 .getInstance(KeyProperties.KEY_ALGORITHM_RSA, KEYSTORE_PROVIDER)
                 .apply { initialize(spec) }
                 .generateKeyPair()
-        }
-
-        override fun storeEncryptedPassphrase(plaintext: ByteArray) {
             val publicKey = keyStore().getCertificate(SESSION_KEY_ALIAS).publicKey
             val cipher = Cipher.getInstance(RSA_CIPHER)
             cipher.init(Cipher.ENCRYPT_MODE, publicKey, RSA_OAEP_SPEC)
-            File(keysDir(), SESSION_PASSPHRASE_BLOB).writeBytes(cipher.doFinal(plaintext))
-        }
-
-        override fun readEncryptedPassphrase(): ByteArray = File(keysDir(), SESSION_PASSPHRASE_BLOB).readBytes()
-
-        override fun deleteSession() {
-            val ks = keyStore()
-            if (ks.containsAlias(SESSION_KEY_ALIAS)) {
-                ks.deleteEntry(SESSION_KEY_ALIAS)
-            }
-            File(keysDir(), SESSION_PASSPHRASE_BLOB).delete()
+            blobFile().writeBytes(cipher.doFinal(data))
         }
 
         override fun getDecryptCipher(): Cipher {
@@ -86,5 +75,15 @@ class AndroidSessionKeyStore
             val cipher = Cipher.getInstance(RSA_CIPHER)
             cipher.init(Cipher.DECRYPT_MODE, privateKey, RSA_OAEP_SPEC)
             return cipher
+        }
+
+        override fun get(cipher: Cipher): ByteArray = cipher.doFinal(blobFile().readBytes())
+
+        override fun delete() {
+            val ks = keyStore()
+            if (ks.containsAlias(SESSION_KEY_ALIAS)) {
+                ks.deleteEntry(SESSION_KEY_ALIAS)
+            }
+            blobFile().delete()
         }
     }

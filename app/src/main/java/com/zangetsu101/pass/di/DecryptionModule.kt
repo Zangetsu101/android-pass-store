@@ -3,8 +3,8 @@ package com.zangetsu101.pass.di
 import com.zangetsu101.pass.autofill.AutofillDecryption
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionImpl
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyProviderImpl
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.session.CachedPassphrase
 import com.zangetsu101.pass.keymanagement.session.DirectPassphrase
 import com.zangetsu101.pass.keymanagement.session.PassphraseProvider
@@ -21,7 +21,7 @@ object DecryptionModule {
     @Singleton
     fun provideDecryption(
         @CachedPassphrase pp: PassphraseProvider,
-        ops: GpgKeyOperations,
+        ops: GpgKeyStore,
     ): Decryption = DecryptionImpl(GpgKeyProviderImpl(pp, ops))
 
     @Provides
@@ -29,6 +29,6 @@ object DecryptionModule {
     @AutofillDecryption
     fun provideAutofillDecryption(
         @DirectPassphrase pp: PassphraseProvider,
-        ops: GpgKeyOperations,
+        ops: GpgKeyStore,
     ): Decryption = DecryptionImpl(GpgKeyProviderImpl(pp, ops))
 }

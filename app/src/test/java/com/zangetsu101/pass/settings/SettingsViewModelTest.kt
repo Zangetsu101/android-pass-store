@@ -5,7 +5,7 @@ import app.cash.turbine.test
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.keymanagement.KeyManagement
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
@@ -43,7 +43,7 @@ class SettingsViewModelTest {
 
     private val sessionOperations = mockk<SessionOperations>(relaxed = true)
     private val keyManagement = mockk<KeyManagement>()
-    private val gpgKeyOperations = mockk<GpgKeyOperations>()
+    private val gpgKeyOperations = mockk<GpgKeyStore>()
     private val appPreferences = mockk<AppPreferences>(relaxed = true)
     private val gitSync = mockk<GitSync>()
     private val context = mockk<Context>(relaxed = true)

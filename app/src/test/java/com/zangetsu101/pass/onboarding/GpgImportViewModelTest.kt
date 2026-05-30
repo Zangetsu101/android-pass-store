@@ -1,6 +1,6 @@
 package com.zangetsu101.pass.onboarding
 
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Awaits
@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class GpgImportViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
-    private val cryptoOperations = mockk<GpgKeyOperations>()
+    private val cryptoOperations = mockk<GpgKeyStore>()
     private val appPreferences = mockk<AppPreferences>(relaxed = true)
     private lateinit var viewModel: GpgImportViewModel
 

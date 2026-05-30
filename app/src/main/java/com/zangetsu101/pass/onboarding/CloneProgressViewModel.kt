@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncError
-import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -50,7 +50,7 @@ class CloneProgressViewModel
     constructor(
         @Assisted val remoteUrl: String,
         @ApplicationContext private val context: Context,
-        private val cryptoOperations: SshKeyOperations,
+        private val cryptoOperations: SshKeyStore,
         private val gitSync: GitSync,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {

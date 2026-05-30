@@ -1,9 +1,10 @@
 package com.zangetsu101.pass.keymanagement.gpg
 
 import com.zangetsu101.pass.keymanagement.GpgPrivateKey
+import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.session.SessionError
 
-interface GpgKeyOperations {
+interface GpgKeyStore : PlainCryptoStore {
     @Throws(KeyImportError::class)
     fun importGpgKey(armoredKey: String)
 

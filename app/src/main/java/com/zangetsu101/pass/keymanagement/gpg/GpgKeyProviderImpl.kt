@@ -8,10 +8,10 @@ import kotlinx.coroutines.withContext
 
 class GpgKeyProviderImpl(
     private val passphraseProvider: PassphraseProvider,
-    private val gpgKeyOperations: GpgKeyOperations,
+    private val gpgKeyStore: GpgKeyStore,
 ) : GpgKeyProvider {
     override suspend fun getGpgKey(activity: FragmentActivity): GpgPrivateKey {
         val passphrase = passphraseProvider.getPassphrase(activity)
-        return withContext(Dispatchers.IO) { gpgKeyOperations.loadAndUnlock(passphrase) }
+        return withContext(Dispatchers.IO) { gpgKeyStore.loadAndUnlock(passphrase) }
     }
 }

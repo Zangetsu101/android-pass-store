@@ -3,7 +3,9 @@ package com.zangetsu101.pass.keymanagement.session
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.di.AppBackgroundScope
+import com.zangetsu101.pass.keymanagement.crypto.BiometricCryptoStore
 import com.zangetsu101.pass.preferences.AppPreferences
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,17 +19,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
 class SessionManager
     @Inject
     constructor(
-        private val keyStore: SessionKeyStore,
+        private val keyStore: BiometricCryptoStore,
         private val biometricPrompter: BiometricPrompter,
         private val sessionTimer: SessionTimer,
         private val appPreferences: AppPreferences,
         @AppBackgroundScope private val scope: CoroutineScope,
+        @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : SessionOperations {
         private var timeoutJob: Job? = null
 
@@ -36,7 +40,7 @@ class SessionManager
 
         init {
             val lastTouched = runBlocking { appPreferences.sessionLastTouched.first() }
-            val hasSession = keyStore.hasSession()
+            val hasSession = keyStore.exists()
 
             if (lastTouched != -1L && hasSession) {
                 _sessionState.value = SessionState.Active
@@ -56,12 +60,11 @@ class SessionManager
         }
 
         override suspend fun createSession(passphrase: String) {
-            withContext(Dispatchers.IO) {
-                if (passphrase.toByteArray(Charsets.UTF_8).size > keyStore.maxPassphraseBytes) {
+            withContext(ioDispatcher) {
+                if (passphrase.toByteArray(Charsets.UTF_8).size > keyStore.maxBytes) {
                     throw SessionError.PassphraseTooLong()
                 }
-                keyStore.createKey()
-                keyStore.storeEncryptedPassphrase(passphrase.toByteArray(Charsets.UTF_8))
+                keyStore.store(passphrase.toByteArray(Charsets.UTF_8))
                 appPreferences.setSessionLastTouched(System.currentTimeMillis())
             }
             _sessionState.value = SessionState.Active
@@ -70,7 +73,7 @@ class SessionManager
 
         override fun endSession(reason: EndReason) {
             timeoutJob?.cancel()
-            keyStore.deleteSession()
+            keyStore.delete()
             _sessionState.value = SessionState.Inactive(reason)
             sessionTimer.stop()
         }
@@ -101,12 +104,8 @@ class SessionManager
 
         override suspend fun getPassphrase(activity: FragmentActivity): String {
             if (sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
-            val ciphertext =
-                withContext(Dispatchers.IO) {
-                    keyStore.readEncryptedPassphrase()
-                }
             val cipher =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     try {
                         keyStore.getDecryptCipher()
                     } catch (e: KeyPermanentlyInvalidatedException) {
@@ -119,8 +118,8 @@ class SessionManager
                     biometricPrompter.prompt(activity, cipher)
                 }
             val passphrase =
-                withContext(Dispatchers.IO) {
-                    String(authenticatedCipher.doFinal(ciphertext), Charsets.UTF_8)
+                withContext(ioDispatcher) {
+                    String(keyStore.get(authenticatedCipher), Charsets.UTF_8)
                 }
             touchSession()
             return passphrase

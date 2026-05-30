@@ -1,7 +1,7 @@
 package com.zangetsu101.pass.session
 
 import app.cash.turbine.test
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionStartViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
-    private val gpgKeyOperations: GpgKeyOperations = mockk()
+    private val gpgKeyOperations: GpgKeyStore = mockk()
     private val sessionOperations: SessionOperations = mockk()
     private val appPreferences: AppPreferences = mockk()
 

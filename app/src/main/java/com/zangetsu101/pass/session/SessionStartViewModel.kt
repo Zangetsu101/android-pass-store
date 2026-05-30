@@ -2,7 +2,7 @@ package com.zangetsu101.pass.session
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zangetsu101.pass.keymanagement.gpg.GpgKeyOperations
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
@@ -31,7 +31,7 @@ data class SessionStartUiState(
 class SessionStartViewModel
     @Inject
     constructor(
-        private val gpgKeyOperations: GpgKeyOperations,
+        private val gpgKeyOperations: GpgKeyStore,
         private val sessionOperations: SessionOperations,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {

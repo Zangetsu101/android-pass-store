@@ -2,6 +2,7 @@ package com.zangetsu101.pass.keymanagement.session
 
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import app.cash.turbine.test
+import com.zangetsu101.pass.keymanagement.crypto.BiometricCryptoStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.every
 import io.mockk.mockk
@@ -11,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -26,9 +28,10 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionManagerTest {
     private val testScheduler = TestCoroutineScheduler()
-    private val testScope = TestScope(testScheduler)
+    private val testDispatcher = StandardTestDispatcher(testScheduler)
+    private val testScope = TestScope(testDispatcher)
 
-    private val keyStore: SessionKeyStore = mockk(relaxed = true)
+    private val keyStore: BiometricCryptoStore = mockk(relaxed = true)
     private val biometricPrompter: BiometricPrompter = mockk()
     private val sessionTimer: SessionTimer = mockk(relaxed = true)
     private val appPreferences: AppPreferences = mockk(relaxed = true)
@@ -40,13 +43,14 @@ class SessionManagerTest {
             sessionTimer = sessionTimer,
             appPreferences = appPreferences,
             scope = testScope,
+            ioDispatcher = testDispatcher,
         )
 
     @BeforeEach
     fun setUp() {
         every { appPreferences.sessionLastTouched } returns flowOf(-1L)
         every { appPreferences.sessionTimeoutMinutes } returns flowOf(5)
-        every { keyStore.maxPassphraseBytes } returns 190
+        every { keyStore.maxBytes } returns 190
     }
 
     @AfterEach
@@ -61,7 +65,7 @@ class SessionManagerTest {
         testScope.runTest {
             val lastTouched = System.currentTimeMillis() - 60_000L
             every { appPreferences.sessionLastTouched } returns flowOf(lastTouched)
-            every { keyStore.hasSession() } returns true
+            every { keyStore.exists() } returns true
 
             val manager = buildManager()
 
@@ -79,7 +83,7 @@ class SessionManagerTest {
             val timeoutMs = 5 * 60_000L
             val lastTouched = System.currentTimeMillis() - timeoutMs - 1_000L
             every { appPreferences.sessionLastTouched } returns flowOf(lastTouched)
-            every { keyStore.hasSession() } returns true
+            every { keyStore.exists() } returns true
 
             val manager = buildManager()
 
@@ -136,8 +140,7 @@ class SessionManagerTest {
                 cancelAndIgnoreRemainingEvents()
             }
 
-            verify { keyStore.createKey() }
-            verify { keyStore.storeEncryptedPassphrase(any()) }
+            verify { keyStore.store(any()) }
         }
 
     // Test 6: endSession(MANUAL) from Inactive → no state change (StateFlow deduplicates equal values); deleteSession called
@@ -155,7 +158,7 @@ class SessionManagerTest {
                 cancelAndIgnoreRemainingEvents()
             }
 
-            verify { keyStore.deleteSession() }
+            verify { keyStore.delete() }
         }
 
     // Test 7: createSession → advanceTimeBy(timeoutMs) → Inactive(TIMEOUT)
@@ -293,25 +296,25 @@ class SessionManagerTest {
 
     // Test 11: getPassphrase → getDecryptCipher throws KeyPermanentlyInvalidatedException
     //          → endSession(BIOMETRIC_CHANGED); throws NoActiveSession
-    // Turbine not used: endSession(BIOMETRIC_CHANGED) fires from withContext(Dispatchers.IO), so the
-    // emission lands on the IO thread. Turbine's collector runs on UnconfinedTestDispatcher (different
-    // thread), so it's still queued when awaitItem() is called — Turbine calls advanceUntilIdle()
-    // internally, firing the 5-min timer before the BIOMETRIC_CHANGED emission is collected.
     @Test
     fun `getPassphrase with key invalidated ends session with BIOMETRIC_CHANGED and throws NoActiveSession`() =
         testScope.runTest {
-            every { keyStore.readEncryptedPassphrase() } returns ByteArray(16)
             every { keyStore.getDecryptCipher() } throws mockk<KeyPermanentlyInvalidatedException>()
 
             val manager = buildManager()
-            manager.createSession("passphrase")
-            runCurrent() // set up timeoutJob so endSession(BIOMETRIC_CHANGED) can cancel it
 
-            assertEquals(SessionState.Active, manager.sessionState.value)
+            manager.sessionState.test {
+                assertEquals(SessionState.Inactive(EndReason.MANUAL), awaitItem())
 
-            val ex = runCatching { manager.getPassphrase(mockk()) }.exceptionOrNull()
+                manager.createSession("passphrase")
+                runCurrent()
+                assertEquals(SessionState.Active, awaitItem())
 
-            assertTrue(ex is SessionError.NoActiveSession)
-            assertEquals(SessionState.Inactive(EndReason.BIOMETRIC_CHANGED), manager.sessionState.value)
+                val ex = runCatching { manager.getPassphrase(mockk()) }.exceptionOrNull()
+                assertTrue(ex is SessionError.NoActiveSession)
+
+                assertEquals(SessionState.Inactive(EndReason.BIOMETRIC_CHANGED), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 }

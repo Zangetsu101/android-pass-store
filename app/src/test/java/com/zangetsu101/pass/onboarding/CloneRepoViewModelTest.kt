@@ -1,6 +1,6 @@
 package com.zangetsu101.pass.onboarding
 
-import com.zangetsu101.pass.keymanagement.ssh.SshKeyOperations
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Awaits
 import io.mockk.coEvery
@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class CloneRepoViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var sshKeyOps: SshKeyOperations
+    private lateinit var sshKeyOps: SshKeyStore
     private lateinit var appPrefs: AppPreferences
     private lateinit var viewModel: CloneRepoViewModel
 
