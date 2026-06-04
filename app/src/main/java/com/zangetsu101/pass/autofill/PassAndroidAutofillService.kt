@@ -3,11 +3,13 @@ package com.zangetsu101.pass.autofill
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
 import android.content.Intent
+import android.os.Build
 import android.os.CancellationSignal
 import android.service.autofill.AutofillService
 import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
 import android.service.autofill.FillResponse
+import android.service.autofill.InlinePresentation
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.text.InputType
@@ -15,6 +17,11 @@ import android.view.View
 import android.view.autofill.AutofillId
 import android.view.autofill.AutofillValue
 import android.widget.RemoteViews
+import android.widget.inline.InlinePresentationSpec
+import androidx.annotation.RequiresApi
+import androidx.autofill.inline.UiVersions
+import androidx.autofill.inline.v1.InlineSuggestionUi
+import com.zangetsu101.pass.MainActivity
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import dagger.hilt.android.AndroidEntryPoint
@@ -64,9 +71,17 @@ class PassAndroidAutofillService : AutofillService() {
             return
         }
 
+        val inlineSpecs =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                request.inlineSuggestionsRequest?.inlinePresentationSpecs ?: emptyList()
+            } else {
+                emptyList()
+            }
+
         val datasets =
             candidates.mapIndexed { i, entry ->
-                buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i)
+                val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
+                buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
             }
 
         val response =
@@ -89,6 +104,7 @@ class PassAndroidAutofillService : AutofillService() {
         usernameId: AutofillId?,
         passwordId: AutofillId?,
         requestCode: Int,
+        inlineSpec: InlinePresentationSpec?,
     ): android.service.autofill.Dataset {
         val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
         val presentation =
@@ -110,15 +126,54 @@ class PassAndroidAutofillService : AutofillService() {
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
 
-        // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
-        @Suppress("DEPRECATION")
+        val inlinePresentation =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlineSpec != null) {
+                buildInlinePresentation(label, inlineSpec, sender)
+            } else {
+                null
+            }
+
         return android.service.autofill.Dataset
             .Builder()
             .apply {
-                usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-                passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
+                    // setValue(AutofillId, AutofillValue, RemoteViews, InlinePresentation) deprecated in API 33
+                    @Suppress("DEPRECATION")
+                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                    @Suppress("DEPRECATION")
+                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                } else {
+                    // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
+                    @Suppress("DEPRECATION")
+                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                    @Suppress("DEPRECATION")
+                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                }
                 setAuthentication(sender.intentSender)
             }.build()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun buildInlinePresentation(
+        label: String,
+        spec: InlinePresentationSpec,
+        authSender: PendingIntent,
+    ): InlinePresentation? {
+        if (!UiVersions.getVersions(spec.style).contains(UiVersions.INLINE_UI_VERSION_1)) return null
+        val attributionIntent =
+            PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
+        val slice =
+            InlineSuggestionUi
+                .newContentBuilder(attributionIntent)
+                .setTitle(label)
+                .build()
+                .slice
+        return InlinePresentation(slice, spec, false)
     }
 
     private fun findWebDomain(structure: AssistStructure): String? {

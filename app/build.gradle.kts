@@ -106,6 +106,9 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // Autofill inline suggestions
+    implementation(libs.androidx.autofill)
+
     // Biometric
     implementation(libs.androidx.biometric)
 

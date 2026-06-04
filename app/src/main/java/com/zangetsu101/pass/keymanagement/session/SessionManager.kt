@@ -103,7 +103,7 @@ class SessionManager
         }
 
         override suspend fun getPassphrase(activity: FragmentActivity): String {
-            if (sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
+            if (_sessionState.value !is SessionState.Active) throw SessionError.NoActiveSession()
             val cipher =
                 withContext(ioDispatcher) {
                     try {
