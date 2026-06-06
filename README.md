@@ -9,7 +9,7 @@ I use [`pass`](https://www.passwordstore.org/), the standard Unix password store
 Three things pushed me to build this:
 
 - **First-class modern autofill.** I wanted deep integration with the current Android credential stack — `AutofillService`, Credential Manager (Android 14+), and Android 16's Identity Check biometric-only enforcement — not a bolt-on.
-- **APS was archived.** [Android Password Store (APS)](https://github.com/android-password-store/Android-Password-Store), the long-standing community client, was archived by its maintainers on **Oct 15, 2024** and is no longer actively developed.
+- **Different scope from existing clients.** [Android Password Store (APS)](https://github.com/android-password-store/Android-Password-Store) was archived on **Oct 15, 2024**; [an active fork](https://github.com/agrahn/Android-Password-Store) continues it as a full-featured read/write client. Neither targets the modern Android credential stack the way this app does.
 - **Built for my flow.** This is a personal project shaped around how I actually use `pass`: read on the phone, write on the laptop.
 
 It's a personal-use project first. But if you're a `pass` user looking for a maintained, autofill-first Android client, it may fit you too.
