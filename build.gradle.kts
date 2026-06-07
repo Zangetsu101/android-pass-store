@@ -12,8 +12,10 @@ val appPackage = "com.zangetsu101.pass"
 val apkPath = "app/build/outputs/apk/debug/app-debug.apk"
 val testKeyLocal = "/tmp/test-key.asc"
 
-fun cmd(vararg args: String) {
-    val exit = ProcessBuilder(*args).inheritIO().start().waitFor()
+fun Task.cmd(vararg args: String) {
+    val process = ProcessBuilder(*args).redirectErrorStream(true).start()
+    process.inputStream.bufferedReader().forEachLine { logger.lifecycle(it) }
+    val exit = process.waitFor()
     if (exit != 0) throw GradleException("Command failed (exit $exit): ${args.joinToString(" ")}")
 }
 
