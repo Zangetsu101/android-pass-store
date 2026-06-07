@@ -12,7 +12,7 @@ WSL setup. Emulator runs on Windows side via `android emulator` command (not ins
 
 ## Test Infrastructure
 
-End-to-end tests use Maestro. See `maestro/README.md` for setup, flows, and the test repo.
+End-to-end tests use Maestro. See `e2e/README.md` for setup, flows, and the test repo.
 
 ## Explanation Style
 

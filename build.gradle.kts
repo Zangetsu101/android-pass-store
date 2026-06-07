@@ -47,6 +47,6 @@ tasks.register("maestro") {
         }
         val flow = (findProperty("flow") as String? ?: "flow_all")
             .let { if (it.endsWith(".yaml")) it else "$it.yaml" }
-        cmd(maestroBin, "test", "maestro/$flow")
+        cmd(maestroBin, "test", "e2e/$flow")
     }
 }
