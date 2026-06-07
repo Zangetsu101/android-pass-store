@@ -1,6 +1,7 @@
 package com.zangetsu101.pass.keymanagement.ssh
 
 import android.util.Base64
+import com.zangetsu101.pass.BuildConfig
 import com.zangetsu101.pass.keymanagement.SshKeyPair
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
@@ -13,6 +14,8 @@ import java.io.DataOutputStream
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.SecureRandom
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 
@@ -28,7 +31,7 @@ class SshKeyStoreImpl(
     }
 
     override fun generateSshKey(): String {
-        val pair = generateTestSshKey()
+        val pair = if (BuildConfig.DEBUG) generateTestSshKey() else generateKeyPair()
         privateKeyStore.store(pair.private.encoded)
         publicKeyStore.store(pair.public.encoded)
         return openSshPublicKey(pair.public)
@@ -41,6 +44,12 @@ class SshKeyStoreImpl(
         val privateKey = kf.generatePrivate(PKCS8EncodedKeySpec(privateBytes))
         val publicKey = kf.generatePublic(X509EncodedKeySpec(publicBytes))
         return KeyPair(publicKey, privateKey)
+    }
+
+    private fun generateKeyPair(): KeyPair {
+        val kpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider())
+        kpg.initialize(ECNamedCurveTable.getParameterSpec("secp256r1"), SecureRandom())
+        return kpg.generateKeyPair()
     }
 
     private fun generateTestSshKey(): KeyPair {
