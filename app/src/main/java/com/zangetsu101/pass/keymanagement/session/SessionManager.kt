@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -53,7 +54,7 @@ class SessionManager
             }
 
             scope.launch {
-                appPreferences.sessionTimeoutMinutes.drop(1).collect {
+                appPreferences.sessionTimeoutMinutes.distinctUntilChanged().drop(1).collect {
                     if (sessionState.value is SessionState.Active) endSession(EndReason.TIMEOUT_CHANGED)
                 }
             }
