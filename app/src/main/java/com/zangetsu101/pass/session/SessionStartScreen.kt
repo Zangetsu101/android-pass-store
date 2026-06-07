@@ -98,6 +98,7 @@ fun SessionStartScreen(
                 PassTextField(
                     value = state.passphrase,
                     onValueChange = viewModel::setPassphrase,
+                    placeholder = "enter passphrase",
                     visualTransformation = if (showPassphrase) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions =
                         KeyboardOptions(
