@@ -10,6 +10,10 @@ Do not guess. Look it up first.
 
 WSL setup. Emulator runs on Windows side via `android emulator` command (not inside WSL). ADB connects to it over TCP. Build happens in WSL; deploy/run targets the Windows-hosted emulator.
 
+## Test Infrastructure
+
+End-to-end tests use Maestro. See `maestro/README.md` for setup, flows, and the test repo.
+
 ## Explanation Style
 
 User knows web/React well, Android ecosystem poorly. When explaining Android concepts, anchor to web/React equivalents. Examples: ViewModel ≈ React state/store, Composable ≈ React component, NavGraph ≈ React Router, Activity ≈ browser tab, Intent ≈ deep link / window.open, Manifest ≈ app config/meta tags, Gradle ≈ package.json + webpack config, CoroutineScope ≈ async context / AbortController scope.
