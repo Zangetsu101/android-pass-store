@@ -58,10 +58,11 @@ class SshKeyStoreImpl(
         val rawKeyBytes = SubjectPublicKeyInfo.getInstance(publicKey.encoded).publicKeyData.bytes
         val buf = ByteArrayOutputStream()
         val out = DataOutputStream(buf)
-        out.writeSshString("ssh-ed25519")
+        out.writeSshString("ecdsa-sha2-nistp256")
+        out.writeSshString("nistp256")
         out.writeSshBytes(rawKeyBytes)
         out.flush()
-        return "ssh-ed25519 ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
+        return "ecdsa-sha2-nistp256 ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
     }
 
     private fun DataOutputStream.writeSshString(s: String) {
