@@ -1,0 +1,43 @@
+appId: com.zangetsu101.pass
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      text: "> pass init"
+    timeout: 8000
+- tapOn: "> pass init"
+
+# Enter repo URL
+- assertVisible: "git@github.com:user/pass.git"
+- tapOn: "git@github.com:user/pass.git"
+- inputText: "git@github.com:Zangetsu101/pass-test-store.git"
+- tapOn: "> pass import-key"
+
+# Import GPG key from file
+- assertVisible: "import from file"
+- tapOn: "import from file"
+
+# File picker — tap test-key.asc in Downloads
+- extendedWaitUntil:
+    visible:
+      text: "test-key.asc"
+    timeout: 5000
+- tapOn: "test-key.asc"
+
+# Confirm import
+- assertVisible: "import"
+- tapOn:
+    text: "import"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      text: "Key imported successfully."
+    timeout: 10000
+
+# Clone repo
+- tapOn: "> git clone"
+- extendedWaitUntil:
+    visible:
+      text: "admin"
+    timeout: 60000

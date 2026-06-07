@@ -1,0 +1,25 @@
+appId: com.zangetsu101.pass
+# Prerequisite: flow_onboarding.yaml completed — app is at EntryBrowser screen.
+---
+- assertVisible: "admin"
+- tapOn: "admin"
+
+# Grant notification permission if dialog appears
+- tapOn:
+    text: "Allow"
+    optional: true
+
+# Enter passphrase on SessionStart screen
+- extendedWaitUntil:
+    visible:
+      text: "start session"
+    timeout: 5000
+- tapOn: "enter passphrase"
+- inputText: "testpass"
+- pressKey: Enter
+
+# Biometric prompt should appear
+- extendedWaitUntil:
+    visible:
+      text: "Authenticate"
+    timeout: 30000

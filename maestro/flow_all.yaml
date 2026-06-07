@@ -1,0 +1,8 @@
+appId: com.zangetsu101.pass
+# Runs onboarding then entry-tap as a single chained session.
+# Use this for CI or full local runs.
+# Prerequisites: app installed, test-key.asc pushed to /sdcard/Download/.
+# See run_tests.sh for the full setup + execution wrapper.
+---
+- runFlow: flow_onboarding.yaml
+- runFlow: flow_entry_tap.yaml
