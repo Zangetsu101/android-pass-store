@@ -58,11 +58,6 @@ class PassAndroidAutofillService : AutofillService() {
                 passStore.resolveByPackage(packageName)
             }
 
-        if (candidates.isEmpty()) {
-            callback.onSuccess(null)
-            return
-        }
-
         val usernameNode = findNode(structure, ::isUsernameNode)
         val passwordNode = findNode(structure, ::isPasswordNode)
 
@@ -84,11 +79,24 @@ class PassAndroidAutofillService : AutofillService() {
                 buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
             }
 
+        val searchSpec = inlineSpecs.getOrNull(candidates.size) ?: inlineSpecs.lastOrNull()
+        val initialQuery = webDomain ?: packageName
+        val searchDataset =
+            buildSearchDataset(
+                usernameNode?.autofillId,
+                passwordNode?.autofillId,
+                candidates.size,
+                searchSpec,
+                initialQuery,
+            )
+
         val response =
             FillResponse
                 .Builder()
-                .apply { datasets.forEach { addDataset(it) } }
-                .build()
+                .apply {
+                    datasets.forEach { addDataset(it) }
+                    addDataset(searchDataset)
+                }.build()
         callback.onSuccess(response)
     }
 
@@ -144,6 +152,58 @@ class PassAndroidAutofillService : AutofillService() {
                     passwordId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
                 } else {
                     // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
+                    @Suppress("DEPRECATION")
+                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                    @Suppress("DEPRECATION")
+                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                }
+                setAuthentication(sender.intentSender)
+            }.build()
+    }
+
+    private fun buildSearchDataset(
+        usernameId: AutofillId?,
+        passwordId: AutofillId?,
+        requestCode: Int,
+        inlineSpec: InlinePresentationSpec?,
+        initialQuery: String,
+    ): android.service.autofill.Dataset {
+        val label = "Search..."
+        val presentation =
+            RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
+                setTextViewText(android.R.id.text1, label)
+            }
+
+        val searchIntent =
+            Intent(this, AutofillSearchActivity::class.java).apply {
+                usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
+                passwordId?.let { putExtra(AutofillSearchActivity.EXTRA_PASSWORD_ID, it) }
+                putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, initialQuery)
+            }
+        val sender =
+            PendingIntent.getActivity(
+                this,
+                requestCode,
+                searchIntent,
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+
+        val inlinePresentation =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlineSpec != null) {
+                buildInlinePresentation(label, inlineSpec, sender)
+            } else {
+                null
+            }
+
+        return android.service.autofill.Dataset
+            .Builder()
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
+                    @Suppress("DEPRECATION")
+                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                    @Suppress("DEPRECATION")
+                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                } else {
                     @Suppress("DEPRECATION")
                     usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
                     @Suppress("DEPRECATION")

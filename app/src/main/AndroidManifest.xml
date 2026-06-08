@@ -45,6 +45,12 @@
             android:theme="@style/Theme.Pass"
             tools:ignore="Instantiatable" />
 
+        <activity
+            android:name=".autofill.AutofillSearchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Pass"
+            tools:ignore="Instantiatable" />
+
         <service
             android:name=".autofill.PassAndroidAutofillService"
             android:exported="true"

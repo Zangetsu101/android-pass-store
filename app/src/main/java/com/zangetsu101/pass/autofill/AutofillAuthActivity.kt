@@ -1,30 +1,14 @@
 package com.zangetsu101.pass.autofill
 
-import android.app.assist.AssistStructure
-import android.content.Intent
 import android.os.Bundle
-import android.service.autofill.Dataset
 import android.view.autofill.AutofillId
-import android.view.autofill.AutofillManager
-import android.view.autofill.AutofillValue
-import android.widget.RemoteViews
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.lifecycleScope
-import com.zangetsu101.pass.decryption.Decryption
-import com.zangetsu101.pass.decryption.DecryptionError
-import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassStore
-import com.zangetsu101.pass.session.SessionStartActivity
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class AutofillAuthActivity : FragmentActivity() {
+class AutofillAuthActivity : AutofillBaseActivity() {
     @Inject lateinit var passStore: PassStore
-
-    @AutofillDecryption @Inject
-    lateinit var decryption: Decryption
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,48 +36,7 @@ class AutofillAuthActivity : FragmentActivity() {
             return
         }
 
-        lifecycleScope.launch {
-            try {
-                val creds = decryption.decrypt(entry, this@AutofillAuthActivity)
-
-                val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
-                val presentation =
-                    RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                        setTextViewText(android.R.id.text1, label)
-                    }
-
-                // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
-                @Suppress("DEPRECATION")
-                val dataset =
-                    Dataset
-                        .Builder()
-                        .apply {
-                            usernameId?.let { setValue(it, AutofillValue.forText(creds.username), presentation) }
-                            passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
-                        }.build()
-
-                creds.zero()
-
-                val replyIntent =
-                    Intent().apply {
-                        putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
-                    }
-                setResult(RESULT_OK, replyIntent)
-                finish()
-            } catch (e: SessionError.NoActiveSession) {
-                startActivity(Intent(this@AutofillAuthActivity, SessionStartActivity::class.java))
-                cancelAndFinish()
-            } catch (e: DecryptionError) {
-                cancelAndFinish()
-            } catch (e: Exception) {
-                cancelAndFinish()
-            }
-        }
-    }
-
-    private fun cancelAndFinish() {
-        setResult(RESULT_CANCELED)
-        finish()
+        authenticate(entry, usernameId, passwordId)
     }
 
     companion object {
