@@ -80,7 +80,9 @@ class PassStoreImpl
             relativePath: String,
             file: File,
         ): PassEntry {
-            val parts = relativePath.removeSuffix(".gpg").split("/")
+            val pathNoExt = relativePath.removeSuffix(".gpg")
+            val isCard = pathNoExt.startsWith("cards/") || pathNoExt.startsWith("credit-cards/")
+            val parts = pathNoExt.split("/").let { if (isCard) it.drop(1) else it }
             return when {
                 parts.size >= 2 -> {
                     PassEntry(
@@ -88,6 +90,7 @@ class PassStoreImpl
                         domain = parts[parts.size - 2],
                         username = parts.last(),
                         encryptedFile = file,
+                        isCard = isCard,
                     )
                 }
 
@@ -97,6 +100,7 @@ class PassStoreImpl
                         domain = null,
                         username = parts.last(),
                         encryptedFile = file,
+                        isCard = isCard,
                     )
                 }
             }

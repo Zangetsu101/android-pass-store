@@ -64,8 +64,79 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         }
     }
 
+    protected fun authenticateCard(
+        entry: PassEntry,
+        cardNumberId: AutofillId?,
+        cvvId: AutofillId?,
+        expiryMonthId: AutofillId?,
+        expiryYearId: AutofillId?,
+        expiryDateId: AutofillId?,
+        cardholderId: AutofillId?,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val creds = decryption.decrypt(entry, this@AutofillBaseActivity)
+
+                val cardNumber = String(creds.password)
+                val notes = parseNotes(creds.notes)
+                val cvv = notes["cvv"]
+                val expiryRaw = notes["expiry"]
+                val expiryMonth = expiryRaw?.substringBefore("/", "")?.takeIf { it.isNotEmpty() }
+                val expiryYear =
+                    expiryRaw
+                        ?.substringAfter("/", "")
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { y -> if (y.length == 2) "20$y" else y }
+                val cardholder = notes["cardholder"]
+
+                val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
+                val presentation =
+                    RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
+                        setTextViewText(android.R.id.text1, label)
+                    }
+
+                @Suppress("DEPRECATION")
+                val dataset =
+                    Dataset
+                        .Builder()
+                        .apply {
+                            cardNumberId?.let { setValue(it, AutofillValue.forText(cardNumber), presentation) }
+                            cvvId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            expiryMonthId?.let { expiryMonth?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            expiryYearId?.let { expiryYear?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            expiryDateId?.let { expiryRaw?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                        }.build()
+
+                creds.zero()
+
+                val replyIntent =
+                    Intent().apply {
+                        putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
+                    }
+                setResult(RESULT_OK, replyIntent)
+                finish()
+            } catch (e: SessionError.NoActiveSession) {
+                startActivity(Intent(this@AutofillBaseActivity, SessionStartActivity::class.java))
+                cancelAndFinish()
+            } catch (e: DecryptionError) {
+                cancelAndFinish()
+            } catch (e: Exception) {
+                cancelAndFinish()
+            }
+        }
+    }
+
     protected fun cancelAndFinish() {
         setResult(RESULT_CANCELED)
         finish()
     }
+
+    private fun parseNotes(notes: String): Map<String, String> =
+        notes
+            .lines()
+            .mapNotNull { line ->
+                val idx = line.indexOf(':')
+                if (idx < 0) null else line.substring(0, idx).trim().lowercase() to line.substring(idx + 1).trim()
+            }.toMap()
 }

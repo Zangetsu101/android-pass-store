@@ -7,4 +7,5 @@ data class PassEntry(
     val domain: String?,
     val username: String,
     val encryptedFile: File,
+    val isCard: Boolean = false,
 )

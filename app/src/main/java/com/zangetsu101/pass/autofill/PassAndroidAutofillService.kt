@@ -50,13 +50,34 @@ class PassAndroidAutofillService : AutofillService() {
             return
         }
 
-        val webDomain = findWebDomain(structure)
-        val candidates =
-            if (webDomain != null) {
-                passStore.resolve(webDomain)
+        val inlineSpecs =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                request.inlineSuggestionsRequest?.inlinePresentationSpecs ?: emptyList()
             } else {
-                passStore.resolveByPackage(packageName)
+                emptyList()
             }
+
+        val cardNumberNode = findNode(structure, ::isCardNumberNode)
+        val cvvNode = findNode(structure, ::isCvvNode)
+
+        if (cardNumberNode != null || cvvNode != null) {
+            val expiryMonthNode = findNode(structure, ::isExpiryMonthNode)
+            val expiryYearNode = findNode(structure, ::isExpiryYearNode)
+            val expiryDateNode = findNode(structure, ::isExpiryDateNode)
+            val cardholderNode = findNode(structure, ::isCardholderNode)
+            callback.onSuccess(
+                buildCardFillResponse(
+                    inlineSpecs,
+                    cardNumberNode?.autofillId,
+                    cvvNode?.autofillId,
+                    expiryMonthNode?.autofillId,
+                    expiryYearNode?.autofillId,
+                    expiryDateNode?.autofillId,
+                    cardholderNode?.autofillId,
+                ),
+            )
+            return
+        }
 
         val usernameNode = findNode(structure, ::isUsernameNode)
         val passwordNode = findNode(structure, ::isPasswordNode)
@@ -66,12 +87,10 @@ class PassAndroidAutofillService : AutofillService() {
             return
         }
 
-        val inlineSpecs =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                request.inlineSuggestionsRequest?.inlinePresentationSpecs ?: emptyList()
-            } else {
-                emptyList()
-            }
+        val webDomain = findWebDomain(structure)
+        val candidates =
+            (if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName))
+                .filter { !it.isCard }
 
         val datasets =
             candidates.mapIndexed { i, entry ->
@@ -80,24 +99,23 @@ class PassAndroidAutofillService : AutofillService() {
             }
 
         val searchSpec = inlineSpecs.getOrNull(candidates.size) ?: inlineSpecs.lastOrNull()
-        val initialQuery = webDomain ?: packageName
         val searchDataset =
-            buildSearchDataset(
+            buildLoginSearchDataset(
                 usernameNode?.autofillId,
                 passwordNode?.autofillId,
                 candidates.size,
                 searchSpec,
-                initialQuery,
+                webDomain ?: packageName,
             )
 
-        val response =
+        callback.onSuccess(
             FillResponse
                 .Builder()
                 .apply {
                     datasets.forEach { addDataset(it) }
                     addDataset(searchDataset)
-                }.build()
-        callback.onSuccess(response)
+                }.build(),
+        )
     }
 
     override fun onSaveRequest(
@@ -105,6 +123,41 @@ class PassAndroidAutofillService : AutofillService() {
         callback: SaveCallback,
     ) {
         callback.onSuccess()
+    }
+
+    private fun buildCardFillResponse(
+        inlineSpecs: List<InlinePresentationSpec>,
+        cardNumberId: AutofillId?,
+        cvvId: AutofillId?,
+        expiryMonthId: AutofillId?,
+        expiryYearId: AutofillId?,
+        expiryDateId: AutofillId?,
+        cardholderId: AutofillId?,
+    ): FillResponse {
+        val candidates = passStore.index.value.filter { it.isCard }
+
+        if (candidates.isEmpty()) return FillResponse.Builder().build()
+
+        val datasets =
+            candidates.mapIndexed { i, entry ->
+                val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
+                buildLockedCardDataset(
+                    entry,
+                    cardNumberId,
+                    cvvId,
+                    expiryMonthId,
+                    expiryYearId,
+                    expiryDateId,
+                    cardholderId,
+                    i,
+                    spec,
+                )
+            }
+
+        return FillResponse
+            .Builder()
+            .apply { datasets.forEach { addDataset(it) } }
+            .build()
     }
 
     private fun buildLockedDataset(
@@ -115,11 +168,6 @@ class PassAndroidAutofillService : AutofillService() {
         inlineSpec: InlinePresentationSpec?,
     ): android.service.autofill.Dataset {
         val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
-        val presentation =
-            RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                setTextViewText(android.R.id.text1, label)
-            }
-
         val authIntent =
             Intent(this, AutofillAuthActivity::class.java).apply {
                 putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
@@ -127,53 +175,49 @@ class PassAndroidAutofillService : AutofillService() {
                 passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
             }
         val sender =
-            PendingIntent.getActivity(
-                this,
-                requestCode,
-                authIntent,
-                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-
-        val inlinePresentation =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlineSpec != null) {
-                buildInlinePresentation(label, inlineSpec, sender)
-            } else {
-                null
-            }
-
-        return android.service.autofill.Dataset
-            .Builder()
-            .apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
-                    // setValue(AutofillId, AutofillValue, RemoteViews, InlinePresentation) deprecated in API 33
-                    @Suppress("DEPRECATION")
-                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
-                    @Suppress("DEPRECATION")
-                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
-                } else {
-                    // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
-                    @Suppress("DEPRECATION")
-                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-                    @Suppress("DEPRECATION")
-                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-                }
-                setAuthentication(sender.intentSender)
-            }.build()
+            PendingIntent.getActivity(this, requestCode, authIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return buildDataset(label, listOfNotNull(usernameId, passwordId), sender, inlineSpec)
     }
 
-    private fun buildSearchDataset(
+    private fun buildLockedCardDataset(
+        entry: PassEntry,
+        cardNumberId: AutofillId?,
+        cvvId: AutofillId?,
+        expiryMonthId: AutofillId?,
+        expiryYearId: AutofillId?,
+        expiryDateId: AutofillId?,
+        cardholderId: AutofillId?,
+        requestCode: Int,
+        inlineSpec: InlinePresentationSpec?,
+    ): android.service.autofill.Dataset {
+        val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
+        val authIntent =
+            Intent(this, AutofillAuthActivity::class.java).apply {
+                putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
+                cardNumberId?.let { putExtra(AutofillAuthActivity.EXTRA_CARD_NUMBER_ID, it) }
+                cvvId?.let { putExtra(AutofillAuthActivity.EXTRA_CVV_ID, it) }
+                expiryMonthId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_MONTH_ID, it) }
+                expiryYearId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_YEAR_ID, it) }
+                expiryDateId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_DATE_ID, it) }
+                cardholderId?.let { putExtra(AutofillAuthActivity.EXTRA_CARDHOLDER_ID, it) }
+            }
+        val sender =
+            PendingIntent.getActivity(this, requestCode, authIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return buildDataset(
+            label,
+            listOfNotNull(cardNumberId, cvvId, expiryMonthId, expiryYearId, expiryDateId, cardholderId),
+            sender,
+            inlineSpec,
+        )
+    }
+
+    private fun buildLoginSearchDataset(
         usernameId: AutofillId?,
         passwordId: AutofillId?,
         requestCode: Int,
         inlineSpec: InlinePresentationSpec?,
         initialQuery: String,
     ): android.service.autofill.Dataset {
-        val label = "Search..."
-        val presentation =
-            RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
-                setTextViewText(android.R.id.text1, label)
-            }
-
         val searchIntent =
             Intent(this, AutofillSearchActivity::class.java).apply {
                 usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
@@ -181,33 +225,37 @@ class PassAndroidAutofillService : AutofillService() {
                 putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, initialQuery)
             }
         val sender =
-            PendingIntent.getActivity(
-                this,
-                requestCode,
-                searchIntent,
-                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
+            PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return buildDataset("Search...", listOfNotNull(usernameId, passwordId), sender, inlineSpec)
+    }
 
+    private fun buildDataset(
+        label: String,
+        ids: List<AutofillId>,
+        sender: PendingIntent,
+        inlineSpec: InlinePresentationSpec?,
+    ): android.service.autofill.Dataset {
+        val presentation =
+            RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
+                setTextViewText(android.R.id.text1, label)
+            }
         val inlinePresentation =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlineSpec != null) {
                 buildInlinePresentation(label, inlineSpec, sender)
             } else {
                 null
             }
-
         return android.service.autofill.Dataset
             .Builder()
             .apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
+                    // setValue(AutofillId, AutofillValue, RemoteViews, InlinePresentation) deprecated in API 33
                     @Suppress("DEPRECATION")
-                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
-                    @Suppress("DEPRECATION")
-                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                    ids.forEach { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
                 } else {
+                    // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
                     @Suppress("DEPRECATION")
-                    usernameId?.let { setValue(it, AutofillValue.forText(""), presentation) }
-                    @Suppress("DEPRECATION")
-                    passwordId?.let { setValue(it, AutofillValue.forText(""), presentation) }
+                    ids.forEach { setValue(it, AutofillValue.forText(""), presentation) }
                 }
                 setAuthentication(sender.intentSender)
             }.build()
@@ -316,4 +364,21 @@ class PassAndroidAutofillService : AutofillService() {
         }
         return false
     }
+
+    private fun isCardNumberNode(node: AssistStructure.ViewNode): Boolean =
+        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_NUMBER) == true
+
+    private fun isCvvNode(node: AssistStructure.ViewNode): Boolean =
+        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE) == true
+
+    private fun isExpiryMonthNode(node: AssistStructure.ViewNode): Boolean =
+        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH) == true
+
+    private fun isExpiryYearNode(node: AssistStructure.ViewNode): Boolean =
+        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR) == true
+
+    private fun isExpiryDateNode(node: AssistStructure.ViewNode): Boolean =
+        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DATE) == true
+
+    private fun isCardholderNode(node: AssistStructure.ViewNode): Boolean = node.autofillHints?.contains(View.AUTOFILL_HINT_NAME) == true
 }
