@@ -288,23 +288,31 @@ class PassAndroidAutofillService : AutofillService() {
 
     private fun isUsernameNode(node: AssistStructure.ViewNode): Boolean {
         if (node.autofillHints?.any {
-                it == View.AUTOFILL_HINT_USERNAME || it == View.AUTOFILL_HINT_EMAIL_ADDRESS
+                it == View.AUTOFILL_HINT_USERNAME ||
+                    it == View.AUTOFILL_HINT_EMAIL_ADDRESS ||
+                    it == View.AUTOFILL_HINT_PHONE
             } == true
         ) {
             return true
         }
         val inputType = node.inputType
         if ((inputType and InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0 ||
-            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0
+            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0 ||
+            (inputType and InputType.TYPE_CLASS_PHONE) != 0
         ) {
             return true
         }
         val htmlAttrs = node.htmlInfo?.attributes ?: return false
         val typeAttr = htmlAttrs.firstOrNull { it.first == "type" }?.second
-        if (typeAttr == "email" || typeAttr == "text") {
+        if (typeAttr == "tel" || typeAttr == "email") return true
+        if (typeAttr == "text") {
             val nameAttr = htmlAttrs.firstOrNull { it.first == "name" || it.first == "id" }?.second?.lowercase()
             return nameAttr != null &&
-                (nameAttr.contains("email") || nameAttr.contains("user") || nameAttr.contains("login") || nameAttr.contains("identifier"))
+                (
+                    nameAttr.contains("email") || nameAttr.contains("user") || nameAttr.contains("login") ||
+                        nameAttr.contains("identifier") || nameAttr.contains("phone") ||
+                        nameAttr.contains("mobile") || nameAttr.contains("tel")
+                )
         }
         return false
     }
