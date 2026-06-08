@@ -12,7 +12,7 @@ interface GitSync {
         progressMonitor: ProgressMonitor? = null,
     )
 
-    suspend fun pull(sshKeyPair: SshKeyPair? = null): SyncResult
+    suspend fun pull(): SyncResult
 
     suspend fun syncStatus(): SyncStatus
 

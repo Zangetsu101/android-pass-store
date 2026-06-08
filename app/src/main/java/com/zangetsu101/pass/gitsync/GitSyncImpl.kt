@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.zangetsu101.pass.keymanagement.SshKeyPair
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -48,6 +49,7 @@ class GitSyncImpl
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
+        private val sshKeyStore: SshKeyStore,
     ) : GitSync {
         init {
             // MINA SSHD's PathUtils rejects Android's empty "user.home". Set a valid path.
@@ -95,8 +97,12 @@ class GitSyncImpl
             }
         }
 
-        override suspend fun pull(sshKeyPair: SshKeyPair?): SyncResult =
+        override suspend fun pull(): SyncResult =
             withContext(Dispatchers.IO) {
+                val remoteUrl = context.gitSyncDataStore.data.first()[KEY_REMOTE_URL]
+                val isSsh = remoteUrl?.startsWith("git@") == true || remoteUrl?.startsWith("ssh://") == true
+                val keyPair = if (isSsh && sshKeyStore.exists()) sshKeyStore.getSshKey() else null
+
                 val git = openRepo(repoDir())
                 val beforeHead: ObjectId =
                     git.repository.resolve("HEAD")
@@ -107,8 +113,8 @@ class GitSyncImpl
                         git
                             .pull()
                             .setFastForward(FastForwardMode.FF_ONLY)
-                    if (sshKeyPair != null) {
-                        cmd.setTransportConfigCallback(makeSshCallback(sshKeyPair))
+                    if (keyPair != null) {
+                        cmd.setTransportConfigCallback(makeSshCallback(keyPair))
                     }
                     val result = cmd.call()
 

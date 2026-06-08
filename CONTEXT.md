@@ -40,6 +40,14 @@ cards/my-card.gpg             → domain=null         username=my-card
 
 The `domain` field is expected to be a DNS domain name for login entries. Non-DNS parent directories (e.g. `personal/`, `work/`) must not be the immediate parent of a login entry or they will be treated as the domain.
 
+## Git Sync
+
+The app syncs the pass store via JGit over SSH. Key constraints:
+
+- **GitHub only.** Host verification accepts only GitHub's known SSH fingerprints (ed25519, ecdsa-nistp256, rsa). Any other host (GitLab, self-hosted, etc.) will fail host verification.
+- **Fast-forward only.** Pull rejects diverged history (`--ff-only`). If the remote was force-pushed, sync fails with `NotFastForward` — no merge, no rebase.
+- Pull returns a `SyncResult` with `newEntries` (added + modified `.gpg` paths) and `removedEntries` (deleted `.gpg` paths). A rename appears as a delete + add, not a single rename event.
+
 ## Card Entry
 
 A **Card Entry** is a pass entry stored under the `cards/` or `credit-cards/` top-level directory. It is detected at index time from the file path — no decryption required.
