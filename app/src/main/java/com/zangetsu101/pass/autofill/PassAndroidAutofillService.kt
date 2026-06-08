@@ -327,10 +327,10 @@ class PassAndroidAutofillService : AutofillService() {
 
     private fun isPasswordNode(node: AssistStructure.ViewNode): Boolean {
         if (node.autofillHints?.any { it == View.AUTOFILL_HINT_PASSWORD } == true) return true
-        val inputType = node.inputType
-        return (inputType and InputType.TYPE_TEXT_VARIATION_PASSWORD) != 0 ||
-            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) != 0 ||
-            (inputType and InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) != 0 ||
+        val inputType = node.inputType and InputType.TYPE_MASK_VARIATION
+        return inputType == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+            inputType == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+            inputType == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
             node.htmlInfo?.attributes?.any { it.first == "type" && it.second == "password" } == true
     }
 
@@ -344,9 +344,9 @@ class PassAndroidAutofillService : AutofillService() {
             return true
         }
         val inputType = node.inputType
-        if ((inputType and InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) != 0 ||
-            (inputType and InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) != 0 ||
-            (inputType and InputType.TYPE_CLASS_PHONE) != 0
+        if ((inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+            (inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS ||
+            (inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_PHONE
         ) {
             return true
         }
