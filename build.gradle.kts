@@ -19,9 +19,9 @@ fun Task.cmd(vararg args: String) {
     if (exit != 0) throw GradleException("Command failed (exit $exit): ${args.joinToString(" ")}")
 }
 
-tasks.register("maestroInstall") {
+tasks.register("e2eInstall") {
     dependsOn(":app:assembleDebug")
-    notCompatibleWithConfigurationCache("Maestro tasks interact with a device at runtime")
+    notCompatibleWithConfigurationCache("e2e tasks interact with a device at runtime")
     doLast {
         cmd("adb", "install", "-r", apkPath)
         if (!file(testKeyLocal).exists()) {
@@ -36,16 +36,17 @@ tasks.register("maestroInstall") {
     }
 }
 
-// ./gradlew maestro                        — runs flow_all.yaml
-// ./gradlew maestro -Pflow=flow_onboarding — runs a specific flow
-tasks.register("maestro") {
-    dependsOn("maestroInstall")
-    notCompatibleWithConfigurationCache("Maestro tasks interact with a device at runtime")
+// ./gradlew e2e                       — runs flow_all.yaml
+// ./gradlew e2e -Pflow=onboarding     — runs a specific flow
+tasks.register("e2e") {
+    dependsOn("e2eInstall")
+    notCompatibleWithConfigurationCache("e2e tasks interact with a device at runtime")
     doLast {
         if (!file(maestroBin).exists()) {
             throw GradleException("Maestro not found at $maestroBin — install: curl -Ls \"https://get.maestro.mobile.dev\" | bash")
         }
         val flow = (findProperty("flow") as String? ?: "flow_all")
+            .let { if (it.startsWith("flow_")) it else "flow_$it" }
             .let { if (it.endsWith(".yaml")) it else "$it.yaml" }
         cmd(maestroBin, "test", "e2e/$flow")
     }

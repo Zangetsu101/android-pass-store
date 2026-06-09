@@ -14,7 +14,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 
 ### Test store
 
-Repo: `Zangetsu101/pass-test-store` — key is fetched automatically by `maestroInstall`.
+Repo: `Zangetsu101/pass-test-store` — key is fetched automatically by `e2eInstall`.
 
 GPG passphrase: `testpass`
 
@@ -33,14 +33,14 @@ Onboarding flow waits until `admin` is visible — that's the readiness signal. 
 
 ```bash
 # Full run: build → install → test all flows
-./gradlew maestro
+./gradlew e2e
 
 # Single flow
-./gradlew maestro -Pflow=flow_onboarding
-./gradlew maestro -Pflow=flow_entry_tap
+./gradlew e2e -Pflow=onboarding
+./gradlew e2e -Pflow=entry_tap
 
 # Install only (build + install + push key, no test run)
-./gradlew maestroInstall
+./gradlew e2eInstall
 ```
 
 ## Flows
