@@ -5,17 +5,15 @@ import com.zangetsu101.pass.BuildConfig
 import com.zangetsu101.pass.keymanagement.SshKeyPair
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
-import org.bouncycastle.jce.ECNamedCurveTable
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
+import org.bouncycastle.crypto.util.PrivateKeyInfoFactory
+import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.jce.spec.ECPrivateKeySpec
-import org.bouncycastle.jce.spec.ECPublicKeySpec
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
-import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import java.security.SecureRandom
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 
@@ -40,26 +38,24 @@ class SshKeyStoreImpl(
     override fun getSshKey(): SshKeyPair {
         val privateBytes = privateKeyStore.get()
         val publicBytes = publicKeyStore.get()
-        val kf = KeyFactory.getInstance("EC", BouncyCastleProvider())
+        val kf = KeyFactory.getInstance("Ed25519", BouncyCastleProvider())
         val privateKey = kf.generatePrivate(PKCS8EncodedKeySpec(privateBytes))
         val publicKey = kf.generatePublic(X509EncodedKeySpec(publicBytes))
         return KeyPair(publicKey, privateKey)
     }
 
     private fun generateKeyPair(): KeyPair {
-        val kpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider())
-        kpg.initialize(ECNamedCurveTable.getParameterSpec("secp256r1"), SecureRandom())
+        val kpg = KeyPairGenerator.getInstance("Ed25519", BouncyCastleProvider())
         return kpg.generateKeyPair()
     }
 
     private fun generateTestSshKey(): KeyPair {
-        val ecSpec = ECNamedCurveTable.getParameterSpec("secp256r1")
-        val d = BigInteger(1, ByteArray(32) { (it + 1).toByte() })
-        val q = ecSpec.g.multiply(d).normalize()
-        val provider = BouncyCastleProvider()
-        val keyFactory = KeyFactory.getInstance("EC", provider)
-        val privateKey = keyFactory.generatePrivate(ECPrivateKeySpec(d, ecSpec))
-        val publicKey = keyFactory.generatePublic(ECPublicKeySpec(q, ecSpec))
+        val seed = ByteArray(32) { (it + 1).toByte() }
+        val privateParams = Ed25519PrivateKeyParameters(seed)
+        val publicParams = privateParams.generatePublicKey()
+        val kf = KeyFactory.getInstance("Ed25519", BouncyCastleProvider())
+        val privateKey = kf.generatePrivate(PKCS8EncodedKeySpec(PrivateKeyInfoFactory.createPrivateKeyInfo(privateParams).encoded))
+        val publicKey = kf.generatePublic(X509EncodedKeySpec(SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(publicParams).encoded))
         return KeyPair(publicKey, privateKey)
     }
 
@@ -67,11 +63,10 @@ class SshKeyStoreImpl(
         val rawKeyBytes = SubjectPublicKeyInfo.getInstance(publicKey.encoded).publicKeyData.bytes
         val buf = ByteArrayOutputStream()
         val out = DataOutputStream(buf)
-        out.writeSshString("ecdsa-sha2-nistp256")
-        out.writeSshString("nistp256")
+        out.writeSshString("ssh-ed25519")
         out.writeSshBytes(rawKeyBytes)
         out.flush()
-        return "ecdsa-sha2-nistp256 ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
+        return "ssh-ed25519 ${Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP)}"
     }
 
     private fun DataOutputStream.writeSshString(s: String) {
