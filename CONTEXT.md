@@ -48,6 +48,15 @@ The app syncs the pass store via JGit over SSH. Key constraints:
 - **Fast-forward only.** Pull rejects diverged history (`--ff-only`). If the remote was force-pushed, sync fails with `NotFastForward` — no merge, no rebase.
 - Pull returns a `SyncResult` with `newEntries` (added + modified `.gpg` paths) and `removedEntries` (deleted `.gpg` paths). A rename appears as a delete + add, not a single rename event.
 
+### SSH Auth Source
+
+The SSH key used for git remote access has one of two **sources**, chosen during onboarding (clone step, 2/2):
+
+- **Device key** — an ed25519 keypair generated on device. Default when the imported GPG key carries no usable auth subkey.
+- **GPG auth subkey (derived key)** — when the imported GPG key carries an ed25519 subkey flagged for **Authentication**, its private material is extracted (once, at clone time, after a GPG passphrase prompt) and stored as the SSH key. Only ed25519 auth subkeys qualify; RSA/ECDSA auth subkeys are ignored (treated as no usable key). The newest qualifying subkey is chosen automatically.
+
+Regardless of source, the resulting keypair is stored identically in `SshKeyStore` (Keystore-wrapped, no passphrase at sync time), so all downstream git sync is source-agnostic. The chosen source is persisted (provenance) for display in Settings. The derived key is **not** auto-registered on GitHub by uploading the GPG key — the `ssh-ed25519` public key must be added under GitHub → SSH keys separately.
+
 ## Card Entry
 
 A **Card Entry** is a pass entry stored under the `cards/` or `credit-cards/` top-level directory. It is detected at index time from the file path — no decryption required.

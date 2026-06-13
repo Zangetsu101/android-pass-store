@@ -2,6 +2,9 @@ package com.zangetsu101.pass.gitsync
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.api.Git
 import org.junit.After
@@ -25,7 +28,9 @@ class GitSyncImplTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        gitSync = GitSyncImpl(context)
+        val sshKeyStore = mockk<SshKeyStore>(relaxed = true)
+        every { sshKeyStore.exists() } returns false
+        gitSync = GitSyncImpl(context, sshKeyStore)
         repoDir = File(context.filesDir, "repo")
 
         // Bare repo = simulated remote

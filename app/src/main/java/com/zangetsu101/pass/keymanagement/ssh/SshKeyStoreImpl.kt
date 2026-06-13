@@ -44,6 +44,17 @@ class SshKeyStoreImpl(
         return KeyPair(publicKey, privateKey)
     }
 
+    override fun importEd25519Seed(seed: ByteArray): String {
+        val privateParams = Ed25519PrivateKeyParameters(seed)
+        val publicParams = privateParams.generatePublicKey()
+        val kf = KeyFactory.getInstance("Ed25519", BouncyCastleProvider())
+        val privateKey = kf.generatePrivate(PKCS8EncodedKeySpec(PrivateKeyInfoFactory.createPrivateKeyInfo(privateParams).encoded))
+        val publicKey = kf.generatePublic(X509EncodedKeySpec(SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(publicParams).encoded))
+        privateKeyStore.store(privateKey.encoded)
+        publicKeyStore.store(publicKey.encoded)
+        return openSshPublicKey(publicKey)
+    }
+
     private fun generateKeyPair(): KeyPair {
         val kpg = KeyPairGenerator.getInstance("Ed25519", BouncyCastleProvider())
         return kpg.generateKeyPair()

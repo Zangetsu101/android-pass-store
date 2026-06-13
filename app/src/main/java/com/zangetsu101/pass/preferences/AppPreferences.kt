@@ -22,6 +22,7 @@ class AppPreferences
         val remoteUrl: Flow<String> = store.data.map { it[KEY_REMOTE_URL] ?: "" }
         val sessionTimeoutMinutes: Flow<Int> = store.data.map { it[KEY_SESSION_TIMEOUT] ?: 5 }
         val sshPublicKey: Flow<String?> = store.data.map { it[KEY_SSH_PUBLIC_KEY] }
+        val sshKeySource: Flow<String?> = store.data.map { it[KEY_SSH_KEY_SOURCE] }
         val gpgImported: Flow<Boolean> = store.data.map { it[KEY_GPG_IMPORTED] ?: false }
         val clipboardTimeoutSeconds: Flow<Int> = store.data.map { it[KEY_CLIPBOARD_TIMEOUT] ?: 45 }
         val defaultViewTree: Flow<Boolean> = store.data.map { it[KEY_DEFAULT_VIEW_TREE] ?: true }
@@ -34,6 +35,8 @@ class AppPreferences
         suspend fun setSessionTimeout(minutes: Int) = store.edit { it[KEY_SESSION_TIMEOUT] = minutes }
 
         suspend fun setSshPublicKey(key: String) = store.edit { it[KEY_SSH_PUBLIC_KEY] = key }
+
+        suspend fun setSshKeySource(source: String) = store.edit { it[KEY_SSH_KEY_SOURCE] = source }
 
         suspend fun setGpgImported(done: Boolean) = store.edit { it[KEY_GPG_IMPORTED] = done }
 
@@ -50,6 +53,7 @@ class AppPreferences
             private val KEY_SESSION_TIMEOUT = intPreferencesKey("session_timeout_minutes")
             private val KEY_SSH_PUBLIC_KEY = stringPreferencesKey("ssh_public_key")
             private val KEY_GPG_IMPORTED = booleanPreferencesKey("gpg_imported")
+            private val KEY_SSH_KEY_SOURCE = stringPreferencesKey("ssh_key_source")
             private val KEY_CLIPBOARD_TIMEOUT = intPreferencesKey("clipboard_timeout_seconds")
             private val KEY_DEFAULT_VIEW_TREE = booleanPreferencesKey("default_view_tree")
             private val KEY_SESSION_LAST_TOUCHED = longPreferencesKey("session_last_touched")

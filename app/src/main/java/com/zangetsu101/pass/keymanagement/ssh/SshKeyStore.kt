@@ -7,4 +7,6 @@ interface SshKeyStore : CryptoStore {
     fun generateSshKey(): String
 
     fun getSshKey(): SshKeyPair
+
+    fun importEd25519Seed(seed: ByteArray): String
 }

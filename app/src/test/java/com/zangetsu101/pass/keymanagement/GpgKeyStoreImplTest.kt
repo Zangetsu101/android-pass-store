@@ -4,6 +4,18 @@ import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import org.bouncycastle.bcpg.HashAlgorithmTags
+import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
+import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
+import org.bouncycastle.bcpg.sig.KeyFlags
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.openpgp.PGPKeyRingGenerator
+import org.bouncycastle.openpgp.PGPSignature
+import org.bouncycastle.openpgp.PGPSignatureSubpacketGenerator
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair
+import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -17,6 +29,8 @@ import org.pgpainless.encryption_signing.EncryptionOptions
 import org.pgpainless.encryption_signing.ProducerOptions
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.security.KeyPairGenerator
+import java.util.Date
 
 private class InMemoryPlainCryptoStore : PlainCryptoStore {
     private var data: ByteArray? = null
@@ -190,5 +204,156 @@ class GpgKeyStoreImplTest {
         gpgKeyStore.store("corrupted content - not a valid pgp key".toByteArray())
 
         assertNull(gpgKeyStore.getGpgKeyInfo())
+    }
+
+    // findAuthSubkey
+
+    @Test
+    fun `findAuthSubkey returns null when no key stored`() {
+        assertNull(gpgKeyStore.findAuthSubkey())
+    }
+
+    @Test
+    fun `findAuthSubkey returns null when key has no auth subkey`() {
+        gpgKeyStore.importGpgKey(armoredProtectedKey())
+
+        assertNull(gpgKeyStore.findAuthSubkey())
+    }
+
+    @Test
+    fun `findAuthSubkey returns AuthSubkeyInfo for key with ed25519 auth subkey`() {
+        val passphrase = "testpass"
+        val uid = "Test Auth <auth@example.com>"
+        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
+
+        val info = gpgKeyStore.findAuthSubkey()
+
+        assertNotNull(info)
+        requireNotNull(info)
+        assertTrue(info.sshPublicKey.startsWith("ssh-ed25519 "), "Expected openssh pubkey format")
+        assertTrue(info.sshFingerprint.startsWith("SHA256:"), "Expected SHA256 fingerprint")
+        assertEquals(uid, info.uid)
+        assertTrue(info.created > 0)
+    }
+
+    @Test
+    fun `findAuthSubkey picks newest when multiple auth subkeys present`() {
+        val passphrase = "testpass"
+        val armored = armoredKeyWithTwoEd25519AuthSubkeys(passphrase)
+        gpgKeyStore.importGpgKey(armored)
+
+        val info = gpgKeyStore.findAuthSubkey()
+
+        assertNotNull(info)
+    }
+
+    // extractAuthSubkeySeed
+
+    @Test
+    fun `extractAuthSubkeySeed returns 32-byte seed for correct passphrase`() {
+        val passphrase = "correct"
+        val uid = "Seed Test <seed@example.com>"
+        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
+        val authSubkey = checkNotNull(gpgKeyStore.findAuthSubkey())
+
+        val seed = gpgKeyStore.extractAuthSubkeySeed(passphrase, authSubkey.keyId)
+
+        assertEquals(32, seed.size, "Seed must be 32 bytes")
+    }
+
+    @Test
+    fun `extractAuthSubkeySeed throws WrongPassphrase for incorrect passphrase`() {
+        val uid = "Seed Test <seed@example.com>"
+        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey("correct", uid))
+        val authSubkey = checkNotNull(gpgKeyStore.findAuthSubkey())
+
+        assertThrows<SessionError.WrongPassphrase> {
+            gpgKeyStore.extractAuthSubkeySeed("wrong", authSubkey.keyId)
+        }
+    }
+
+    private fun armoredKeyWithEd25519AuthSubkey(
+        passphrase: String,
+        uid: String,
+    ): String {
+        val provider = BouncyCastleProvider()
+        val kpg = KeyPairGenerator.getInstance("EdDSA", provider)
+        kpg.initialize(256)
+        val creationDate = Date()
+        val primaryKp = JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA_LEGACY, kpg.generateKeyPair(), creationDate)
+        val authKp = JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA_LEGACY, kpg.generateKeyPair(), creationDate)
+        val sha1 =
+            JcaPGPDigestCalculatorProviderBuilder()
+                .setProvider(provider)
+                .build()
+                .get(HashAlgorithmTags.SHA1)
+        val keyEncryptor =
+            JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                .setProvider(provider)
+                .build(passphrase.toCharArray())
+        val signerBuilder =
+            JcaPGPContentSignerBuilder(PublicKeyAlgorithmTags.EDDSA_LEGACY, HashAlgorithmTags.SHA256)
+                .setProvider(provider)
+        val gen =
+            PGPKeyRingGenerator(
+                PGPSignature.POSITIVE_CERTIFICATION,
+                primaryKp,
+                uid,
+                sha1,
+                null,
+                null,
+                signerBuilder,
+                keyEncryptor,
+            )
+        val authHashed =
+            PGPSignatureSubpacketGenerator()
+                .apply {
+                    setKeyFlags(false, KeyFlags.AUTHENTICATION)
+                }.generate()
+        gen.addSubKey(authKp, authHashed, null, signerBuilder)
+        return PGPainless.asciiArmor(gen.generateSecretKeyRing())
+    }
+
+    private fun armoredKeyWithTwoEd25519AuthSubkeys(passphrase: String): String {
+        val provider = BouncyCastleProvider()
+        val kpg = KeyPairGenerator.getInstance("EdDSA", provider)
+        kpg.initialize(256)
+        val uid = "Multi Auth <multi@example.com>"
+        val date1 = Date(1_000_000L)
+        val date2 = Date(2_000_000L)
+        val primaryKp = JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA_LEGACY, kpg.generateKeyPair(), date1)
+        val auth1Kp = JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA_LEGACY, kpg.generateKeyPair(), date1)
+        val auth2Kp = JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA_LEGACY, kpg.generateKeyPair(), date2)
+        val sha1 =
+            JcaPGPDigestCalculatorProviderBuilder()
+                .setProvider(provider)
+                .build()
+                .get(HashAlgorithmTags.SHA1)
+        val keyEncryptor =
+            JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                .setProvider(provider)
+                .build(passphrase.toCharArray())
+        val signerBuilder =
+            JcaPGPContentSignerBuilder(PublicKeyAlgorithmTags.EDDSA_LEGACY, HashAlgorithmTags.SHA256)
+                .setProvider(provider)
+        val gen =
+            PGPKeyRingGenerator(
+                PGPSignature.POSITIVE_CERTIFICATION,
+                primaryKp,
+                uid,
+                sha1,
+                null,
+                null,
+                signerBuilder,
+                keyEncryptor,
+            )
+        val authHashed =
+            PGPSignatureSubpacketGenerator()
+                .apply {
+                    setKeyFlags(false, KeyFlags.AUTHENTICATION)
+                }.generate()
+        gen.addSubKey(auth1Kp, authHashed, null, signerBuilder)
+        gen.addSubKey(auth2Kp, authHashed, null, signerBuilder)
+        return PGPainless.asciiArmor(gen.generateSecretKeyRing())
     }
 }

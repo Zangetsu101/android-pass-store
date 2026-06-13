@@ -8,7 +8,7 @@ appId: com.zangetsu101.pass
     timeout: 8000
 - tapOn: "> pass init"
 
-# Step 1: Import GPG key from file
+# Step 1: Import GPG key with auth subkey from file
 - assertVisible: "import from file"
 - tapOn: "import from file"
 
@@ -16,7 +16,7 @@ appId: com.zangetsu101.pass
 - runFlow:
     when:
       notVisible:
-        text: "test-key.asc"
+        text: "test-key-auth.asc"
     commands:
       - tapOn: "Show roots"
       - extendedWaitUntil:
@@ -26,9 +26,9 @@ appId: com.zangetsu101.pass
       - tapOn: "Downloads"
 - extendedWaitUntil:
     visible:
-      text: "test-key.asc"
+      text: "test-key-auth.asc"
     timeout: 5000
-- tapOn: "test-key.asc"
+- tapOn: "test-key-auth.asc"
 
 # Confirm import
 - assertVisible: "import"
@@ -43,14 +43,18 @@ appId: com.zangetsu101.pass
 # Proceed to clone step
 - tapOn: "> git clone"
 
-# Step 2: Enter repo URL and clone
-# Note: if test-key.asc has an ed25519 auth subkey, a source toggle appears here.
-# This flow uses the device key path (no passphrase needed).
-# If auth subkey is detected, switch to device source before cloning.
+# Step 2: Enter repo URL — auth subkey detected, "gpg auth key" source selected by default
+- assertVisible: "gpg auth key"
 - assertVisible: "git@github.com:user/pass.git"
 - tapOn: "git@github.com:user/pass.git"
 - inputText: "git@github.com:Zangetsu101/pass-test-store.git"
 - tapOn: "> pass import-key"
+
+# Step 3: Passphrase dialog — enter passphrase to extract auth subkey seed
+- assertVisible: "gpg passphrase"
+- tapOn: "passphrase"
+- inputText: "testpass"
+- tapOn: "confirm"
 
 - extendedWaitUntil:
     visible:

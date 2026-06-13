@@ -54,7 +54,7 @@ fun OnboardingGpgImportScreen(
         }
 
     OnboardingScaffold(
-        step = 2,
+        step = 1,
         total = 3,
         title = "gpg key",
         subtitle = "provide the keypair used to encrypt/decrypt your store",

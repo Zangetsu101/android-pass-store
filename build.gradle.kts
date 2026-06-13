@@ -11,6 +11,7 @@ val maestroBin = "${System.getProperty("user.home")}/.maestro/bin/maestro"
 val appPackage = "com.zangetsu101.pass"
 val apkPath = "app/build/outputs/apk/debug/app-debug.apk"
 val testKeyLocal = "/tmp/test-key.asc"
+val testKeyAuthLocal = "/tmp/test-key-auth.asc"
 
 fun Task.cmd(vararg args: String) {
     val process = ProcessBuilder(*args).redirectErrorStream(true).start()
@@ -24,15 +25,23 @@ tasks.register("e2eInstall") {
     notCompatibleWithConfigurationCache("e2e tasks interact with a device at runtime")
     doLast {
         cmd("adb", "install", "-r", apkPath)
-        if (!file(testKeyLocal).exists()) {
+        if (!file(testKeyLocal).exists() || !file(testKeyAuthLocal).exists()) {
             // TODO: switch to curl/wget once pass-test-store is public
-            logger.lifecycle("Test key not found — cloning pass-test-store via gh...")
+            logger.lifecycle("Test key(s) not found — cloning pass-test-store via gh...")
             if (!file("/tmp/pass-test-store").exists()) {
                 cmd("gh", "repo", "clone", "Zangetsu101/pass-test-store", "/tmp/pass-test-store")
+            } else {
+                cmd("git", "-C", "/tmp/pass-test-store", "pull", "--ff-only")
             }
-            file("/tmp/pass-test-store/test-key.asc").copyTo(file(testKeyLocal))
+            if (!file(testKeyLocal).exists()) {
+                file("/tmp/pass-test-store/test-key.asc").copyTo(file(testKeyLocal))
+            }
+            if (!file(testKeyAuthLocal).exists()) {
+                file("/tmp/pass-test-store/test-key-auth.asc").copyTo(file(testKeyAuthLocal))
+            }
         }
         cmd("adb", "push", testKeyLocal, "/sdcard/Download/test-key.asc")
+        cmd("adb", "push", testKeyAuthLocal, "/sdcard/Download/test-key-auth.asc")
     }
 }
 

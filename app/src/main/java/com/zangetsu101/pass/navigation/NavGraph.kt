@@ -42,11 +42,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Serializable data object Welcome : NavKey
 
-@Serializable data object CloneRepo : NavKey
+@Serializable data object GpgImport : NavKey
 
-@Serializable data class OnboardingGpgImport(
-    val remoteUrl: String,
-) : NavKey
+@Serializable data object CloneRepo : NavKey
 
 @Serializable data class OnboardingClone(
     val remoteUrl: String,
@@ -104,20 +102,20 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
 
                 entry<Welcome> {
                     val vm: WelcomeViewModel = hiltViewModel()
-                    WelcomeScreen(vm) { backStack.add(CloneRepo) }
+                    WelcomeScreen(vm) { backStack.add(GpgImport) }
+                }
+
+                entry<GpgImport> {
+                    val vm: GpgImportViewModel = hiltViewModel()
+                    OnboardingGpgImportScreen(vm) {
+                        backStack.add(CloneRepo)
+                    }
                 }
 
                 entry<CloneRepo> {
                     val vm: CloneRepoViewModel = hiltViewModel()
                     CloneRepoScreen(vm) { url ->
-                        backStack.add(OnboardingGpgImport(url))
-                    }
-                }
-
-                entry<OnboardingGpgImport> {
-                    val vm: GpgImportViewModel = hiltViewModel()
-                    OnboardingGpgImportScreen(vm) {
-                        backStack.add(OnboardingClone(it.remoteUrl))
+                        backStack.add(OnboardingClone(url))
                     }
                 }
 

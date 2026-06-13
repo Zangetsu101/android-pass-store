@@ -14,9 +14,14 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 
 ### Test store
 
-Repo: `Zangetsu101/pass-test-store` — key is fetched automatically by `e2eInstall`.
+Repo: `Zangetsu101/pass-test-store` — keys are fetched automatically by `e2eInstall`.
 
 GPG passphrase: `testpass`
+
+| File                | Key type                                   | Auth subkey |
+| ------------------- | ------------------------------------------ | ----------- |
+| `test-key.asc`      | ed25519 master + cv25519 [E]               | No          |
+| `test-key-auth.asc` | ed25519 master + cv25519 [E] + ed25519 [A] | Yes         |
 
 ### Entries
 
@@ -37,6 +42,7 @@ Onboarding flow waits until `admin` is visible — that's the readiness signal. 
 
 # Single flow
 ./gradlew e2e -Pflow=onboarding
+./gradlew e2e -Pflow=onboarding_gpg_auth
 ./gradlew e2e -Pflow=entry_tap
 
 # Install only (build + install + push key, no test run)
@@ -45,11 +51,12 @@ Onboarding flow waits until `admin` is visible — that's the readiness signal. 
 
 ## Flows
 
-| File                   | What it tests                                   |
-| ---------------------- | ----------------------------------------------- |
-| `flow_onboarding.yaml` | Welcome → GPG import → git clone → EntryBrowser |
-| `flow_entry_tap.yaml`  | Tap entry → passphrase → biometric prompt       |
-| `flow_all.yaml`        | Both flows chained (use this for CI)            |
+| File                            | What it tests                                             |
+| ------------------------------- | --------------------------------------------------------- |
+| `flow_onboarding.yaml`          | Welcome → GPG import → git clone (device key)             |
+| `flow_onboarding_gpg_auth.yaml` | Welcome → GPG import (auth subkey) → git clone (gpg auth) |
+| `flow_entry_tap.yaml`           | Tap entry → passphrase → biometric prompt                 |
+| `flow_all.yaml`                 | `onboarding` + `entry_tap` chained (use for CI)           |
 
 ## Environment variables
 
