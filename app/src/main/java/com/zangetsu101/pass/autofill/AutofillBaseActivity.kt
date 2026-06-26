@@ -6,19 +6,39 @@ import android.view.autofill.AutofillId
 import android.view.autofill.AutofillManager
 import android.view.autofill.AutofillValue
 import android.widget.RemoteViews
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassEntry
-import com.zangetsu101.pass.session.SessionStartActivity
+import com.zangetsu101.pass.session.SessionStartScreen
+import com.zangetsu101.pass.session.SessionStartViewModel
+import com.zangetsu101.pass.ui.theme.PassTheme
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 abstract class AutofillBaseActivity : FragmentActivity() {
     @AutofillDecryption @Inject
     lateinit var decryption: Decryption
+
+    /**
+     * Renders the unlock screen in-place. On success [onUnlocked] runs in the same activity,
+     * letting the caller retry decryption and return the autofill result without a second
+     * activity hop.
+     */
+    private fun showSessionGate(onUnlocked: () -> Unit) {
+        enableEdgeToEdge()
+        setContent {
+            PassTheme {
+                val vm: SessionStartViewModel = hiltViewModel()
+                SessionStartScreen(viewModel = vm, onSuccess = onUnlocked)
+            }
+        }
+    }
 
     protected fun authenticate(
         entry: PassEntry,
@@ -54,8 +74,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 setResult(RESULT_OK, replyIntent)
                 finish()
             } catch (e: SessionError.NoActiveSession) {
-                startActivity(Intent(this@AutofillBaseActivity, SessionStartActivity::class.java))
-                cancelAndFinish()
+                showSessionGate { authenticate(entry, usernameId, passwordId) }
             } catch (e: DecryptionError) {
                 cancelAndFinish()
             } catch (e: Exception) {
@@ -117,8 +136,17 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 setResult(RESULT_OK, replyIntent)
                 finish()
             } catch (e: SessionError.NoActiveSession) {
-                startActivity(Intent(this@AutofillBaseActivity, SessionStartActivity::class.java))
-                cancelAndFinish()
+                showSessionGate {
+                    authenticateCard(
+                        entry,
+                        cardNumberId,
+                        cvvId,
+                        expiryMonthId,
+                        expiryYearId,
+                        expiryDateId,
+                        cardholderId,
+                    )
+                }
             } catch (e: DecryptionError) {
                 cancelAndFinish()
             } catch (e: Exception) {
