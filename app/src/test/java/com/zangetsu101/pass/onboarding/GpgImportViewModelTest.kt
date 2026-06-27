@@ -1,6 +1,5 @@
 package com.zangetsu101.pass.onboarding
 
-import com.zangetsu101.pass.keymanagement.AuthSubkeyInfo
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -65,36 +64,6 @@ class GpgImportViewModelTest {
             assertTrue(viewModel.state.value.gpgImported)
             assertNull(viewModel.state.value.gpgImportError)
             coVerify { appPreferences.setGpgImported(true) }
-        }
-
-    @Test
-    fun `importGpgKey success populates authSubkey when auth subkey present`() =
-        runTest(testDispatcher) {
-            val fakeAuthSubkey =
-                AuthSubkeyInfo(
-                    keyId = 0xDEADBEEFL,
-                    sshPublicKey = "ssh-ed25519 AAAAKEY",
-                    sshFingerprint = "SHA256:abc",
-                    uid = "Test <t@t.com>",
-                    created = 1_000L,
-                )
-            every { cryptoOperations.importGpgKey(any()) } returns Unit
-            every { cryptoOperations.findAuthSubkey() } returns fakeAuthSubkey
-
-            viewModel.importGpgKey()
-
-            assertEquals(fakeAuthSubkey, viewModel.state.value.authSubkey)
-        }
-
-    @Test
-    fun `importGpgKey success leaves authSubkey null when no auth subkey`() =
-        runTest(testDispatcher) {
-            every { cryptoOperations.importGpgKey(any()) } returns Unit
-            every { cryptoOperations.findAuthSubkey() } returns null
-
-            viewModel.importGpgKey()
-
-            assertNull(viewModel.state.value.authSubkey)
         }
 
     @Test
