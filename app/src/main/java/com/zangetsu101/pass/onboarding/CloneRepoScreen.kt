@@ -162,7 +162,7 @@ private fun CloneRepoContent(
         PassTextField(
             value = form.remoteUrl,
             onValueChange = onRemoteUrlChange,
-            placeholder = "git@github.com:user/pass-store",
+            placeholder = "git@github.com:user/pass-store.git",
             isError = form.remoteUrlError != null,
             modifier = Modifier.fillMaxWidth(),
         )

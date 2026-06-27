@@ -40,17 +40,17 @@ appId: com.zangetsu101.pass
       text: "Key imported successfully."
     timeout: 10000
 
-# Proceed to clone step
-- tapOn: "> git clone"
+# Proceed to git init step
+- tapOn: "> git init"
 
 # Step 2: Enter repo URL and clone
 # Note: if test-key.asc has an ed25519 auth subkey, a source toggle appears here.
 # This flow uses the device key path (no passphrase needed).
 # If auth subkey is detected, switch to device source before cloning.
-- assertVisible: "git@github.com:user/pass.git"
-- tapOn: "git@github.com:user/pass.git"
+- assertVisible: "git@github.com:user/pass-store.git"
+- tapOn: "git@github.com:user/pass-store.git"
 - inputText: "git@github.com:Zangetsu101/pass-test-store.git"
-- tapOn: "> pass import-key"
+- tapOn: "> git clone"
 
 - extendedWaitUntil:
     visible:
