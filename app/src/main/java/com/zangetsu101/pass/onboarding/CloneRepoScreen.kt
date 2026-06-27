@@ -237,8 +237,9 @@ private fun Banner() {
                 .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(
-            text = "⚠ github → repo → settings → deploy keys → add deploy key · " +
-                          "enable “Allow write access”",
+            text =
+                "⚠ github → repo → settings → deploy keys → add deploy key · " +
+                    "enable “Allow write access”",
             style = PassType.Caption,
             color = color.copy(alpha = 0.8f),
             lineHeight = PassType.Caption.fontSize * 1.6,

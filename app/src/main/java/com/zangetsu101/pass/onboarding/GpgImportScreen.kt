@@ -121,8 +121,14 @@ fun OnboardingGpgImportScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "exported via: gpg --armor --export-secret-keys your@email.com",
+            text = "gpg --armor --export-secret-subkeys your@email.com",
             style = PassType.Caption,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "exports only your [E]/[A] subkeys, keeps your master key offline.",
+            style = PassType.Caption,
+            color = PassColorsDark.TextFaint,
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -141,7 +147,7 @@ fun OnboardingGpgImportScreen(
         Spacer(Modifier.height(16.dp))
         PassPrimaryButton(
             onClick = viewModel::importGpgKey,
-            label = "import",
+            label = "> gpg --import",
             enabled = state.gpgKeyText.isNotBlank() && !state.gpgImported,
         )
         Spacer(Modifier.height(8.dp))

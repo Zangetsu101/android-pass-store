@@ -31,24 +31,22 @@ appId: com.zangetsu101.pass
 - tapOn: "test-key-auth.asc"
 
 # Confirm import
-- assertVisible: "import"
-- tapOn:
-    text: "import"
-    index: 0
+- assertVisible: "> gpg --import"
+- tapOn: "> gpg --import"
 - extendedWaitUntil:
     visible:
       text: "Key imported successfully."
     timeout: 10000
 
-# Proceed to clone step
-- tapOn: "> git clone"
+# Proceed to git init step
+- tapOn: "> git init"
 
 # Step 2: Enter repo URL — auth subkey detected, "gpg auth key" source selected by default
-- assertVisible: "gpg auth key"
-- assertVisible: "git@github.com:user/pass.git"
-- tapOn: "git@github.com:user/pass.git"
+- assertVisible: "use gpg auth key"
+- assertVisible: "git@github.com:user/pass-store.git"
+- tapOn: "git@github.com:user/pass-store.git"
 - inputText: "git@github.com:Zangetsu101/pass-test-store.git"
-- tapOn: "> pass import-key"
+- tapOn: "> git clone"
 
 # Step 3: Passphrase dialog — enter passphrase to extract auth subkey seed
 - assertVisible: "gpg passphrase"

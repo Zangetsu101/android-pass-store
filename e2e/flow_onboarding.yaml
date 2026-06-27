@@ -31,10 +31,8 @@ appId: com.zangetsu101.pass
 - tapOn: "test-key.asc"
 
 # Confirm import
-- assertVisible: "import"
-- tapOn:
-    text: "import"
-    index: 0
+- assertVisible: "> gpg --import"
+- tapOn: "> gpg --import"
 - extendedWaitUntil:
     visible:
       text: "Key imported successfully."
