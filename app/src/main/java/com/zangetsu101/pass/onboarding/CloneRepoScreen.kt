@@ -482,17 +482,17 @@ private fun GpgPassphraseDialog(
             }
         },
         confirmButton = {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = PassColorsDark.Accent,
-                )
-            } else {
-                TextButton(
-                    onClick = { if (passphrase.isNotEmpty()) onConfirm(passphrase) },
-                    enabled = passphrase.isNotEmpty(),
-                ) {
+            TextButton(
+                onClick = { if (passphrase.isNotEmpty()) onConfirm(passphrase) },
+                enabled = !isLoading && passphrase.isNotEmpty(),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = PassColorsDark.Accent,
+                    )
+                } else {
                     Text("confirm", color = PassColorsDark.Accent)
                 }
             }
