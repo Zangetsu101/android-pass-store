@@ -19,6 +19,8 @@ import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter
 import org.pgpainless.PGPainless
+import org.pgpainless.algorithm.EncryptionPurpose
+import org.pgpainless.algorithm.KeyFlag
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
@@ -48,10 +50,46 @@ class GpgKeyStoreImpl(
             } catch (e: Exception) {
                 throw KeyImportError.Malformed(e)
             }
-        if (keys.any { it.s2KUsage == 0 }) {
-            throw KeyImportError.NoPassphrase()
+        validateUsableForDecryption(keys)
+        val unprotected =
+            keys
+                .asSequence()
+                .filter { !it.isPrivateKeyEmpty && it.s2KUsage == 0 }
+                .map { it.publicKey.keyID.shortId() }
+                .toList()
+        if (unprotected.isNotEmpty()) {
+            throw KeyImportError.NoPassphrase(unprotected)
         }
         store(armoredKey.toByteArray())
+    }
+
+    /**
+     * The store can only be decrypted by a subkey that is encrypt-capable, valid (not
+     * expired/revoked), AND carries private key material. A stub (gnu-dummy master,
+     * smartcard-diverted subkey) advertises encrypt capability via its public flags but
+     * cannot decrypt — so capability alone is not enough. Checked before the passphrase
+     * requirement so structural problems are reported first.
+     */
+    private fun validateUsableForDecryption(keys: PGPSecretKeyRing) {
+        val info = PGPainless.getInstance().inspect(OpenPGPKey(keys))
+        val valid = info.getEncryptionSubkeys(EncryptionPurpose.ANY)
+        val hasPrivate =
+            valid.any { componentKey ->
+                keys.getSecretKey(componentKey.keyIdentifier)?.isPrivateKeyEmpty == false
+            }
+        if (hasPrivate) return
+        if (valid.isNotEmpty()) {
+            throw KeyImportError.PublicKeyOnly(valid.map { it.pgpPublicKey.keyID.shortId() })
+        }
+        // getKeysWithKeyFlag is not validity-filtered, so anything here is expired/revoked.
+        val anyEncryptFlagged =
+            (info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_COMMS) + info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_STORAGE))
+                .map { it.pgpPublicKey.keyID.shortId() }
+                .distinct()
+        if (anyEncryptFlagged.isNotEmpty()) {
+            throw KeyImportError.ExpiredEncryptionKey(anyEncryptFlagged)
+        }
+        throw KeyImportError.NoEncryptionKey()
     }
 
     override fun armorGpgKey(bytes: ByteArray): String {
@@ -81,11 +119,9 @@ class GpgKeyStoreImpl(
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
-        val primaryKey = keys.firstOrNull { it.isMasterKey } ?: keys.first()
+        val unlockKey = passphraseUnlockKey(keys) ?: return
         try {
-            if (primaryKey.s2KUsage != 0) {
-                primaryKey.extractPrivateKey(decryptor)
-            }
+            unlockKey.extractPrivateKey(decryptor)
         } catch (e: PGPException) {
             throw SessionError.WrongPassphrase()
         }
@@ -102,11 +138,18 @@ class GpgKeyStoreImpl(
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
+        val encryptionKeyIds = validEncryptionKeyIds(keys)
         try {
             return OpenPGPKey(
                 PGPSecretKeyRing(
                     keys.map { secretKey ->
-                        if (secretKey.s2KUsage != 0) {
+                        // Only the encryption key is used for decryption — unlock just that
+                        // one. Master/auth keys stay as-is (the master is a stub anyway under
+                        // --export-secret-subkeys), so we never try to extract a stub's private key.
+                        if (secretKey.publicKey.keyID in encryptionKeyIds &&
+                            !secretKey.isPrivateKeyEmpty &&
+                            secretKey.s2KUsage != 0
+                        ) {
                             PGPSecretKey.copyWithNewPassword(secretKey, decryptor, null)
                         } else {
                             secretKey
@@ -191,14 +234,6 @@ class GpgKeyStoreImpl(
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
-        val primaryKey = keys.firstOrNull { it.isMasterKey } ?: keys.first()
-        try {
-            if (primaryKey.s2KUsage != 0) {
-                primaryKey.extractPrivateKey(decryptor)
-            }
-        } catch (e: PGPException) {
-            throw SessionError.WrongPassphrase()
-        }
         val secretKey =
             keys.firstOrNull { it.publicKey.keyID == keyId }
                 ?: throw IllegalArgumentException("Auth subkey $keyId not found in ring")
@@ -218,6 +253,28 @@ class GpgKeyStoreImpl(
             throw SessionError.WrongPassphrase()
         }
     }
+
+    /** Key IDs of valid (non-expired/revoked) encrypt-capable subkeys, regardless of private material. */
+    private fun validEncryptionKeyIds(keys: PGPSecretKeyRing): Set<Long> =
+        PGPainless
+            .getInstance()
+            .inspect(OpenPGPKey(keys))
+            .getEncryptionSubkeys(EncryptionPurpose.ANY)
+            .map { it.pgpPublicKey.keyID }
+            .toSet()
+
+    // The passphrase protects every private-bearing key uniformly, so probe whichever key we
+    // can actually unlock. Prefer the encryption key (the one decryption needs); fall back to
+    // any private-bearing key. A gnu-dummy stub (the master under --export-secret-subkeys) has
+    // no private material and must never be the probe target.
+    private fun passphraseUnlockKey(keys: PGPSecretKeyRing): PGPSecretKey? {
+        val encryptionKeyIds = validEncryptionKeyIds(keys)
+        val unlockable = keys.asSequence().filter { !it.isPrivateKeyEmpty && it.s2KUsage != 0 }
+        return unlockable.firstOrNull { it.publicKey.keyID in encryptionKeyIds }
+            ?: unlockable.firstOrNull()
+    }
+
+    private fun Long.shortId(): String = "%08X".format(this and 0xFFFFFFFFL)
 
     private fun hasAuthFlag(pubKey: PGPPublicKey): Boolean {
         @Suppress("UNCHECKED_CAST")

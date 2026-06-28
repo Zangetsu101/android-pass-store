@@ -17,9 +17,14 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Named
 
+data class GpgImportError(
+    val title: String,
+    val message: String,
+)
+
 data class GpgImportUiState(
     val gpgKeyText: String = "",
-    val gpgImportError: String? = null,
+    val gpgImportError: GpgImportError? = null,
     val gpgImported: Boolean = false,
 )
 
@@ -33,6 +38,10 @@ class GpgImportViewModel
     ) : ViewModel() {
         private val _state = MutableStateFlow(GpgImportUiState())
         val state: StateFlow<GpgImportUiState> = _state.asStateFlow()
+
+        fun dismissImportError() {
+            _state.update { it.copy(gpgImportError = null) }
+        }
 
         fun setGpgKeyText(text: String) {
             _state.update { it.copy(gpgKeyText = text, gpgImportError = null, gpgImported = false) }
@@ -49,7 +58,9 @@ class GpgImportViewModel
                     val armored = withContext(ioDispatcher) { cryptoOperations.armorGpgKey(bytes) }
                     setGpgKeyText(armored)
                 } catch (e: KeyImportError) {
-                    _state.update { it.copy(gpgImportError = "Invalid or unrecognized key file") }
+                    _state.update {
+                        it.copy(gpgImportError = GpgImportError(e.title, e.message ?: "invalid or unrecognized key file"))
+                    }
                 }
             }
         }
@@ -62,7 +73,12 @@ class GpgImportViewModel
                     _state.update { it.copy(gpgImported = true, gpgImportError = null) }
                     appPreferences.setGpgImported(true)
                 } catch (e: KeyImportError) {
-                    _state.update { it.copy(gpgImportError = e.message ?: "Import failed", gpgImported = false) }
+                    _state.update {
+                        it.copy(
+                            gpgImportError = GpgImportError(e.title, e.message ?: "import failed"),
+                            gpgImported = false,
+                        )
+                    }
                 }
             }
         }

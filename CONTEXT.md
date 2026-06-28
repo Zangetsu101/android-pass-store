@@ -57,6 +57,27 @@ The SSH key used for git remote access has one of two **sources**, chosen during
 
 Regardless of source, the resulting keypair is stored identically in `SshKeyStore` (Keystore-wrapped, no passphrase at sync time), so all downstream git sync is source-agnostic. The chosen source is persisted (provenance) for display in Settings. The derived key is **not** auto-registered on GitHub by uploading the GPG key — the `ssh-ed25519` public key must be added under GitHub → SSH keys separately.
 
+## GPG Key Import
+
+The keypair imported during onboarding (step 1/3) and stored as the full armored secret ring. Recommended export is `gpg --armor --export-secret-subkeys` — which keeps the master key offline as a **stub**.
+
+**Usable Encryption Key**:
+A subkey that is encrypt-capable, valid (not expired, not revoked), **and** carries private key material. Import requires at least one — without it the store can never be decrypted.
+_Avoid_: "encryption key" alone (ambiguous — a stub advertises encrypt capability via its public flags but cannot decrypt).
+
+**Stub Key** (public-only):
+A key present in the secret ring with no private material — a gnu-dummy master (from `--export-secret-subkeys`) or a smartcard-diverted subkey. Reports capability and a passphrase state, but cannot extract a private key. Stubs are excluded from both the usable-encryption check and the passphrase check.
+
+**Import is rejected when** (checked in this order):
+
+1. **Malformed** — not parseable as a secret key ring (e.g. a public-only `gpg --export`).
+2. **NoEncryptionKey** — no encrypt-capable subkey at all.
+3. **ExpiredEncryptionKey** — an encrypt-capable subkey exists but all such keys are expired/revoked.
+4. **PublicKeyOnly** — a valid encrypt-capable subkey exists but has no private material (stub/smartcard).
+5. **NoPassphrase** — any private-bearing key is unprotected (S2K). Required by [ADR 0002](docs/adr/0002-threat-model.md): the at-rest ring's security reduces to S2K passphrase strength, for every secret it contains.
+
+**Recipient mismatch** cannot be detected at import (no ciphertext or passphrase available then). A ring that passes all checks can still fail every decrypt if the store was encrypted to a different key — surfaced only at decrypt time as a "couldn't decrypt with the imported keyring" message.
+
 ## Card Entry
 
 A **Card Entry** is a pass entry stored under the `cards/` or `credit-cards/` top-level directory. It is detected at index time from the file path — no decryption required.

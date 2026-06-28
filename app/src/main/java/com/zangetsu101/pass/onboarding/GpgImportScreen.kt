@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -136,10 +137,6 @@ fun OnboardingGpgImportScreen(
             style = PassType.Caption,
             color = PassColorsDark.TextFaint,
         )
-        state.gpgImportError?.let { err ->
-            Spacer(Modifier.height(6.dp))
-            Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
-        }
         if (state.gpgImported) {
             Spacer(Modifier.height(4.dp))
             Text("Key imported successfully.", color = PassColorsDark.Accent, style = PassType.Caption)
@@ -157,4 +154,29 @@ fun OnboardingGpgImportScreen(
             enabled = state.gpgImported,
         )
     }
+
+    state.gpgImportError?.let { err ->
+        GpgImportErrorDialog(
+            error = err,
+            onDismiss = viewModel::dismissImportError,
+        )
+    }
+}
+
+@Composable
+private fun GpgImportErrorDialog(
+    error: GpgImportError,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = PassColorsDark.Surface,
+        titleContentColor = PassColorsDark.Danger,
+        textContentColor = PassColorsDark.TextDim,
+        title = { Text(error.title, style = PassType.Title) },
+        text = { Text(error.message, style = PassType.Caption, color = PassColorsDark.TextDim) },
+        confirmButton = {
+            PassPrimaryButton(onClick = onDismiss, label = "got it")
+        },
+    )
 }

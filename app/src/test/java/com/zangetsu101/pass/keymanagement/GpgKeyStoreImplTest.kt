@@ -87,6 +87,22 @@ class GpgKeyStoreImplTest {
         }
     }
 
+    @Test
+    fun `importGpgKey with no encryption subkey throws NoEncryptionKey`() {
+        val keyWithoutEncryption =
+            armoredKeyWithEd25519AuthSubkey("correct", "NoEnc <noenc@example.com>", includeEncryption = false)
+        assertThrows<KeyImportError.NoEncryptionKey> {
+            gpgKeyStore.importGpgKey(keyWithoutEncryption)
+        }
+    }
+
+    @Test
+    fun `importGpgKey with encryption subkey and passphrase stores key`() {
+        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey("correct", "Enc <enc@example.com>"))
+
+        assertTrue(gpgKeyStore.exists())
+    }
+
     // armorGpgKey
 
     @Test
@@ -275,6 +291,7 @@ class GpgKeyStoreImplTest {
     private fun armoredKeyWithEd25519AuthSubkey(
         passphrase: String,
         uid: String,
+        includeEncryption: Boolean = true,
     ): String {
         val provider = BouncyCastleProvider()
         val kpg = KeyPairGenerator.getInstance("EdDSA", provider)
@@ -311,7 +328,27 @@ class GpgKeyStoreImplTest {
                     setKeyFlags(false, KeyFlags.AUTHENTICATION)
                 }.generate()
         gen.addSubKey(authKp, authHashed, null, signerBuilder)
+        if (includeEncryption) addEncryptionSubkey(gen, provider, creationDate)
         return PGPainless.asciiArmor(gen.generateSecretKeyRing())
+    }
+
+    // Real-world GPG keys used with pass always carry an encryption [E] subkey; import now
+    // requires one, so test fixtures must include it to stay realistic.
+    private fun addEncryptionSubkey(
+        gen: PGPKeyRingGenerator,
+        provider: BouncyCastleProvider,
+        creationDate: Date,
+    ) {
+        val ecdhKpg = KeyPairGenerator.getInstance("X25519", provider)
+        val encKp = JcaPGPKeyPair(PublicKeyAlgorithmTags.ECDH, ecdhKpg.generateKeyPair(), creationDate)
+        val encHashed =
+            PGPSignatureSubpacketGenerator()
+                .apply {
+                    setKeyFlags(false, KeyFlags.ENCRYPT_COMMS or KeyFlags.ENCRYPT_STORAGE)
+                }.generate()
+        // 3-arg overload signs the binding with the master key (the 4-arg form signs with the
+        // subkey itself, which an encryption-only ECDH key can't do).
+        gen.addSubKey(encKp, encHashed, null)
     }
 
     private fun armoredKeyWithTwoEd25519AuthSubkeys(passphrase: String): String {
@@ -354,6 +391,7 @@ class GpgKeyStoreImplTest {
                 }.generate()
         gen.addSubKey(auth1Kp, authHashed, null, signerBuilder)
         gen.addSubKey(auth2Kp, authHashed, null, signerBuilder)
+        addEncryptionSubkey(gen, provider, date1)
         return PGPainless.asciiArmor(gen.generateSecretKeyRing())
     }
 }

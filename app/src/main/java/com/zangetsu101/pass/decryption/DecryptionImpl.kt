@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 import org.bouncycastle.openpgp.PGPException
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
+import org.pgpainless.exception.MissingDecryptionMethodException
+import org.pgpainless.exception.WrongPassphraseException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
@@ -51,6 +53,15 @@ class DecryptionImpl(
             output.toString(Charsets.UTF_8.name())
         } catch (e: DecryptionError) {
             throw e
+        } catch (e: MissingDecryptionMethodException) {
+            // Ring is valid and usable, but this entry was encrypted to a different key.
+            throw DecryptionError(
+                "Couldn't decrypt this entry with the imported keyring. It was likely encrypted to a " +
+                    "different key — import the key this store was encrypted to, or re-encrypt the store to your key.",
+                e,
+            )
+        } catch (e: WrongPassphraseException) {
+            throw DecryptionError("Wrong passphrase.", e)
         } catch (e: PGPException) {
             throw DecryptionError("Decryption failed: ${e.message}", e)
         } catch (e: Exception) {
