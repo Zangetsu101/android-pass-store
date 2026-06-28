@@ -279,7 +279,7 @@ fun SettingsScreen(
 
 private fun sessionTimeoutLabel(minutes: Int): String =
     when (minutes) {
-        0 -> "until app close"
+        0 -> "unless cleared manually"
         5 -> "5 minutes"
         15 -> "15 minutes"
         30 -> "30 minutes"
