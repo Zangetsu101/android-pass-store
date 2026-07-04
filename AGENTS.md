@@ -17,3 +17,9 @@ End-to-end tests use Maestro. See `e2e/README.md` for setup, flows, and the test
 ## Explanation Style
 
 User knows web/React well, Android ecosystem poorly. When explaining Android concepts, anchor to web/React equivalents. Examples: ViewModel ≈ React state/store, Composable ≈ React component, NavGraph ≈ React Router, Activity ≈ browser tab, Intent ≈ deep link / window.open, Manifest ≈ app config/meta tags, Gradle ≈ package.json + webpack config, CoroutineScope ≈ async context / AbortController scope.
+
+## Agent skills
+
+### Domain docs
+
+Single-context repo: read root `CONTEXT.md` and relevant ADRs under `docs/adr/`. See `docs/agents/domain.md`.
