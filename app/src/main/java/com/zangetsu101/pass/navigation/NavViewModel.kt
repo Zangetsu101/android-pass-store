@@ -5,9 +5,9 @@ import androidx.lifecycle.ViewModel
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.passstore.PassEntry
-import kotlinx.coroutines.flow.StateFlow
 import com.zangetsu101.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 @HiltViewModel

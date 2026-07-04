@@ -22,10 +22,15 @@ class PassAndroidApp : Application() {
                     activity: Activity,
                     savedInstanceState: Bundle?,
                 ) {
-                    activity.window.setFlags(
-                        WindowManager.LayoutParams.FLAG_SECURE,
-                        WindowManager.LayoutParams.FLAG_SECURE,
-                    )
+                    // Debug builds drop FLAG_SECURE so screenshots/screen
+                    // recording work for dev tooling and README captures.
+                    // Release builds stay fully secure.
+                    if (!BuildConfig.DEBUG) {
+                        activity.window.setFlags(
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                        )
+                    }
                 }
 
                 override fun onActivityStarted(activity: Activity) {}
