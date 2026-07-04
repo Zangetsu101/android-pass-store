@@ -39,7 +39,7 @@ internal class AesGcmCryptoStore(
             .setKeySize(256)
             .setUserAuthenticationRequired(false)
             .apply {
-                if (strongBox) setIsStrongBoxBacked(true)
+                if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) setIsStrongBoxBacked(true)
             }.build()
 
     private fun generateKey(spec: KeyGenParameterSpec): SecretKey =

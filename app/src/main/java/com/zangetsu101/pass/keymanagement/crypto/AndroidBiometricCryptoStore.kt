@@ -57,7 +57,7 @@ class AndroidBiometricCryptoStore
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
                     }
-                    if (strongBox) setIsStrongBoxBacked(true)
+                    if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) setIsStrongBoxBacked(true)
                 }.build()
 
         private fun generateSessionKeyPair(spec: KeyGenParameterSpec) {
