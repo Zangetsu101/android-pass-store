@@ -15,6 +15,7 @@ import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
+import com.zangetsu101.pass.util.markSensitive
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -130,7 +131,7 @@ class EntryDetailViewModel
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             val password = String(current.credentials.password)
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("password", password))
+            clipboard.setPrimaryClip(ClipData.newPlainText("password", password).markSensitive())
             _state.update { it.copy(unlockState = current.copy(clipboardCopied = true)) }
             val timeoutMillis = _state.value.clipboardTimeoutSeconds * 1000L
             ClipboardClearReceiver.cancel(context)
@@ -142,10 +143,5 @@ class EntryDetailViewModel
                     val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
                     _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false)) }
                 }
-        }
-
-        override fun onCleared() {
-            super.onCleared()
-            (_state.value.unlockState as? UnlockState.Decrypted)?.credentials?.zero()
         }
     }

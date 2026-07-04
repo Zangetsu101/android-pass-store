@@ -59,6 +59,7 @@ import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassTheme
 import com.zangetsu101.pass.ui.theme.PassType
+import com.zangetsu101.pass.util.markSensitive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -112,7 +113,7 @@ fun CloneRepoScreen(
         onSourceChange = viewModel::setSource,
         onCopy = { key ->
             scope.launch {
-                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("", key)))
+                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("", key).markSensitive()))
             }
         },
         onRegenerate = {
