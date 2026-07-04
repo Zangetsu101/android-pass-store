@@ -1,64 +1,65 @@
 # Pass Store Module
 
 ## Implementation
-- **Index:** In-memory `List<PassEntry>`, rebuilt on each sync via `Dispatchers.Default`
-- **Fuzzy match:** Apache Commons Text `LevenshteinDistance` or a token-overlap heuristic — no external ML dependency
-- **Scoping:** Hilt `@Singleton` — index shared between UI ViewModel and `AutofillService`
-- **Exposed as:** `StateFlow<List<PassEntry>>` so UI and autofill react to index rebuilds after sync
+
+- **Index:** in-memory `List<PassEntry>` exposed as `StateFlow<List<PassEntry>>`.
+- **Fuzzy search:** Apache Commons Text `LevenshteinDistance` for explicit user search only.
+- **Scoping:** Hilt `@Singleton`, shared by UI, AutofillService, and Credential Manager provider.
 
 ## Responsibility
-Index the local git working copy into a searchable entry list. Resolve autofill queries (app package name or web domain) to candidate entries. Parse entry paths into structured metadata.
+
+Index the local git working copy into structured pass entries. Resolve conservative autofill candidates from indexed paths without decrypting files. Provide fuzzy search for explicit user browsing/search.
+
+Path conventions and entry semantics are defined in [`../../CONTEXT.md`](../../CONTEXT.md).
 
 ## Entry Model
-Each `.gpg` file in the repo maps to one entry:
-
-```
-Path:     web/github.com/alice.gpg
-          └── domain: github.com
-              username: alice
-              encrypted blob: alice.gpg (not decrypted here)
-```
 
 ```kotlin
 data class PassEntry(
-    val path: String,           // relative path in repo
-    val domain: String?,        // second-to-last path component (if ≥2 levels deep)
-    val username: String,       // last path component (filename without .gpg)
+    val path: String,        // relative path in repo, including .gpg
+    val domain: String?,     // path-derived domain/display parent
+    val username: String,    // filename without .gpg
     val encryptedFile: File,
+    val isCard: Boolean = false,
 )
 ```
 
 ## Matching Strategy
-Given a query (domain or app package name):
 
-1. **Exact match** — entry domain equals query domain (e.g. `github.com == github.com`)
-2. **Subdomain match** — entry domain is a suffix of query (e.g. `github.com` matches `gist.github.com`)
-3. **Fuzzy match** — normalized Levenshtein / token overlap against entry name and domain. Used as fallback, results ranked by score.
+### Automatic web login matching
 
-Matching is done entirely against the index (filenames/paths) — no decryption at match time.
+Given a web domain:
+
+1. **Exact match** — entry domain equals query domain.
+2. **Subdomain match** — query is equal to or a subdomain of entry domain.
+3. Otherwise return no automatic candidates.
+
+### Automatic native app matching
+
+Given a package name:
+
+1. Reverse package components (`com.github.android` → `android.github.com`).
+2. Match entries whose domain appears in the reversed package using dot-bounded checks.
+3. Sort longer domains first.
+
+### Explicit user search
+
+`search(query)` performs fuzzy, case-insensitive ranking against username, domain, and path. This is used by the app browser and explicit autofill search, not by automatic external suggestions.
+
+## Card Entries
+
+Card entries are detected at index time by top-level path prefix (`cards/` or `credit-cards/`) and marked with `isCard = true`. Card forms do not use domain matching; all indexed card entries are candidate card fills.
 
 ## Interfaces
-- `buildIndex(): List<PassEntry>` — scan local git working copy, parse all `.gpg` paths
-- `search(query: String): List<PassEntry>` — ranked list for manual browser search
-- `resolve(domain: String): List<PassEntry>` — ranked candidates for autofill
-- `resolve(packageName: String): List<PassEntry>` — autofill from app package name
 
-## Acceptance Checklist
-
-```
-[auto] buildIndex() parses web/github.com/alice.gpg → domain=github.com, username=alice
-[auto] buildIndex() handles 1-level path (github.com.gpg) → domain=null, username=github.com
-[auto] buildIndex() ignores non-.gpg files
-[auto] resolve(domain) exact match returns that entry first
-[auto] resolve(domain) subdomain match: github.com resolves gist.github.com query
-[auto] resolve(domain) fuzzy fallback: "githubb.com" still returns github.com entry
-[auto] resolve(domain) returns empty list when no candidates
-[auto] resolve(packageName) matches com.github.android → github.com entry
-[auto] search(query) is case-insensitive
-[auto] search(query) ranks closer matches higher
-```
+- `buildIndex(): List<PassEntry>` — scan local git working copy and parse all `.gpg` paths.
+- `search(query: String): List<PassEntry>` — fuzzy ranked list for explicit search.
+- `resolve(domain: String): List<PassEntry>` — conservative web-domain candidates for autofill.
+- `resolveByPackage(packageName: String): List<PassEntry>` — conservative native-app candidates for autofill.
 
 ## Non-Goals (v1)
+
 - URL field parsing from decrypted file content
 - OTP / pass-otp entries
-- pass extensions (custom fields)
+- pass extensions beyond the currently supported Card Entry fields
+- Fuzzy automatic autofill suggestions

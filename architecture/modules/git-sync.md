@@ -1,53 +1,60 @@
 # Git Sync Module
 
 ## Implementation
-- **Git:** `org.eclipse.jgit:org.eclipse.jgit` (pure JVM, no native binaries)
-- **SSH transport:** `org.apache.sshd:sshd-core` (MINA sshd, replaces deprecated JSch)
-- **Scoping:** Hilt `@Singleton`
-- **Async:** `Dispatchers.IO` — JGit operations are blocking; always called from a coroutine scope
+
+- **Git:** `org.eclipse.jgit:org.eclipse.jgit`.
+- **SSH transport:** JGit Apache MINA sshd transport.
+- **Host verification:** pinned GitHub SSH host fingerprints only.
+- **Scoping:** Hilt `@Singleton`.
+- **Async:** `Dispatchers.IO`; JGit operations are blocking.
+
+See [`../../docs/adr/0003-github-only-ssh-host-verification.md`](../../docs/adr/0003-github-only-ssh-host-verification.md) for why v1 supports GitHub SSH remotes only.
 
 ## Responsibility
-Clone and pull the pass git repository from a remote over SSH. Manages the local git working copy that all other modules read from.
+
+Clone and pull the pass git repository from GitHub over SSH. Manage the local git working copy that all other modules read from.
 
 ## Sync Model
-- **First run:** `git clone <remote> <local-path>` via SSH
-- **Subsequent syncs:** `git pull --ff-only` (fast-forward only — no merge conflicts possible in read-only mode)
-- **Trigger:** on app launch + manual pull-to-refresh in UI
-- **No push:** read-only, no writes to remote
+
+- **First run:** `git clone <remote> <local-path>` via SSH.
+- **Subsequent syncs:** `git pull --ff-only`.
+- **Trigger:** manual sync and app flows that call the sync layer.
+- **No push:** read-only app; no writes to remote.
+
+## SSH Auth
+
+Git auth uses the selected **SSH Auth Source** from onboarding:
+
+- generated **Device key**, or
+- **GPG auth subkey** derived key.
+
+After onboarding, sync is source-agnostic: it reads the stored SSH keypair from `SshKeyStore`.
 
 ## Local Storage
-- Git repo cloned into app-private internal storage
-- Encrypted `.gpg` files stored as-is (not decrypted to disk)
-- Git objects serve as the offline cache — no separate file cache needed
+
+- Git repo is cloned into app-private internal storage.
+- Encrypted `.gpg` files are stored as-is and are not decrypted to disk.
+- Git objects serve as the offline cache; there is no separate entry file cache.
 
 ## Error States
-- Remote unreachable → surface last-sync timestamp, continue with local copy
-- SSH auth failure → surface error with link to SSH key export (for re-registration on remote)
-- Non-fast-forward → surface warning (someone force-pushed); offer `git reset --hard origin/main`
+
+- Remote unreachable → surface last-sync timestamp and continue with local copy where possible.
+- SSH auth failure → surface an actionable error.
+- Non-fast-forward/diverged history → fail with `NotFastForward`; no merge or rebase is attempted.
+- Unsupported host → host verification fails unless the host key matches GitHub's pinned fingerprints.
 
 ## Interfaces
-- `clone(remoteUrl: String, localPath: Path)` — initial clone
-- `pull(): SyncResult` — fast-forward pull, returns `(newEntries, removedEntries, lastSyncTime)`
-- `syncStatus(): SyncStatus` — last sync time, local commit, remote reachable
 
-## Acceptance Checklist
-
-```
-[auto]   clone() creates working copy from local bare repo (file://)
-[auto]   pull() fast-forwards and returns correct SyncResult
-           → newEntries contains added .gpg files
-           → removedEntries contains deleted .gpg files
-[auto]   pull() with no changes returns empty SyncResult
-[auto]   pull() fails with SyncError.NotFastForward when remote diverged
-[auto]   syncStatus() reflects last successful pull timestamp
-[auto]   syncStatus() returns RemoteUnreachable when repo path invalid
-[manual] clone() succeeds over real SSH remote with generated keypair
-[manual] pull() succeeds after adding an entry on Linux and pushing
-[manual] SSH auth failure surfaces actionable error in UI
-```
+- `clone(remoteUrl: String, localPath: Path, sshKeyPair: SshKeyPair?, progressMonitor: ProgressMonitor?)` — initial clone.
+- `pull(): SyncResult` — fast-forward pull, returning changed `.gpg` paths and last sync time.
+- `syncStatus(): SyncStatus` — last sync time, local commit, remote reachability.
+- `lastCommitForFile(repoRelativePath: String): FileCommitInfo?` — metadata for entry detail UI.
 
 ## Non-Goals (v1)
+
 - HTTPS authentication
+- GitLab/Gitea/self-hosted SSH remotes
+- Custom known_hosts / trust-on-first-use host enrollment
 - Multiple remotes
-- Branch selection (assumes `main`)
+- Branch selection UI (assumes the cloned default branch / current repo branch)
 - Push / write-back

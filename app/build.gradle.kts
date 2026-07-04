@@ -22,6 +22,8 @@ val keystoreProps =
 
 android {
     namespace = "com.zangetsu101.pass"
+   // androidx.biometric 1.4.0-alpha07 requires compileSdk 36.1+;
+   // use 37 while still targeting Android 16 behavior via targetSdk 36.
     compileSdk = 37
 
     defaultConfig {

@@ -2,14 +2,13 @@
 
 ## Implementation
 
-- **OpenPGP:** `org.pgpainless:pgpainless-core` (Bouncy Castle wrapper)
-- **Scoping:** Hilt `@Singleton`
-- **Async:** `Dispatchers.IO` — decryption is CPU+I/O bound; never called on main thread
-- **Memory safety:** `Credentials` fields are `CharArray` not `String` where possible, zeroed after use
+- **OpenPGP:** `org.pgpainless:pgpainless-core` (Bouncy Castle wrapper).
+- **Async:** `Dispatchers.IO` for file I/O and OpenPGP processing.
+- **Entry source:** encrypted `.gpg` files from the local git working copy.
 
 ## Responsibility
 
-Decrypt a single `.gpg` file using the imported GPG private key and extract structured credentials.
+Decrypt a single pass entry with the imported GPG secret ring and parse it into credentials or card fields for display/fill.
 
 ## Decryption Flow
 
@@ -17,60 +16,63 @@ Decrypt a single `.gpg` file using the imported GPG private key and extract stru
 encryptedFile (.gpg)
        │
        ▼
-[CryptoService] ← biometric prompt (or cached passphrase)
-       │ returns GpgPrivateKey (in-memory, short-lived)
+[GPG key provider]
+       │ obtains passphrase through either cached app UI path or direct external-fill biometric path
        ▼
-[OpenPGP decrypt] (userspace, BouncyCastle or similar)
+[OpenPGP decrypt]
        │
        ▼
-plaintext string
+plaintext content
        │
        ▼
-[File Parser] → Credentials(password, notes)
+[Pass file parser]
 ```
 
 ## File Parsing
 
+For login entries:
+
 ```
 line 1  → password
-line 2+ → ignored (username comes from path, OTP out of scope)
+line 2+ → notes for display
+username → path-derived PassEntry.username
 ```
+
+For Card Entries:
+
+```
+line 1       → card number
+cvv          → security code
+expiry       → expiry date
+cardholder   → cardholder name
+```
+
+Card-entry field names and path rules are defined in [`../../CONTEXT.md`](../../CONTEXT.md).
 
 ## Credentials Model
 
 ```kotlin
 data class Credentials(
-    val password: String,
-    val notes: String,      // remaining lines joined, for display
+    val password: CharArray,
+    val notes: String,
+    val username: String,
 )
 ```
 
-Decrypted credentials are **never written to disk**. Held in memory only for the duration of the autofill or display operation.
+The same model is used for login passwords and card numbers: `password` holds the first-line secret, while `notes` holds remaining plaintext lines.
+
+## Memory and Disk Handling
+
+Decrypted secrets are never written to disk by the app. They are held only in process memory for display/fill and are not guaranteed to be scrubbed from all heap buffers; OpenPGP processing and notes parsing currently involve immutable `String` values.
 
 ## Interfaces
 
-- `decrypt(entry: PassEntry): Credentials` — triggers biometric if session locked, returns credentials
-- `decryptForAutofill(entry: PassEntry): AutofillCredentials` — same, optimized path for autofill service (returns only password + username from path)
-
-## Acceptance Checklist
-
-```
-[auto]   decrypt() returns password from line 1 of single-line file
-           (fixture: test keypair + pre-encrypted .gpg)
-[auto]   decrypt() returns password + notes from multi-line file
-[auto]   decrypt() throws DecryptionError for file encrypted to wrong key
-[auto]   decrypt() throws DecryptionError for corrupted/non-GPG file
-[auto]   decryptForAutofill() returns only password (no notes allocation)
-[auto]   Credentials.password is CharArray, zeroed after use
-           (assert array is all-zero after explicit clear call)
-[manual] decrypt() triggers biometric prompt on device when session locked
-[manual] decrypt() succeeds without biometric prompt within active session
-[manual] decrypted content never appears in app-private files/
-           (verify via adb shell after a decrypt operation)
-```
+- `decrypt(entry: PassEntry, activity: FragmentActivity): Credentials` — decrypts one entry, obtaining the GPG passphrase through the injected key provider path.
+- App UI decryption uses the cached passphrase provider while the session is active.
+- External credential surfaces use the direct passphrase provider, requiring fresh biometric confirmation per fill.
 
 ## Non-Goals (v1)
 
-- Symmetric encryption support (pass `-c`)
 - OTP parsing
-- Custom field extraction
+- Arbitrary custom field extraction beyond current Card Entry fields
+- Strong heap-scrubbing guarantees

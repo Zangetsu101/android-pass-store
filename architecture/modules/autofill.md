@@ -2,69 +2,59 @@
 
 ## Implementation
 
-- **AutofillService:** `android.service.autofill.AutofillService` — `@AndroidEntryPoint` (Hilt), `minSdk` 26
-- **Credential Manager:** `androidx.credentials:credentials` + `androidx.credentials:credentials-play-services-auth`, gated behind `Build.VERSION.SDK_INT >= 34`
-- **`BiometricPromptData` integration:** gated behind `Build.VERSION.SDK_INT >= 36`
-- **Async:** Coroutines via `lifecycleScope` on the service; fill requests handled on `Dispatchers.Default`
+- **AutofillService:** `android.service.autofill.AutofillService`, `@AndroidEntryPoint`, available from Android 8+.
+- **Inline suggestions:** Android 11+ via `androidx.autofill` when inline presentation specs are supplied by the system.
+- **Credential Manager provider:** `androidx.credentials.provider.CredentialProviderService`, gated behind Android 14+.
+- **Authentication handoff:** locked/authed candidates use `PendingIntent` activities; decryption happens only after user selection.
+
+`BiometricPromptData` is future work and is not part of the current Credential Manager flow.
 
 ## Responsibility
 
-Expose pass credentials to Android's autofill surfaces: `AutofillService` (Android 8+) and Credential Manager (Android 14+).
+Expose pass credentials to Android **External Credential Surfaces**: AutofillService and Credential Manager. External fill surfaces require fresh biometric confirmation before releasing a secret to another app.
 
 ## Components
 
-**AutofillService** (`extends AutofillService`)
+**AutofillService** (`PassAndroidAutofillService`)
 
-- Receives fill requests with app package name or web domain from Android
-- Calls `PassStore.resolve()` to find candidates (no decryption)
-- Returns a `FillResponse` with a dataset per candidate entry
-- Each dataset has an `IntentSender` — decryption only happens when user selects and confirms
-- Populates `username` (from path) and `password` (from decrypted file line 1) into the target fields
+- Receives fill requests with app package name and, for web forms, web domain.
+- Detects login fields and credit-card fields from autofill hints / input metadata.
+- Calls `PassStore.resolve()` or `resolveByPackage()` for login candidates; no decryption during matching.
+- Lists all indexed **Card Entries** for card forms.
+- Returns locked datasets using `Dataset.setAuthentication(...)`.
+- Includes a `Search...` login dataset for explicit user selection when automatic matching is insufficient.
 
-**Credential Manager Provider** (Android 14+, `CredentialProviderService`)
+**Autofill auth/search activities**
 
-- Wraps the same resolution + decryption logic
-- Surfaces candidates in the Credential Manager bottom sheet
-- Delegates to the same `DecryptionModule` after user selection
+- Resolve the selected indexed path back to a `PassEntry`.
+- Use the autofill-qualified decryption path, which bypasses the app UI passphrase cache.
+- If no active session exists, render the session-start screen in-place; after session start, retry decryption.
+- Return a filled `Dataset` to Android or cancel on auth/decryption failure.
+
+**Credential Manager Provider** (`PassAndroidCredentialProviderService`, Android 14+)
+
+- Handles password credential requests.
+- Resolves native app candidates from package-name matching.
+- Returns `PasswordCredentialEntry` values backed by `PendingIntent` auth.
+- The auth activity uses the same fresh-biometric autofill decryption path before returning `PasswordCredential`.
+- If no active session exists, the auth activity renders the session-start screen in-place; after session start, it retries decryption and returns to the Credential Manager flow.
+
+## Matching and Fill Semantics
+
+- Automatic login matching is conservative: exact web domain, DNS subdomain suffix, or native package-name reversal heuristic.
+- Fuzzy matching is not used for automatic external suggestions; it is available only through explicit user search.
+- Login fill writes username from the path-derived entry username and password from line 1 of decrypted content.
+- Card fill writes card number from line 1 and card fields (`cvv`, `expiry`, `cardholder`) from notes; selecting a card fills all detected card fields as a unit.
 
 ## Session / Biometric Gate
 
-AutofillService injects `SessionOperations` directly — no `CryptoOperations` dependency.
-
-- Candidates are always shown unconditionally — no locked datasets
-- Each dataset's `IntentSender` activity calls `sessionOperations.isSessionActive()` before proceeding:
-  - **Active:** `sessionOperations.getPassphrase(activity)` → hardware biometric (CryptoObject) → decrypt → return `Dataset`
-  - **NoActiveSession:** launch `SessionStartActivity` (passphrase entry) via `PendingIntent`; after session starts, user triggers autofill again
-- Biometric result is valid for a single fill operation — no passphrase caching in autofill path (unlike app UI)
-- **Android 16+:** `BiometricPromptData` can be embedded directly into the Credential Manager `GetCredentialRequest`, replacing the separate `IntentSender` round-trip for the Credential Manager path. The `AutofillService` path is unchanged.
-- **Android 16+ Identity Check:** When the device is outside a user-defined trusted location, the OS enforces biometric-only auth for credential access — PIN/password fallback is disabled at the platform level. Our per-fill biometric requirement aligns with this automatically.
-
-## Interfaces (internal)
-
-- `onFillRequest(request: FillRequest): FillResponse` — AutofillService callback
-- `onAuthentication(entry: PassEntry): Dataset` — called after user selects + biometric succeeds
-
-## Acceptance Checklist
-
-```
-[manual] PassAndroid appears as option in Android Settings → Autofill service
-[manual] autofill suggestions appear in Chrome browser login form
-[manual] autofill suggestions appear in a native app login form
-           (test with at least one app matching a pass entry by package name)
-[manual] suggestion list is ranked (exact match above fuzzy)
-[manual] selecting a suggestion triggers biometric prompt (session active)
-[manual] selecting a suggestion launches SessionStartActivity (session inactive)
-[manual] after session-start, re-triggering autofill proceeds with biometric prompt
-[manual] correct username + password filled after biometric success
-[manual] no fill occurs if biometric cancelled or failed
-[manual] autofill works with device screen locked then unlocked (cold service start)
-[manual] on Android 14+: Credential Manager bottom sheet appears instead of dropdown
-[manual] on Android 16+: BiometricPromptData used (no separate IntentSender round-trip)
-[manual] on Android 16+: biometric-only enforced outside trusted location (Identity Check)
-```
+- External credential surfaces use the direct passphrase path: every selected fill requires `BiometricPrompt` before the session passphrase is unwrapped.
+- The app UI may use the cached passphrase during an active session; external fill surfaces may not.
+- Android 16 Identity Check may further restrict platform credential access outside trusted locations; the app's fresh-biometric external-fill rule aligns with that model.
 
 ## Non-Goals (v1)
 
 - Passkey / FIDO2 support
-- Save/update credential flow (read-only)
+- Save/update credential flow
 - Accessibility service fallback
+- Credential Manager `BiometricPromptData` inline biometric
