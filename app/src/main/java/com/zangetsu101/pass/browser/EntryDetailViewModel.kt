@@ -13,6 +13,8 @@ import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.keymanagement.session.SessionOperations
+import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.util.markSensitive
@@ -72,6 +74,7 @@ class EntryDetailViewModel
         @Assisted private val entry: PassEntry,
         @ApplicationContext private val context: Context,
         private val decryption: Decryption,
+        private val sessionOperations: SessionOperations,
         private val gitSync: GitSync,
         private val appPreferences: AppPreferences,
     ) : ViewModel() {
@@ -98,6 +101,15 @@ class EntryDetailViewModel
             viewModelScope.launch {
                 appPreferences.clipboardTimeoutSeconds.collect { seconds ->
                     _state.update { it.copy(clipboardTimeoutSeconds = seconds) }
+                }
+            }
+            viewModelScope.launch {
+                sessionOperations.sessionState.collect { sessionState ->
+                    if (sessionState is SessionState.Inactive && _state.value.unlockState is UnlockState.Decrypted) {
+                        _state.update {
+                            it.copy(unlockState = UnlockState.Failed("Session ended — unlock again"))
+                        }
+                    }
                 }
             }
         }

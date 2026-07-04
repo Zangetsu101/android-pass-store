@@ -12,6 +12,8 @@ import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.keymanagement.session.SessionOperations
+import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
@@ -26,6 +28,7 @@ import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -49,6 +52,7 @@ class EntryDetailViewModelTest {
 
     private val mockDecryption = mockk<Decryption>()
     private val mockGitSync = mockk<GitSync>()
+    private val mockSessionOperations = mockk<SessionOperations>()
     private val mockAppPreferences = mockk<AppPreferences>()
     private val mockContext = mockk<Context>(relaxed = true)
     private val mockActivity = mockk<FragmentActivity>(relaxed = true)
@@ -73,6 +77,7 @@ class EntryDetailViewModelTest {
         Dispatchers.setMain(testDispatcher)
         coEvery { mockGitSync.lastCommitForFile(any()) } returns null
         every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(45)
+        every { mockSessionOperations.sessionState } returns MutableStateFlow(SessionState.Active)
         mockkStatic(ClipData::class)
         every { ClipData.newPlainText(any(), any()) } returns mockk(relaxed = true)
         mockkObject(ClipboardClearReceiver.Companion)
@@ -92,6 +97,7 @@ class EntryDetailViewModelTest {
             entry = fakeEntry,
             context = mockContext,
             decryption = mockDecryption,
+            sessionOperations = mockSessionOperations,
             gitSync = mockGitSync,
             appPreferences = mockAppPreferences,
         )

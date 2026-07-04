@@ -4,6 +4,8 @@ package com.zangetsu101.pass.navigation
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -17,6 +19,7 @@ import com.zangetsu101.pass.browser.EntryBrowserScreen
 import com.zangetsu101.pass.browser.EntryBrowserViewModel
 import com.zangetsu101.pass.browser.EntryDetailScreen
 import com.zangetsu101.pass.browser.EntryDetailViewModel
+import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.onboarding.CloneProgressScreen
 import com.zangetsu101.pass.onboarding.CloneProgressViewModel
 import com.zangetsu101.pass.onboarding.CloneRepoScreen
@@ -164,6 +167,14 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                 entry<EntryDetail> {
                     val navVm: NavViewModel = hiltViewModel()
                     val context = LocalContext.current
+                    val sessionState by navVm.sessionState.collectAsState()
+                    if (sessionState !is SessionState.Active) {
+                        LaunchedEffect(it.entryPath, sessionState) {
+                            backStack.removeLastOrNull()
+                            backStack.add(SessionStart(returnEntryPath = it.entryPath))
+                        }
+                        return@entry
+                    }
                     val maybeEntry = remember(it.entryPath) { navVm.findEntry(it.entryPath) }
                     if (maybeEntry == null) {
                         LaunchedEffect(Unit) {
