@@ -1,8 +1,8 @@
 appId: com.zangetsu101.pass
 # Prerequisite: flow_onboarding.yaml completed — app is at EntryBrowser screen.
 ---
-- assertVisible: "admin"
-- tapOn: "admin"
+- assertVisible: "alex\\.dev"
+- tapOn: "alex\\.dev"
 
 # Grant notification permission if dialog appears
 - tapOn:

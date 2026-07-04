@@ -18,9 +18,9 @@ Maestro uses the `text` field as a **full-string regex** per accessibility node 
 
 | Goal                      | Syntax                |
 | ------------------------- | --------------------- |
-| Exact match               | `"admin"`             |
-| Substring                 | `".*admin.*"`         |
-| Case-insensitive          | `"(?i)admin"`         |
-| Literal dot (e.g. domain) | `".*example\\.com.*"` |
+| Exact match               | `"alex\\.dev"`        |
+| Substring                 | `".*alex\\.dev.*"`    |
+| Case-insensitive          | `"(?i)alex\\.dev"`    |
+| Literal dot (e.g. domain) | `".*github\\.com.*"`  |
 
-Avoid asserting on folder labels like `"example.com/"` — the trailing slash and `.` require escaping. Prefer asserting on plain entry names (`"admin"`).
+Avoid asserting on folder labels like `"github.com/"` — the trailing slash and `.` require escaping. Prefer asserting on plain entry names (`"alex\\.dev"`).

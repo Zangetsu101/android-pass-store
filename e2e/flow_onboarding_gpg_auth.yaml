@@ -57,5 +57,5 @@ appId: com.zangetsu101.pass
 
 - extendedWaitUntil:
     visible:
-      text: "admin"
+      text: "alex\\.dev"
     timeout: 60000

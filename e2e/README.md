@@ -25,14 +25,27 @@ GPG passphrase: `testpass`
 
 ### Entries
 
-| Entry                | Path                            |
-| -------------------- | ------------------------------- |
-| `admin`              | `example.com/admin`             |
-| `testuser`           | `github.com/testuser`           |
-| `testuser@gmail.com` | `google.com/testuser@gmail.com` |
-| `twitter`            | `social/twitter`                |
+| Entry          | Path                              |
+| -------------- | --------------------------------- |
+| `alex.dev`     | `dev/github.com/alex.dev`         |
+| `alex`         | `dev/gitlab.com/alex`             |
+| `alexm`        | `dev/npmjs.com/alexm`             |
+| `alex.morgan`  | `work/slack.com/alex.morgan`      |
+| `alex`         | `work/notion.so/alex`             |
+| `alex`         | `work/linear.app/alex`            |
+| `alex`         | `finance/chase.com/alex`          |
+| `alex.morgan`  | `finance/paypal.com/alex.morgan`  |
+| `alex`         | `finance/wise.com/alex`           |
+| `alex`         | `shopping/amazon.com/alex`        |
+| `alexm`        | `shopping/etsy.com/alexm`         |
+| `alex`         | `entertainment/netflix.com/alex`  |
+| `alex`         | `entertainment/spotify.com/alex`  |
+| `alex`         | `travel/airbnb.com/alex`          |
+| `alex`         | `travel/uber.com/alex`            |
+| `personal`     | `cards/visa/personal`             |
+| `travel`       | `cards/mastercard/travel`         |
 
-Onboarding flow waits until `admin` is visible — that's the readiness signal. Entry tap flow uses `testpass` as the session passphrase.
+Onboarding flow waits until `alex.dev` is visible — that's the readiness signal. Entry tap flow uses `testpass` as the session passphrase.
 
 ## Run
 
