@@ -16,3 +16,8 @@
 local.properties
 
 claude.local.md
+
+# Release signing — never commit
+keystore.properties
+*.keystore
+*.jks

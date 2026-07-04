@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,6 +9,16 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
+
+// Release signing is driven by a gitignored keystore.properties at the repo root
+// (see keystore.properties.example). When absent — local dev, CI without secrets —
+// release falls back to the debug key so the build still works.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val hasReleaseSigning = keystorePropsFile.exists()
+val keystoreProps =
+    Properties().apply {
+        if (hasReleaseSigning) FileInputStream(keystorePropsFile).use { load(it) }
+    }
 
 android {
     namespace = "com.zangetsu101.pass"
@@ -31,12 +44,28 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (hasReleaseSigning) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 
