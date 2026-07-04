@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.keymanagement.crypto
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -66,13 +67,21 @@ class AndroidBiometricCryptoStore
                 .generateKeyPair()
         }
 
-        override fun store(data: ByteArray) {
+        private fun hasStrongBox(): Boolean =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                context.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+
+        override fun store(
+            data: ByteArray,
+            preferStrongBox: Boolean,
+        ) {
             val ks = keyStore()
             if (ks.containsAlias(SESSION_KEY_ALIAS)) {
                 ks.deleteEntry(SESSION_KEY_ALIAS)
             }
-            // Best-effort StrongBox (API 28+), falling back to TEE when unavailable.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // StrongBox is slower and resource-constrained. Use it only when callers
+            // explicitly prefer longer-lived hardware isolation, then fall back to TEE.
+            if (preferStrongBox && hasStrongBox()) {
                 try {
                     generateSessionKeyPair(buildSpec(strongBox = true))
                 } catch (_: StrongBoxUnavailableException) {

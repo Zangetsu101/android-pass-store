@@ -7,7 +7,10 @@ import javax.crypto.Cipher
 interface BiometricCryptoStore : CryptoStore {
     val maxBytes: Int
 
-    fun store(data: ByteArray)
+    fun store(
+        data: ByteArray,
+        preferStrongBox: Boolean = false,
+    )
 
     @Throws(KeyPermanentlyInvalidatedException::class)
     fun getDecryptCipher(): Cipher

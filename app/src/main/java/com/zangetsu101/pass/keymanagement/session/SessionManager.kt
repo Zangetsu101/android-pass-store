@@ -49,8 +49,10 @@ class SessionManager
                 sessionTimer.start()
                 scope.launch {
                     val timeoutMs = appPreferences.sessionTimeoutMinutes.first() * 60_000L
-                    val elapsed = System.currentTimeMillis() - lastTouched
-                    startTimeout(timeoutMs - elapsed)
+                    if (timeoutMs > 0L) {
+                        val elapsed = System.currentTimeMillis() - lastTouched
+                        startTimeout(timeoutMs - elapsed)
+                    }
                 }
             }
 
@@ -66,7 +68,11 @@ class SessionManager
                 if (passphrase.toByteArray(Charsets.UTF_8).size > keyStore.maxBytes) {
                     throw SessionError.PassphraseTooLong()
                 }
-                keyStore.store(passphrase.toByteArray(Charsets.UTF_8))
+                val timeoutMinutes = appPreferences.sessionTimeoutMinutes.first()
+                keyStore.store(
+                    data = passphrase.toByteArray(Charsets.UTF_8),
+                    preferStrongBox = timeoutMinutes == 0,
+                )
                 appPreferences.setSessionLastTouched(System.currentTimeMillis())
             }
             _sessionState.value = SessionState.Active

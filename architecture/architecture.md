@@ -30,7 +30,7 @@ Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md)
 | Git auth | SSH key selected during onboarding from an **SSH Auth Source**: generated **Device key** or derived **GPG auth subkey** |
 | GPG key | Imported armored secret key ring; must include a **Usable Encryption Key** |
 | Long-lived key storage | GPG/SSH blobs encrypted with AES-GCM using Android Keystore wrapping keys, without per-read biometric auth |
-| Session passphrase storage | Encrypted session blob protected by a biometric-gated Android Keystore RSA-OAEP key |
+| Session passphrase storage | Encrypted session blob protected by a biometric-gated Android Keystore RSA-OAEP key; StrongBox is preferred only for manual-clear sessions |
 | Autofill surface | `AutofillService` (Android 8+), inline suggestions (Android 11+), and Credential Manager provider (Android 14+) |
 | External fill gate | Every **External Credential Surface** requires fresh biometric confirmation before releasing a secret |
 | Entry matching | Conservative automatic matching; fuzzy matching only in explicit user search |
@@ -43,7 +43,7 @@ Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md)
 | Offline | Full offline after first sync (local git clone, decrypt on demand) |
 | Session lock | Timed inactivity lock; app UI may use passphrase cache while session is active |
 
-See [`docs/adr/0002-threat-model.md`](../docs/adr/0002-threat-model.md) for the at-rest key protection trade-off, [`docs/adr/0003-github-only-ssh-host-verification.md`](../docs/adr/0003-github-only-ssh-host-verification.md) for GitHub-only SSH host verification, and [`docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md`](../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md) for the session passphrase storage choice.
+See [`docs/adr/0002-threat-model.md`](../docs/adr/0002-threat-model.md) for the at-rest key protection trade-off, [`docs/adr/0003-github-only-ssh-host-verification.md`](../docs/adr/0003-github-only-ssh-host-verification.md) for GitHub-only SSH host verification, [`docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md`](../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md) for the session passphrase storage choice, and [`docs/adr/0005-prefer-strongbox-only-for-manual-clear-session-cache.md`](../docs/adr/0005-prefer-strongbox-only-for-manual-clear-session-cache.md) for the StrongBox policy.
 
 ---
 
@@ -175,7 +175,7 @@ App ready
 |---|---|
 | GPG secret ring at rest | AES-256-GCM blob in app-private storage, wrapped by Android Keystore AES key; OpenPGP S2K passphrase still required to decrypt entries |
 | SSH keypair at rest | AES-256-GCM blob in app-private storage, wrapped by Android Keystore AES key; no biometric required for sync |
-| Session passphrase | Encrypted blob protected by biometric-gated Android Keystore RSA-OAEP key; decrypt requires `BiometricPrompt` |
+| Session passphrase | Encrypted blob protected by biometric-gated Android Keystore RSA-OAEP key; decrypt requires `BiometricPrompt`; manual-clear sessions prefer StrongBox when available |
 | External fill gate | Fresh biometric required per fill for AutofillService and Credential Manager |
 | App session | Inactivity timeout; manual lock; does not survive session clearing/reboot |
 | Decrypted secrets | Never written to disk; held only in process memory for display/fill and not guaranteed to be scrubbed from all heap buffers |

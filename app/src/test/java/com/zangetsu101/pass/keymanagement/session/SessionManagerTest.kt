@@ -141,7 +141,7 @@ class SessionManagerTest {
                 cancelAndIgnoreRemainingEvents()
             }
 
-            verify { keyStore.store(any()) }
+            verify { keyStore.store(any(), false) }
         }
 
     // Test 6: endSession(MANUAL) from Inactive → no state change (StateFlow deduplicates equal values); deleteSession called
@@ -208,7 +208,7 @@ class SessionManagerTest {
             }
         }
 
-    // Test 9: touchSession with timeoutMs = 0 → no timer, session stays Active indefinitely
+    // Test 9a: touchSession with timeoutMs = 0 → no timer, session stays Active indefinitely
     @Test
     fun `touchSession with timeoutMs 0 does not schedule timer`() =
         testScope.runTest {
@@ -227,6 +227,38 @@ class SessionManagerTest {
 
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    // Test 9b: timeoutMs = 0 sessions survive process recreation instead of expiring immediately
+    @Test
+    fun `init with timeoutMs 0 and existing session stays Active indefinitely`() =
+        testScope.runTest {
+            val lastTouched = System.currentTimeMillis() - 24 * 60 * 60_000L
+            every { appPreferences.sessionTimeoutMinutes } returns flowOf(0)
+            every { appPreferences.sessionLastTouched } returns flowOf(lastTouched)
+            every { keyStore.exists() } returns true
+
+            val manager = buildManager()
+
+            manager.sessionState.test {
+                assertEquals(SessionState.Active, awaitItem())
+                advanceTimeBy(delayTimeMillis = 24 * 60 * 60_000L)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    // Test 9c: manual-clear sessions prefer StrongBox for the session passphrase key
+    @Test
+    fun `createSession with timeoutMs 0 asks keyStore to prefer StrongBox`() =
+        testScope.runTest {
+            every { appPreferences.sessionTimeoutMinutes } returns flowOf(0)
+
+            val manager = buildManager()
+
+            manager.createSession("passphrase")
+
+            verify { keyStore.store(any(), true) }
         }
 
     // Test 10: getPassphrase when Inactive → throws NoActiveSession

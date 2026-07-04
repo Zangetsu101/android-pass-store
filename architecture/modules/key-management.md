@@ -2,7 +2,7 @@
 
 Key management owns imported GPG material, SSH key material, the active session passphrase, and biometric-gated access to that passphrase.
 
-See [`../../docs/adr/0002-threat-model.md`](../../docs/adr/0002-threat-model.md) for the at-rest key protection trade-off, and [`../../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md`](../../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md) for why session passphrase storage uses RSA-OAEP rather than biometric AES-GCM.
+See [`../../docs/adr/0002-threat-model.md`](../../docs/adr/0002-threat-model.md) for the at-rest key protection trade-off, [`../../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md`](../../docs/adr/0004-keep-rsa-oaep-for-session-passphrase.md) for why session passphrase storage uses RSA-OAEP rather than biometric AES-GCM, and [`../../docs/adr/0005-prefer-strongbox-only-for-manual-clear-session-cache.md`](../../docs/adr/0005-prefer-strongbox-only-for-manual-clear-session-cache.md) for when StrongBox is preferred.
 
 ---
 
@@ -52,10 +52,13 @@ Active sessions are cleared by timeout/manual lock/security changes and do not s
                 protected by Android Keystore RSA-OAEP private key
                 Keystore key: setUserAuthenticationRequired(true)
                 API 30+: AUTH_BIOMETRIC_STRONG with validity duration 0
+                StrongBox: preferred only for timeout=0/manual-clear sessions; fallback to TEE
                 decrypt Cipher must be authenticated through BiometricPrompt(CryptoObject)
 ```
 
 RSA-OAEP is intentional here: session creation can encrypt with the public key without a biometric prompt, while passphrase retrieval requires biometric-gated private-key decrypt. This limits the stored passphrase size to the OAEP plaintext limit (~190 bytes for a 2048-bit key). `SessionManager.createSession()` rejects longer passphrases.
+
+StrongBox is intentionally conditional. Timed sessions use the normal Keystore/TEE path for fast session creation. Manual-clear sessions (`sessionTimeoutMinutes == 0`) prefer StrongBox when the device exposes `FEATURE_STRONGBOX_KEYSTORE`, because the encrypted passphrase blob may remain on disk longer. StrongBox failures fall back to the normal Keystore path.
 
 ### Interfaces
 
