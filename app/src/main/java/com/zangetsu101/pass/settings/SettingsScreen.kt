@@ -46,9 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
+import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -102,10 +104,7 @@ fun SettingsScreen(
             SettingsSection(label = "git") {
                 MetaRow("remote url", remoteUrl.ifEmpty { "not configured" })
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
-                MetaRow(
-                    "last sync",
-                    state.lastSyncTime?.let { DATE_FMT.format(it) } ?: "never",
-                )
+                LastSyncRow(loaded = state.syncStatusLoaded, lastSyncTime = state.lastSyncTime)
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 if (sshKey != null) {
                     TappableRow(
@@ -324,9 +323,31 @@ private fun SettingsTopBar(onBack: () -> Unit) {
 }
 
 @Composable
+private fun LastSyncRow(
+    loaded: Boolean,
+    lastSyncTime: java.time.Instant?,
+) {
+    MetaRow("last sync") {
+        if (loaded) {
+            MetaValue(lastSyncTime?.let { DATE_FMT.format(it) } ?: "never")
+        } else {
+            MetaPlaceholder()
+        }
+    }
+}
+
+@Composable
 private fun MetaRow(
     key: String,
     value: String,
+) {
+    MetaRow(key) { MetaValue(value) }
+}
+
+@Composable
+private fun MetaRow(
+    key: String,
+    value: @Composable () -> Unit,
 ) {
     Row(
         modifier =
@@ -337,11 +358,37 @@ private fun MetaRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(key, style = PassType.Body, modifier = Modifier.weight(1f))
+        value()
+    }
+}
+
+@Composable
+private fun MetaValue(value: String) {
+    Text(
+        value,
+        style = PassType.Caption.copy(color = PassColorsDark.TextDim),
+        modifier = Modifier.padding(start = 12.dp),
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun MetaPlaceholder() {
+    // Reserve exactly the space a real date value would take, then draw a shimmer
+    // bar over it. Sizing from a rendered sample string keeps the placeholder in
+    // sync with the actual value's width/height without hardcoded dimensions.
+    Box(modifier = Modifier.padding(start = 12.dp)) {
         Text(
-            value,
-            style = PassType.Caption.copy(color = PassColorsDark.TextDim),
-            modifier = Modifier.padding(start = 12.dp),
+            DATE_FMT.format(java.time.Instant.EPOCH),
+            style = PassType.Caption.copy(color = Color.Transparent),
             maxLines = 1,
+        )
+        Box(
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .clip(PassShapes.extraSmall)
+                    .background(PassColorsDark.Border2),
         )
     }
 }
@@ -505,4 +552,36 @@ private fun TimeOption(
             }
         }
     }
+}
+
+// ── Previews: last sync row states ──────────────────────────────────────────────
+
+@Composable
+private fun LastSyncRowPreview(
+    loaded: Boolean,
+    lastSyncTime: java.time.Instant?,
+) {
+    Box(Modifier.background(PassColorsDark.Background).padding(18.dp)) {
+        SettingsSection(label = "git") {
+            LastSyncRow(loaded = loaded, lastSyncTime = lastSyncTime)
+        }
+    }
+}
+
+@Preview(name = "last sync · loading", showBackground = true, backgroundColor = 0xFF0B0D0B)
+@Composable
+private fun LastSyncRowLoadingPreview() {
+    LastSyncRowPreview(loaded = false, lastSyncTime = null)
+}
+
+@Preview(name = "last sync · never", showBackground = true, backgroundColor = 0xFF0B0D0B)
+@Composable
+private fun LastSyncRowNeverPreview() {
+    LastSyncRowPreview(loaded = true, lastSyncTime = null)
+}
+
+@Preview(name = "last sync · synced", showBackground = true, backgroundColor = 0xFF0B0D0B)
+@Composable
+private fun LastSyncRowSyncedPreview() {
+    LastSyncRowPreview(loaded = true, lastSyncTime = java.time.Instant.parse("2026-07-04T09:41:00Z"))
 }

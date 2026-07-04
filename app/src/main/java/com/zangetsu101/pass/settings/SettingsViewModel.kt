@@ -29,6 +29,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val clearing: Boolean = false,
     val lastSyncTime: Instant? = null,
+    val syncStatusLoaded: Boolean = false,
 )
 
 @HiltViewModel
@@ -76,7 +77,7 @@ class SettingsViewModel
         init {
             viewModelScope.launch {
                 val status = runCatching { gitSync.syncStatus() }.getOrNull()
-                _state.update { it.copy(lastSyncTime = status?.lastSyncTime) }
+                _state.update { it.copy(lastSyncTime = status?.lastSyncTime, syncStatusLoaded = true) }
             }
             viewModelScope.launch(Dispatchers.IO) {
                 _gpgKeyInfo.value = gpgKeyOperations.getGpgKeyInfo()
