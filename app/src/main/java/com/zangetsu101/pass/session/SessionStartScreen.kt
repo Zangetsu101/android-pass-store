@@ -135,7 +135,7 @@ fun SessionStartScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "session lasts ${state.sessionTimeoutMinutes} min · configurable in settings",
+                    "session lasts ${sessionTimeoutLabel(state.sessionTimeoutMinutes)} · configurable in settings",
                     style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
                     modifier = Modifier.align(Alignment.Start),
                 )
@@ -179,3 +179,10 @@ fun SessionStartScreen(
         }
     }
 }
+
+private fun sessionTimeoutLabel(minutes: Int): String =
+    when (minutes) {
+        0 -> "until manually cleared"
+        1 -> "1 min"
+        else -> "$minutes min"
+    }
