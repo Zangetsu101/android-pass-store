@@ -158,12 +158,13 @@ private fun CloneRepoContent(
         title = "clone store",
         subtitle = "point to your existing pass git repository",
     ) {
-        Text("git remote url", style = PassType.Label)
+        Text("github repo", style = PassType.Label)
         Spacer(Modifier.height(6.dp))
         PassTextField(
             value = form.remoteUrl,
             onValueChange = onRemoteUrlChange,
-            placeholder = "git@github.com:user/pass-store.git",
+            prefix = GITHUB_SSH_REMOTE_PREFIX,
+            placeholder = "user/pass-store.git",
             isError = form.remoteUrlError != null,
             modifier = Modifier.fillMaxWidth(),
         )

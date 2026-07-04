@@ -45,9 +45,10 @@ appId: com.zangetsu101.pass
 # Note: if test-key.asc has an ed25519 auth subkey, a source toggle appears here.
 # This flow uses the device key path (no passphrase needed).
 # If auth subkey is detected, switch to device source before cloning.
-- assertVisible: "git@github.com:user/pass-store.git"
-- tapOn: "git@github.com:user/pass-store.git"
-- inputText: "git@github.com:Zangetsu101/pass-test-store.git"
+- assertVisible: "git@github.com:"
+- assertVisible: "user/pass-store.git"
+- tapOn: "user/pass-store.git"
+- inputText: "Zangetsu101/pass-test-store.git"
 - tapOn: "> git clone"
 
 - extendedWaitUntil:

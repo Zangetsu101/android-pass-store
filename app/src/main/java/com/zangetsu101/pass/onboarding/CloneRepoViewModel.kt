@@ -22,9 +22,11 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Named
 
+internal const val GITHUB_SSH_REMOTE_PREFIX = "git@github.com:"
+
 enum class SshKeySource { GPG_AUTH, DEVICE }
 
-/** Git remote URL input + its validation error. Always present, mutates in place. */
+/** GitHub repository path input + its validation error. Always present, mutates in place. */
 data class FormState(
     val remoteUrl: String = "",
     val remoteUrlError: String? = null,
@@ -106,24 +108,26 @@ class CloneRepoViewModel
         }
 
         fun setRemoteUrl(url: String) {
-            _form.update { it.copy(remoteUrl = url, remoteUrlError = null) }
+            val repoPath = url.trimStart().removePrefix(GITHUB_SSH_REMOTE_PREFIX)
+            _form.update { it.copy(remoteUrl = repoPath, remoteUrlError = null) }
         }
 
         fun validateRemoteUrl(): Boolean {
-            val url = _form.value.remoteUrl.trim()
-            if (url.isEmpty()) {
-                _form.update { it.copy(remoteUrlError = "Remote URL is required") }
+            val repoPath = _form.value.remoteUrl.trim()
+            if (repoPath.isEmpty()) {
+                _form.update { it.copy(remoteUrlError = "Repository path is required") }
                 return false
             }
-            val valid =
-                url.startsWith("git@") || url.startsWith("ssh://") || url.startsWith("file://")
+            val valid = Regex("""[^:\s]+/[^:\s]+\.git""").matches(repoPath)
             if (!valid) {
-                _form.update { it.copy(remoteUrlError = "Enter a valid git remote URL") }
+                _form.update { it.copy(remoteUrlError = "Enter a GitHub repo path like user/pass-store.git") }
                 return false
             }
             _form.update { it.copy(remoteUrlError = null) }
             return true
         }
+
+        private fun remoteUrl(): String = GITHUB_SSH_REMOTE_PREFIX + _form.value.remoteUrl.trim()
 
         fun setSource(source: SshKeySource) {
             val current = _keyResolution.value
@@ -142,7 +146,7 @@ class CloneRepoViewModel
         }
 
         fun onClone(passphrase: String = "") {
-            val url = _form.value.remoteUrl.trim()
+            val url = remoteUrl()
             viewModelScope.launch {
                 val resolution = _keyResolution.value
                 if (resolution is KeyResolution.GpgAvailable && resolution.selectedSource == SshKeySource.GPG_AUTH) {

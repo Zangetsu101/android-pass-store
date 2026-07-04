@@ -100,21 +100,33 @@ class CloneRepoViewModelTest {
             val result = vm.validateRemoteUrl()
 
             assertFalse(result)
-            assertEquals("Remote URL is required", vm.form.value.remoteUrlError)
+            assertEquals("Repository path is required", vm.form.value.remoteUrlError)
         }
 
     @Test
-    fun `validateRemoteUrl git-at scheme returns true`() =
+    fun `validateRemoteUrl github repo path returns true`() =
+        runTest(testDispatcher) {
+            every { gpgKeyOps.findAuthSubkey() } returns null
+            every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 KEY"
+            val vm = makeVm()
+
+            vm.setRemoteUrl("x/y.git")
+            val result = vm.validateRemoteUrl()
+
+            assertTrue(result)
+            assertNull(vm.form.value.remoteUrlError)
+        }
+
+    @Test
+    fun `setRemoteUrl strips hardcoded github ssh prefix when pasted`() =
         runTest(testDispatcher) {
             every { gpgKeyOps.findAuthSubkey() } returns null
             every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 KEY"
             val vm = makeVm()
 
             vm.setRemoteUrl("git@github.com:x/y.git")
-            val result = vm.validateRemoteUrl()
 
-            assertTrue(result)
-            assertNull(vm.form.value.remoteUrlError)
+            assertEquals("x/y.git", vm.form.value.remoteUrl)
         }
 
     @Test
@@ -128,7 +140,7 @@ class CloneRepoViewModelTest {
             val result = vm.validateRemoteUrl()
 
             assertFalse(result)
-            assertEquals("Enter a valid git remote URL", vm.form.value.remoteUrlError)
+            assertEquals("Enter a GitHub repo path like user/pass-store.git", vm.form.value.remoteUrlError)
         }
 
     // setSource toggle
@@ -173,7 +185,7 @@ class CloneRepoViewModelTest {
             every { gpgKeyOps.findAuthSubkey() } returns null
             every { sshKeyOps.generateSshKey() } returns "ssh-ed25519 DEVICEKEY"
             val vm = makeVm()
-            vm.setRemoteUrl("git@github.com:x/y.git")
+            vm.setRemoteUrl("x/y.git")
 
             vm.onClone()
 
@@ -190,7 +202,7 @@ class CloneRepoViewModelTest {
             every { gpgKeyOps.extractAuthSubkeySeed("pass", fakeAuthSubkey.keyId) } returns ByteArray(32)
             every { sshKeyOps.importEd25519Seed(any()) } returns "ssh-ed25519 GPGKEY"
             val vm = makeVm()
-            vm.setRemoteUrl("git@github.com:x/y.git")
+            vm.setRemoteUrl("x/y.git")
 
             vm.onClone("pass")
 
@@ -208,7 +220,7 @@ class CloneRepoViewModelTest {
                 gpgKeyOps.extractAuthSubkeySeed("wrong", fakeAuthSubkey.keyId)
             } throws SessionError.WrongPassphrase()
             val vm = makeVm()
-            vm.setRemoteUrl("git@github.com:x/y.git")
+            vm.setRemoteUrl("x/y.git")
 
             vm.onClone("wrong")
 

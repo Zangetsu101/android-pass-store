@@ -43,9 +43,10 @@ appId: com.zangetsu101.pass
 
 # Step 2: Enter repo URL — auth subkey detected, "gpg auth key" source selected by default
 - assertVisible: "use gpg auth key"
-- assertVisible: "git@github.com:user/pass-store.git"
-- tapOn: "git@github.com:user/pass-store.git"
-- inputText: "git@github.com:Zangetsu101/pass-test-store.git"
+- assertVisible: "git@github.com:"
+- assertVisible: "user/pass-store.git"
+- tapOn: "user/pass-store.git"
+- inputText: "Zangetsu101/pass-test-store.git"
 - tapOn: "> git clone"
 
 # Step 3: Passphrase dialog — enter passphrase to extract auth subkey seed
