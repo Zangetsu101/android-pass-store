@@ -10,6 +10,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- allowBackup permanently disabled: GitHub is the source of truth for the
+         store, and all local state (GPG key, SSH key, cloned repo) is
+         re-importable/re-clonable, so there is nothing worth backing up and a
+         backup would only leak the wrapped keys (threat D). The referenced
+         backup_rules/data_extraction_rules are intentionally inert stubs.
+         See docs/adr/0002-threat-model.md. -->
     <application
         android:name=".PassAndroidApp"
         android:allowBackup="false"
