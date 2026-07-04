@@ -276,13 +276,12 @@ class PassAndroidAutofillService : AutofillService() {
                 Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE,
             )
-        val slice =
+        val content: UiVersions.Content =
             InlineSuggestionUi
                 .newContentBuilder(attributionIntent)
                 .setTitle(label)
                 .build()
-                .slice
-        return InlinePresentation(slice, spec, false)
+        return InlinePresentation(content.slice, spec, false)
     }
 
     private fun findWebDomain(structure: AssistStructure): String? {
