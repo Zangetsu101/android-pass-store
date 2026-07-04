@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -194,8 +193,8 @@ private fun PasswordCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, RoundedCornerShape(4.dp))
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp))
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
@@ -248,8 +247,8 @@ private fun NotesCard(notes: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, RoundedCornerShape(4.dp))
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp))
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
                 .heightIn(min = 60.dp)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
@@ -276,9 +275,9 @@ private fun MetadataCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(PassShapes.small)
                 .background(PassColorsDark.Surface)
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
         MetaRow("path", entry.path)
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -335,8 +334,8 @@ private fun PasswordSkeleton() {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, RoundedCornerShape(4.dp))
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp))
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -357,8 +356,8 @@ private fun NotesSkeleton() {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, RoundedCornerShape(4.dp))
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp))
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
                 .heightIn(min = 60.dp)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -376,9 +375,9 @@ private fun MetadataSkeleton() {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(PassShapes.small)
                 .background(PassColorsDark.Surface)
-                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
         MetaRow("path", "…")
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -399,6 +398,6 @@ private fun ShimmerBlock(
             modifier
                 .then(if (width != null) Modifier.width(width) else Modifier)
                 .height(height)
-                .background(PassColorsDark.Raised, RoundedCornerShape(3.dp)),
+                .background(PassColorsDark.Raised, PassShapes.extraSmall),
     )
 }

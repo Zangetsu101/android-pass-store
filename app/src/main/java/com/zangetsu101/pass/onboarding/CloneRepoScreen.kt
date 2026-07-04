@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -337,7 +336,7 @@ private fun SourceTogglePlaceholder() {
                     Modifier
                         .fillMaxWidth(0.7f)
                         .fillMaxHeight()
-                        .background(brush, RoundedCornerShape(3.dp)),
+                        .background(brush, PassShapes.extraSmall),
                 )
             }
             if (i == 0) Box(Modifier.width(1.dp).fillMaxHeight().background(PassColorsDark.Border2))
@@ -535,10 +534,10 @@ private fun SshKeyShimmer() {
                 .fillMaxWidth()
                 .background(PassColorsDark.Surface, PassShapes.small),
     ) {
-        Box(Modifier.size(width = 140.dp, height = lineHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
-        Box(Modifier.fillMaxWidth().height(lineHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
-        Box(Modifier.size(width = 100.dp, height = lineHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
-        Box(Modifier.fillMaxWidth().height(lineHeight).background(shimmerBrush, RoundedCornerShape(3.dp)))
+        Box(Modifier.size(width = 140.dp, height = lineHeight).background(shimmerBrush, PassShapes.extraSmall))
+        Box(Modifier.fillMaxWidth().height(lineHeight).background(shimmerBrush, PassShapes.extraSmall))
+        Box(Modifier.size(width = 100.dp, height = lineHeight).background(shimmerBrush, PassShapes.extraSmall))
+        Box(Modifier.fillMaxWidth().height(lineHeight).background(shimmerBrush, PassShapes.extraSmall))
     }
 }
 

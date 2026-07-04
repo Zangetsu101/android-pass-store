@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AccountTree
@@ -97,8 +96,8 @@ fun EntryBrowserScreen(
                     Row(
                         modifier =
                             Modifier
-                                .background(PassColorsDark.Surface, RoundedCornerShape(6.dp))
-                                .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(6.dp))
+                                .background(PassColorsDark.Surface, PassShapes.small)
+                                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
                                 .clickable { viewModel.pull() }
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,

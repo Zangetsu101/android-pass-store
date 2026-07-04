@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -429,9 +428,9 @@ private fun SettingsSection(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(PassShapes.small)
                     .background(PassColorsDark.Surface)
-                    .border(1.dp, PassColorsDark.Border2, RoundedCornerShape(4.dp)),
+                    .border(1.dp, PassColorsDark.Border2, PassShapes.small),
         ) { content() }
     }
 }
@@ -478,7 +477,7 @@ private fun SheetDragHandle() {
                 Modifier
                     .width(32.dp)
                     .height(3.dp)
-                    .background(PassColorsDark.Border2, RoundedCornerShape(2.dp)),
+                    .background(PassColorsDark.Border2, PassShapes.extraSmall),
         )
     }
 }

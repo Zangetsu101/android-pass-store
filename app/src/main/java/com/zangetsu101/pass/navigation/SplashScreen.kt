@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +41,7 @@ import androidx.compose.ui.util.lerp
 import com.zangetsu101.pass.R
 import com.zangetsu101.pass.ui.components.PassAppIcon
 import com.zangetsu101.pass.ui.theme.PassColorsDark
+import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
 
 @Composable
@@ -113,7 +113,7 @@ fun SplashScreen() {
                     Modifier
                         .width(120.dp)
                         .height(2.dp)
-                        .background(PassColorsDark.Border2, RoundedCornerShape(2.dp))
+                        .background(PassColorsDark.Border2, PassShapes.extraSmall)
                         .clipToBounds(),
             ) {
                 Box(
@@ -127,7 +127,7 @@ fun SplashScreen() {
                                 Brush.horizontalGradient(
                                     listOf(PassColorsDark.AccentMid, PassColorsDark.Accent),
                                 ),
-                                RoundedCornerShape(2.dp),
+                                PassShapes.extraSmall,
                             ),
                 )
             }

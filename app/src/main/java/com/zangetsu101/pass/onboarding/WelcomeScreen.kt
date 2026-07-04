@@ -45,6 +45,7 @@ import com.zangetsu101.pass.ui.components.PassAppIcon
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
+import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
 
 @Composable
@@ -135,8 +136,7 @@ private fun PreflightPanel(state: PreflightUiState) {
                 .fillMaxWidth()
                 .background(
                     PassColorsDark.Surface,
-                    androidx.compose.foundation.shape
-                        .RoundedCornerShape(3.dp),
+                    PassShapes.extraSmall,
                 ).then(
                     Modifier.drawBehind {
                         drawRoundRect(
