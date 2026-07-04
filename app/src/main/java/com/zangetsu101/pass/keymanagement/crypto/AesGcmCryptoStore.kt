@@ -2,8 +2,10 @@
 package com.zangetsu101.pass.keymanagement.crypto
 
 import android.content.Context
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -26,24 +28,41 @@ internal class AesGcmCryptoStore(
 
     private fun keystoreAlias() = "$KEY_ALIAS_PREFIX$name"
 
+    private fun buildSpec(
+        alias: String,
+        strongBox: Boolean,
+    ): KeyGenParameterSpec =
+        KeyGenParameterSpec
+            .Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .setUserAuthenticationRequired(false)
+            .apply {
+                if (strongBox) setIsStrongBoxBacked(true)
+            }.build()
+
+    private fun generateKey(spec: KeyGenParameterSpec): SecretKey =
+        KeyGenerator
+            .getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+            .apply { init(spec) }
+            .generateKey()
+
     private fun getOrCreateWrappingKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         val alias = keystoreAlias()
         keyStore.getKey(alias, null)?.let { return it as SecretKey }
 
-        val spec =
-            KeyGenParameterSpec
-                .Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .setUserAuthenticationRequired(false)
-                .build()
-
-        return KeyGenerator
-            .getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
-            .apply { init(spec) }
-            .generateKey()
+        // Best-effort StrongBox (dedicated secure element, API 28+). Falls back to
+        // TEE-backed keys when the device has no StrongBox — the common case.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                return generateKey(buildSpec(alias, strongBox = true))
+            } catch (_: StrongBoxUnavailableException) {
+                // no StrongBox on this device — fall through
+            }
+        }
+        return generateKey(buildSpec(alias, strongBox = false))
     }
 
     override fun store(data: ByteArray) {

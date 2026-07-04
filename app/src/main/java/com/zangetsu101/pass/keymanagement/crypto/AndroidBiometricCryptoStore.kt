@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.security.KeyPairGenerator
@@ -44,27 +45,42 @@ class AndroidBiometricCryptoStore
             return ks.containsAlias(SESSION_KEY_ALIAS) && blobFile().exists()
         }
 
+        private fun buildSpec(strongBox: Boolean): KeyGenParameterSpec =
+            KeyGenParameterSpec
+                .Builder(SESSION_KEY_ALIAS, KeyProperties.PURPOSE_DECRYPT)
+                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+                .setKeySize(RSA_KEY_SIZE)
+                .setUserAuthenticationRequired(true)
+                .apply {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+                    }
+                    if (strongBox) setIsStrongBoxBacked(true)
+                }.build()
+
+        private fun generateSessionKeyPair(spec: KeyGenParameterSpec) {
+            KeyPairGenerator
+                .getInstance(KeyProperties.KEY_ALGORITHM_RSA, KEYSTORE_PROVIDER)
+                .apply { initialize(spec) }
+                .generateKeyPair()
+        }
+
         override fun store(data: ByteArray) {
             val ks = keyStore()
             if (ks.containsAlias(SESSION_KEY_ALIAS)) {
                 ks.deleteEntry(SESSION_KEY_ALIAS)
             }
-            val spec =
-                KeyGenParameterSpec
-                    .Builder(SESSION_KEY_ALIAS, KeyProperties.PURPOSE_DECRYPT)
-                    .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
-                    .setKeySize(RSA_KEY_SIZE)
-                    .setUserAuthenticationRequired(true)
-                    .apply {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
-                        }
-                    }.build()
-            KeyPairGenerator
-                .getInstance(KeyProperties.KEY_ALGORITHM_RSA, KEYSTORE_PROVIDER)
-                .apply { initialize(spec) }
-                .generateKeyPair()
+            // Best-effort StrongBox (API 28+), falling back to TEE when unavailable.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    generateSessionKeyPair(buildSpec(strongBox = true))
+                } catch (_: StrongBoxUnavailableException) {
+                    generateSessionKeyPair(buildSpec(strongBox = false))
+                }
+            } else {
+                generateSessionKeyPair(buildSpec(strongBox = false))
+            }
             val publicKey = keyStore().getCertificate(SESSION_KEY_ALIAS).publicKey
             val cipher = Cipher.getInstance(RSA_CIPHER)
             cipher.init(Cipher.ENCRYPT_MODE, publicKey, RSA_OAEP_SPEC)
