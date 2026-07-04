@@ -18,11 +18,11 @@ It's a personal-use project first. But if you're a `pass` user looking for a mai
 
 What the app does:
 
-- **Onboard** — generate an on-device SSH keypair (for git auth) and import your existing GPG key.
-- **Sync** — clone and pull your `pass` repo from a git remote over SSH.
+- **Onboard** — generate an on-device SSH keypair for git auth, import your existing GPG key, and optionally reuse an authentication `[A]` subkey if one is available.
+- **Sync** — clone and pull your `pass` repo from a git remote over SSH. Conflict resolution is intentionally out of scope because the app is read-only.
 - **Browse & search** — list all entries with directory structure preserved; fuzzy, case-insensitive search.
 - **Decrypt & view** — GPG-decrypt an entry behind a biometric prompt, show password and notes.
-- **Autofill** — surface credentials to the system via `AutofillService` (Android 8+) and Credential Manager (Android 14+).
+- **Autofill** — surface credentials to the system via `AutofillService` (Android 8+), inline suggestions (Android 11+) and Credential Manager (Android 14+).
 - **Manage** — session timeout, manual lock, manual sync, and clear-all-data, in settings.
 
 ## Goals
@@ -34,9 +34,9 @@ Design principles the app is judged against:
 - **Modern-Android-native** — built on Jetpack Compose, Credential Manager, and Android 16 Identity Check — not a legacy-API port.
 - **`pass`-compatible** — standard store layout, GPG, and git remote; no proprietary format, your existing store works as-is.
 
-## Planned & Considering
+## Future work
 
-- **Planned:** OTP / `pass-otp` support.
+- **OTP / `pass-otp` support:** I plan to move my own 2FA secrets into `pass` and add TOTP autofill support.
 - **Considering:** write support (create/edit entries), HTTPS git authentication.
 
 ## Scope
