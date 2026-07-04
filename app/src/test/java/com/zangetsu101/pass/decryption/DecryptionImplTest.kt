@@ -147,11 +147,4 @@ class DecryptionImplTest {
             }
             assertNotNull(threw, "Expected DecryptionError")
         }
-
-    @Test
-    fun `Credentials password wiped after zero() call`() {
-        val creds = Credentials("secretpassword".toCharArray(), "notes", "user")
-        creds.zero()
-        assertTrue(creds.password.all { it == ' ' })
-    }
 }

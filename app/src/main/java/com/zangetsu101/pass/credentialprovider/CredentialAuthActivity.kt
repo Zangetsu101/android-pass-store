@@ -45,7 +45,6 @@ class CredentialAuthActivity : FragmentActivity() {
             try {
                 val creds = decryption.decrypt(entry, this@CredentialAuthActivity)
                 val credential = PasswordCredential(creds.username, String(creds.password))
-                creds.zero()
 
                 val resultData = Intent()
                 PendingIntentHandler.setGetCredentialResponse(

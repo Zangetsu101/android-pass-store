@@ -66,8 +66,6 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
                         }.build()
 
-                creds.zero()
-
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -127,8 +125,6 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             expiryDateId?.let { expiryRaw?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                         }.build()
-
-                creds.zero()
 
                 val replyIntent =
                     Intent().apply {
