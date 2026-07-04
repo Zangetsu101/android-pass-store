@@ -78,6 +78,17 @@ A key present in the secret ring with no private material — a gnu-dummy master
 
 **Recipient mismatch** cannot be detected at import (no ciphertext or passphrase available then). A ring that passes all checks can still fail every decrypt if the store was encrypted to a different key — surfaced only at decrypt time as a "couldn't decrypt with the imported keyring" message.
 
+## Credential Access
+
+**External Credential Surface**:
+A system-mediated flow that can release a secret to another app, currently AutofillService and Credential Manager.
+_Avoid_: Autofill only, credential UI
+
+Relationships:
+
+- An **External Credential Surface** always requires fresh biometric confirmation before releasing a secret.
+- The internal app browser may use the active session/passphrase cache; external credential surfaces may not.
+
 ## Card Entry
 
 A **Card Entry** is a pass entry stored under the `cards/` or `credit-cards/` top-level directory. It is detected at index time from the file path — no decryption required.

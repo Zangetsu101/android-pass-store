@@ -4,15 +4,24 @@ package com.zangetsu101.pass.credentialprovider
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.PasswordCredential
 import androidx.credentials.provider.PendingIntentHandler
 import androidx.fragment.app.FragmentActivity
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
+import com.zangetsu101.pass.autofill.AutofillDecryption
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
+import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
+import com.zangetsu101.pass.session.SessionStartScreen
+import com.zangetsu101.pass.session.SessionStartViewModel
+import com.zangetsu101.pass.ui.theme.PassTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,7 +31,8 @@ import javax.inject.Inject
 class CredentialAuthActivity : FragmentActivity() {
     @Inject lateinit var passStore: PassStore
 
-    @Inject lateinit var decryption: Decryption
+    @AutofillDecryption @Inject
+    lateinit var decryption: Decryption
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +51,10 @@ class CredentialAuthActivity : FragmentActivity() {
             return
         }
 
+        authenticate(entry)
+    }
+
+    private fun authenticate(entry: PassEntry) {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@CredentialAuthActivity)
@@ -52,12 +66,26 @@ class CredentialAuthActivity : FragmentActivity() {
                     GetCredentialResponse(credential),
                 )
                 setResult(RESULT_OK, resultData)
+                finish()
+            } catch (e: SessionError.NoActiveSession) {
+                showSessionGate { authenticate(entry) }
             } catch (e: DecryptionError) {
                 setResult(RESULT_CANCELED)
+                finish()
             } catch (e: Exception) {
                 setResult(RESULT_CANCELED)
+                finish()
             }
-            finish()
+        }
+    }
+
+    private fun showSessionGate(onUnlocked: () -> Unit) {
+        enableEdgeToEdge()
+        setContent {
+            PassTheme {
+                val vm: SessionStartViewModel = hiltViewModel()
+                SessionStartScreen(viewModel = vm, onSuccess = onUnlocked)
+            }
         }
     }
 
