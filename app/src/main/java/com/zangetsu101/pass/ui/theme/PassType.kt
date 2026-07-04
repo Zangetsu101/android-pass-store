@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.ui.theme
 
 import androidx.compose.ui.text.TextStyle

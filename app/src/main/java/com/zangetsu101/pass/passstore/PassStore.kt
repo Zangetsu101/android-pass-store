@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.passstore
 
 import kotlinx.coroutines.flow.StateFlow

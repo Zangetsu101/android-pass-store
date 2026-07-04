@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.onboarding
 
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore

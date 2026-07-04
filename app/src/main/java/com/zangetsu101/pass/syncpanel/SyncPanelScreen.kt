@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.syncpanel
 
 import androidx.compose.foundation.border
