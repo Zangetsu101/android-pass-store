@@ -197,14 +197,20 @@ private fun GpgImportChecklistDialog(
         },
         confirmButton = {
             when (modal.phase) {
-                GpgImportModalPhase.RUNNING -> PassSecondaryButton(onClick = onCancel, label = "cancel")
+                GpgImportModalPhase.RUNNING -> {
+                    PassSecondaryButton(onClick = onCancel, label = "cancel")
+                }
+
                 GpgImportModalPhase.FAILED -> {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         PassPrimaryButton(onClick = onChooseAnother, label = "choose another key")
                         PassSecondaryButton(onClick = onClose, label = "close")
                     }
                 }
-                GpgImportModalPhase.SUCCESS -> PassPrimaryButton(onClick = onContinue, label = "continue")
+
+                GpgImportModalPhase.SUCCESS -> {
+                    PassPrimaryButton(onClick = onContinue, label = "continue")
+                }
             }
         },
     )
@@ -216,6 +222,151 @@ private fun GpgImportModalState.title() =
         GpgImportModalPhase.FAILED -> "import failed"
         GpgImportModalPhase.SUCCESS -> "key imported"
     }
+
+private data class GpgImportChecklistDisplayRow(
+    val label: String,
+    val detail: String?,
+    val status: GpgImportStepStatus,
+)
+
+private fun GpgImportModalState.displayRows(): List<GpgImportChecklistDisplayRow> {
+    val rowsByStep = rows.associateBy { it.step }
+
+    fun row(step: GpgImportStep) = requireNotNull(rowsByStep[step])
+
+    val decryptionRows =
+        listOf(
+            row(GpgImportStep.ENCRYPTION_SUBKEY),
+            row(GpgImportStep.SUBKEY_VALIDITY),
+            row(GpgImportStep.PRIVATE_KEY_MATERIAL),
+        )
+    val failedDecryptionRow = decryptionRows.firstOrNull { it.status == GpgImportStepStatus.FAILED }
+    val runningDecryptionRow = decryptionRows.firstOrNull { it.status == GpgImportStepStatus.RUNNING }
+    val decryptionStatus =
+        when {
+            failedDecryptionRow != null -> GpgImportStepStatus.FAILED
+            runningDecryptionRow != null -> GpgImportStepStatus.RUNNING
+            decryptionRows.all { it.status == GpgImportStepStatus.PASSED } -> GpgImportStepStatus.PASSED
+            decryptionRows.any { it.status == GpgImportStepStatus.PASSED } -> GpgImportStepStatus.RUNNING
+            else -> GpgImportStepStatus.NOT_CHECKED
+        }
+
+    val secretKeyRow = row(GpgImportStep.SECRET_KEY_FILE)
+    val passphraseRow = row(GpgImportStep.PASSPHRASE_PROTECTION)
+    val sshRow = row(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY)
+    val storeRow = row(GpgImportStep.STORE_ENCRYPTED_KEY)
+
+    return listOf(
+        secretKeyRow.toDisplayRow("secret key recognized"),
+        GpgImportChecklistDisplayRow(
+            label = "decryption key usable",
+            detail =
+                when (decryptionStatus) {
+                    GpgImportStepStatus.FAILED -> failedDecryptionRow?.error?.message ?: failedDecryptionRow?.detail
+                    GpgImportStepStatus.RUNNING -> runningDecryptionRow?.detail ?: "checking decryption key…"
+                    else -> null
+                },
+            status = decryptionStatus,
+        ),
+        passphraseRow.toDisplayRow("passphrase protected"),
+        sshRow.toDisplayRow(if (sshRow.status == GpgImportStepStatus.NEUTRAL) "github ssh key not reusable" else "github ssh key reusable"),
+        storeRow.toDisplayRow("stored securely"),
+    )
+}
+
+private fun GpgImportChecklistRow.toDisplayRow(label: String): GpgImportChecklistDisplayRow =
+    GpgImportChecklistDisplayRow(
+        label = label,
+        detail =
+            when (status) {
+                GpgImportStepStatus.FAILED -> error?.message ?: detail
+
+                GpgImportStepStatus.RUNNING,
+                GpgImportStepStatus.NEUTRAL,
+                -> detail
+
+                GpgImportStepStatus.NOT_CHECKED,
+                GpgImportStepStatus.PASSED,
+                -> null
+            },
+        status = status,
+    )
+
+@Composable
+private fun GpgImportChecklistRowContent(row: GpgImportChecklistDisplayRow) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ChecklistStatus(status = row.status)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(row.label, style = PassType.Body, color = row.status.color())
+            row.detail?.let { detail ->
+                Text(
+                    detail,
+                    style = PassType.Caption,
+                    color =
+                        if (row.status ==
+                            GpgImportStepStatus.FAILED
+                        ) {
+                            PassColorsDark.Danger
+                        } else {
+                            PassColorsDark.TextFaint
+                        },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistStatus(status: GpgImportStepStatus) {
+    Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+        when (status) {
+            GpgImportStepStatus.RUNNING -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = PassColorsDark.Accent,
+                    strokeWidth = 2.dp,
+                )
+            }
+
+            GpgImportStepStatus.PASSED -> {
+                Text("✓", style = PassType.Body, color = PassColorsDark.Accent)
+            }
+
+            GpgImportStepStatus.FAILED -> {
+                Text("!", style = PassType.Body, color = PassColorsDark.Danger)
+            }
+
+            GpgImportStepStatus.NEUTRAL -> {
+                Text("i", style = PassType.Caption, color = PassColorsDark.TextFaint)
+            }
+
+            GpgImportStepStatus.NOT_CHECKED -> {
+                Text("•", style = PassType.Caption, color = PassColorsDark.TextFaint)
+            }
+        }
+    }
+}
+
+private fun GpgImportStepStatus.color() =
+    when (this) {
+        GpgImportStepStatus.FAILED -> PassColorsDark.Danger
+
+        GpgImportStepStatus.NOT_CHECKED,
+        GpgImportStepStatus.NEUTRAL,
+        -> PassColorsDark.TextDim
+
+        GpgImportStepStatus.RUNNING,
+        GpgImportStepStatus.PASSED,
+        -> PassColorsDark.TextPrimary
+    }
+
+// ---- Previews ----
+
+private const val PREVIEW_BG = 0xFF0B0D0BL
 
 @Composable
 private fun GpgImportChecklistDialogPreview(
@@ -252,137 +403,35 @@ private fun GpgImportChecklistDialogPreview(
                 }
             }
             when (modal.phase) {
-                GpgImportModalPhase.RUNNING -> PassSecondaryButton(onClick = onCancel, label = "cancel")
+                GpgImportModalPhase.RUNNING -> {
+                    PassSecondaryButton(onClick = onCancel, label = "cancel")
+                }
+
                 GpgImportModalPhase.FAILED -> {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         PassPrimaryButton(onClick = onChooseAnother, label = "choose another key")
                         PassSecondaryButton(onClick = onClose, label = "close")
                     }
                 }
-                GpgImportModalPhase.SUCCESS -> PassPrimaryButton(onClick = onContinue, label = "continue")
+
+                GpgImportModalPhase.SUCCESS -> {
+                    PassPrimaryButton(onClick = onContinue, label = "continue")
+                }
             }
         }
     }
 }
-
-private data class GpgImportChecklistDisplayRow(
-    val label: String,
-    val detail: String?,
-    val status: GpgImportStepStatus,
-)
-
-private fun GpgImportModalState.displayRows(): List<GpgImportChecklistDisplayRow> {
-    val rowsByStep = rows.associateBy { it.step }
-    fun row(step: GpgImportStep) = requireNotNull(rowsByStep[step])
-
-    val decryptionRows =
-        listOf(
-            row(GpgImportStep.ENCRYPTION_SUBKEY),
-            row(GpgImportStep.SUBKEY_VALIDITY),
-            row(GpgImportStep.PRIVATE_KEY_MATERIAL),
-        )
-    val failedDecryptionRow = decryptionRows.firstOrNull { it.status == GpgImportStepStatus.FAILED }
-    val runningDecryptionRow = decryptionRows.firstOrNull { it.status == GpgImportStepStatus.RUNNING }
-    val decryptionStatus =
-        when {
-            failedDecryptionRow != null -> GpgImportStepStatus.FAILED
-            runningDecryptionRow != null -> GpgImportStepStatus.RUNNING
-            decryptionRows.all { it.status == GpgImportStepStatus.PASSED } -> GpgImportStepStatus.PASSED
-            decryptionRows.any { it.status == GpgImportStepStatus.PASSED } -> GpgImportStepStatus.RUNNING
-            else -> GpgImportStepStatus.NOT_CHECKED
-        }
-
-    val secretKeyRow = row(GpgImportStep.SECRET_KEY_FILE)
-    val passphraseRow = row(GpgImportStep.PASSPHRASE_PROTECTION)
-    val sshRow = row(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY)
-    val storeRow = row(GpgImportStep.STORE_ENCRYPTED_KEY)
-
-    return listOf(
-        secretKeyRow.toDisplayRow("secret key recognized"),
-        GpgImportChecklistDisplayRow(
-            label = "decryption key usable",
-            detail = when (decryptionStatus) {
-                GpgImportStepStatus.FAILED -> failedDecryptionRow?.error?.message ?: failedDecryptionRow?.detail
-                GpgImportStepStatus.RUNNING -> runningDecryptionRow?.detail ?: "checking decryption key…"
-                else -> null
-            },
-            status = decryptionStatus,
-        ),
-        passphraseRow.toDisplayRow("passphrase protected"),
-        sshRow.toDisplayRow(if (sshRow.status == GpgImportStepStatus.NEUTRAL) "github ssh key not reusable" else "github ssh key reusable"),
-        storeRow.toDisplayRow("stored securely"),
-    )
-}
-
-private fun GpgImportChecklistRow.toDisplayRow(label: String): GpgImportChecklistDisplayRow =
-    GpgImportChecklistDisplayRow(
-        label = label,
-        detail = when (status) {
-            GpgImportStepStatus.FAILED -> error?.message ?: detail
-            GpgImportStepStatus.RUNNING,
-            GpgImportStepStatus.NEUTRAL,
-            -> detail
-            GpgImportStepStatus.NOT_CHECKED,
-            GpgImportStepStatus.PASSED,
-            -> null
-        },
-        status = status,
-    )
-
-@Composable
-private fun GpgImportChecklistRowContent(row: GpgImportChecklistDisplayRow) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ChecklistStatus(status = row.status)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(row.label, style = PassType.Body, color = row.status.color())
-            row.detail?.let { detail ->
-                Text(detail, style = PassType.Caption, color = if (row.status == GpgImportStepStatus.FAILED) PassColorsDark.Danger else PassColorsDark.TextFaint)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChecklistStatus(status: GpgImportStepStatus) {
-    Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-        when (status) {
-            GpgImportStepStatus.RUNNING -> CircularProgressIndicator(modifier = Modifier.size(16.dp), color = PassColorsDark.Accent, strokeWidth = 2.dp)
-            GpgImportStepStatus.PASSED -> Text("✓", style = PassType.Body, color = PassColorsDark.Accent)
-            GpgImportStepStatus.FAILED -> Text("!", style = PassType.Body, color = PassColorsDark.Danger)
-            GpgImportStepStatus.NEUTRAL -> Text("i", style = PassType.Caption, color = PassColorsDark.TextFaint)
-            GpgImportStepStatus.NOT_CHECKED -> Text("•", style = PassType.Caption, color = PassColorsDark.TextFaint)
-        }
-    }
-}
-
-private fun GpgImportStepStatus.color() =
-    when (this) {
-        GpgImportStepStatus.FAILED -> PassColorsDark.Danger
-        GpgImportStepStatus.NOT_CHECKED,
-        GpgImportStepStatus.NEUTRAL,
-        -> PassColorsDark.TextDim
-        GpgImportStepStatus.RUNNING,
-        GpgImportStepStatus.PASSED,
-        -> PassColorsDark.TextPrimary
-    }
-
-// ---- Previews ----
-
-private const val PREVIEW_BG = 0xFF0B0D0BL
 
 @Preview(name = "gpg import · running", showBackground = true, backgroundColor = PREVIEW_BG, widthDp = 360)
 @Composable
 private fun GpgImportDialogRunningPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = GpgImportModalState(
-                phase = GpgImportModalPhase.RUNNING,
-                rows = previewRows(GpgImportStep.PASSPHRASE_PROTECTION),
-            ),
+            modal =
+                GpgImportModalState(
+                    phase = GpgImportModalPhase.RUNNING,
+                    rows = previewRows(GpgImportStep.PASSPHRASE_PROTECTION),
+                ),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -396,16 +445,19 @@ private fun GpgImportDialogRunningPreview() {
 private fun GpgImportDialogMalformedFailurePreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = GpgImportModalState(
-                phase = GpgImportModalPhase.FAILED,
-                rows = previewRows(
-                    failedStep = GpgImportStep.SECRET_KEY_FILE,
-                    error = GpgImportError(
-                        title = "unrecognized key",
-                        message = "this doesn't look like an armored gpg secret key. check you exported a private key, not a public one.",
-                    ),
+            modal =
+                GpgImportModalState(
+                    phase = GpgImportModalPhase.FAILED,
+                    rows =
+                        previewRows(
+                            failedStep = GpgImportStep.SECRET_KEY_FILE,
+                            error =
+                                GpgImportError(
+                                    title = "unrecognized key",
+                                    message = "this doesn't look like an armored gpg secret key. check you exported a private key, not a public one.",
+                                ),
+                        ),
                 ),
-            ),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -419,16 +471,19 @@ private fun GpgImportDialogMalformedFailurePreview() {
 private fun GpgImportDialogPassphraseFailurePreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = GpgImportModalState(
-                phase = GpgImportModalPhase.FAILED,
-                rows = previewRows(
-                    failedStep = GpgImportStep.PASSPHRASE_PROTECTION,
-                    error = GpgImportError(
-                        title = "key not protected",
-                        message = "this key is not passphrase-protected (1A2B3C4D). re-export it with a passphrase — at-rest security depends on it.",
-                    ),
+            modal =
+                GpgImportModalState(
+                    phase = GpgImportModalPhase.FAILED,
+                    rows =
+                        previewRows(
+                            failedStep = GpgImportStep.PASSPHRASE_PROTECTION,
+                            error =
+                                GpgImportError(
+                                    title = "key not protected",
+                                    message = "this key is not passphrase-protected (1A2B3C4D). re-export it with a passphrase — at-rest security depends on it.",
+                                ),
+                        ),
                 ),
-            ),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -442,10 +497,11 @@ private fun GpgImportDialogPassphraseFailurePreview() {
 private fun GpgImportDialogSuccessWithAuthPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = GpgImportModalState(
-                phase = GpgImportModalPhase.SUCCESS,
-                rows = previewRows(authSubkeyFound = true, stored = true),
-            ),
+            modal =
+                GpgImportModalState(
+                    phase = GpgImportModalPhase.SUCCESS,
+                    rows = previewRows(authSubkeyFound = true, stored = true),
+                ),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -459,10 +515,11 @@ private fun GpgImportDialogSuccessWithAuthPreview() {
 private fun GpgImportDialogSuccessWithoutAuthPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = GpgImportModalState(
-                phase = GpgImportModalPhase.SUCCESS,
-                rows = previewRows(authSubkeyFound = false, stored = true),
-            ),
+            modal =
+                GpgImportModalState(
+                    phase = GpgImportModalPhase.SUCCESS,
+                    rows = previewRows(authSubkeyFound = false, stored = true),
+                ),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -481,17 +538,45 @@ private fun previewRows(
     previewBaseRows().map { row ->
         val status =
             when {
-                row.step == runningStep -> GpgImportStepStatus.RUNNING
-                row.step == failedStep -> GpgImportStepStatus.FAILED
-                failedStep != null && row.step.ordinal > failedStep.ordinal -> GpgImportStepStatus.NOT_CHECKED
-                authSubkeyFound != null && row.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY ->
+                row.step == runningStep -> {
+                    GpgImportStepStatus.RUNNING
+                }
+
+                row.step == failedStep -> {
+                    GpgImportStepStatus.FAILED
+                }
+
+                failedStep != null && row.step.ordinal > failedStep.ordinal -> {
+                    GpgImportStepStatus.NOT_CHECKED
+                }
+
+                authSubkeyFound != null && row.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY -> {
                     if (authSubkeyFound) GpgImportStepStatus.PASSED else GpgImportStepStatus.NEUTRAL
-                stored && row.step == GpgImportStep.STORE_ENCRYPTED_KEY -> GpgImportStepStatus.PASSED
-                runningStep != null && row.step.ordinal < runningStep.ordinal -> GpgImportStepStatus.PASSED
-                runningStep != null -> GpgImportStepStatus.NOT_CHECKED
-                failedStep != null -> GpgImportStepStatus.PASSED
-                authSubkeyFound != null && row.step != GpgImportStep.REUSABLE_GIT_SSH_SUBKEY -> GpgImportStepStatus.PASSED
-                else -> row.status
+                }
+
+                stored && row.step == GpgImportStep.STORE_ENCRYPTED_KEY -> {
+                    GpgImportStepStatus.PASSED
+                }
+
+                runningStep != null && row.step.ordinal < runningStep.ordinal -> {
+                    GpgImportStepStatus.PASSED
+                }
+
+                runningStep != null -> {
+                    GpgImportStepStatus.NOT_CHECKED
+                }
+
+                failedStep != null -> {
+                    GpgImportStepStatus.PASSED
+                }
+
+                authSubkeyFound != null && row.step != GpgImportStep.REUSABLE_GIT_SSH_SUBKEY -> {
+                    GpgImportStepStatus.PASSED
+                }
+
+                else -> {
+                    row.status
+                }
             }
         val detail =
             when (authSubkeyFound) {
@@ -508,7 +593,19 @@ private fun previewBaseRows(): List<GpgImportChecklistRow> =
         GpgImportChecklistRow(GpgImportStep.ENCRYPTION_SUBKEY, "encryption subkey", "includes an encryption-capable [E] subkey"),
         GpgImportChecklistRow(GpgImportStep.SUBKEY_VALIDITY, "subkey validity", "encryption subkey is not expired or revoked"),
         GpgImportChecklistRow(GpgImportStep.PRIVATE_KEY_MATERIAL, "private key material", "encryption subkey includes secret material"),
-        GpgImportChecklistRow(GpgImportStep.PASSPHRASE_PROTECTION, "passphrase protection", "private key material is protected by a passphrase"),
-        GpgImportChecklistRow(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY, "reusable git ssh subkey", "only ed25519 [A] subkeys can be reused for github ssh"),
-        GpgImportChecklistRow(GpgImportStep.STORE_ENCRYPTED_KEY, "store encrypted key", "save the protected key ring in encrypted app storage"),
+        GpgImportChecklistRow(
+            GpgImportStep.PASSPHRASE_PROTECTION,
+            "passphrase protection",
+            "private key material is protected by a passphrase",
+        ),
+        GpgImportChecklistRow(
+            GpgImportStep.REUSABLE_GIT_SSH_SUBKEY,
+            "reusable git ssh subkey",
+            "only ed25519 [A] subkeys can be reused for github ssh",
+        ),
+        GpgImportChecklistRow(
+            GpgImportStep.STORE_ENCRYPTED_KEY,
+            "store encrypted key",
+            "save the protected key ring in encrypted app storage",
+        ),
     )

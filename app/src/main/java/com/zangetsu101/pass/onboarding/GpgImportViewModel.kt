@@ -4,12 +4,20 @@ package com.zangetsu101.pass.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.keymanagement.gpg.GpgImportCandidate
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReader
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.EncryptionSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PassphraseProtectionValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PrivateKeyMaterialValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.ReusableGitSshSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.SubkeyValidityValidation
 import com.zangetsu101.pass.preferences.AppPreferences
+import com.zangetsu101.pass.validation.Validation
+import com.zangetsu101.pass.validation.ValidationResult
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -70,7 +78,13 @@ data class GpgImportUiState(
 class GpgImportViewModel
     @Inject
     constructor(
-        private val cryptoOperations: GpgKeyStore,
+        private val gpgKeyStore: GpgKeyStore,
+        private val importReader: GpgImportReader,
+        private val encryptionSubkeyValidation: EncryptionSubkeyValidation,
+        private val subkeyValidityValidation: SubkeyValidityValidation,
+        private val privateKeyMaterialValidation: PrivateKeyMaterialValidation,
+        private val passphraseProtectionValidation: PassphraseProtectionValidation,
+        private val reusableGitSshSubkeyValidation: ReusableGitSshSubkeyValidation,
         private val appPreferences: AppPreferences,
         @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
@@ -123,7 +137,7 @@ class GpgImportViewModel
             }
             viewModelScope.launch {
                 try {
-                    val armored = withContext(ioDispatcher) { cryptoOperations.armorGpgKey(bytes) }
+                    val armored = withContext(ioDispatcher) { importReader.armor(bytes) }
                     setGpgKeyText(armored)
                 } catch (e: KeyImportError) {
                     val error = GpgImportError(e.title, e.message ?: "invalid or unrecognized key file")
@@ -160,21 +174,25 @@ class GpgImportViewModel
                 viewModelScope.launch {
                     try {
                         val candidate = parseCandidate()
-                        runRequiredStep(GpgImportStep.ENCRYPTION_SUBKEY) { cryptoOperations.requireEncryptionSubkey(candidate) }
-                        runRequiredStep(GpgImportStep.SUBKEY_VALIDITY) { cryptoOperations.requireValidEncryptionSubkey(candidate) }
-                        runRequiredStep(GpgImportStep.PRIVATE_KEY_MATERIAL) { cryptoOperations.requirePrivateEncryptionMaterial(candidate) }
-                        runRequiredStep(GpgImportStep.PASSPHRASE_PROTECTION) { cryptoOperations.requirePassphraseProtection(candidate) }
-                        runAuthSubkeyStep(candidate)
+                        for (validation in validationGroup()) {
+                            runValidation(candidate, validation)
+                        }
                         runStoreStep(candidate.armoredKey)
                         if (!isActive) return@launch
-                        _state.update { it.copy(gpgImported = true, gpgImportError = null, importModal = it.importModal?.copy(phase = GpgImportModalPhase.SUCCESS)) }
+                        _state.update {
+                            it.copy(
+                                gpgImported = true,
+                                gpgImportError = null,
+                                importModal = it.importModal?.copy(phase = GpgImportModalPhase.SUCCESS),
+                            )
+                        }
                     } catch (_: CancellationException) {
                         return@launch
                     } catch (e: KeyImportError) {
                         if (!isActive) return@launch
                         failCurrentStep(e)
                     } catch (e: Exception) {
-                        if (!isActive) return@launch
+                        if (!isActive || _state.value.importModal?.phase == GpgImportModalPhase.FAILED) return@launch
                         failStep(
                             GpgImportStep.STORE_ENCRYPTED_KEY,
                             GpgImportError("could not save key", "could not save the key. please try again."),
@@ -186,7 +204,7 @@ class GpgImportViewModel
         private suspend fun parseCandidate(): GpgImportCandidate {
             lateinit var candidate: GpgImportCandidate
             runRequiredStep(GpgImportStep.SECRET_KEY_FILE) {
-                candidate = cryptoOperations.parseGpgKeyImportCandidate(_state.value.gpgKeyText)
+                candidate = importReader.parseCandidate(_state.value.gpgKeyText)
             }
             return candidate
         }
@@ -205,17 +223,25 @@ class GpgImportViewModel
             }
         }
 
-        private suspend fun runAuthSubkeyStep(candidate: GpgImportCandidate) {
-            markRunning(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY)
-            val found = withMinimumStepTime { withContext(ioDispatcher) { cryptoOperations.hasReusableAuthSubkey(candidate) } }
-            val detail =
-                if (found) {
-                    "you can reuse this key for github ssh on the next step"
-                } else {
-                    "only ed25519 [A] subkeys can be reused for github ssh"
+        private suspend fun runValidation(
+            candidate: GpgImportCandidate,
+            validation: Validation<GpgImportCandidate, GpgImportStep>,
+        ) {
+            val step = validation.descriptor.id
+            markRunning(step)
+            val result =
+                try {
+                    withMinimumStepTime { withContext(ioDispatcher) { validation.validate(candidate) } }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failStep(step, GpgImportError("validation failed", "could not validate the key. please try again."))
+                    throw e
                 }
-            updateRow(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY) {
-                it.copy(status = if (found) GpgImportStepStatus.PASSED else GpgImportStepStatus.NEUTRAL, detail = detail, error = null)
+            when (result) {
+                ValidationResult.Passed -> markValidationPassed(step)
+                ValidationResult.Neutral -> markOptionalNeutral(step)
+                is ValidationResult.Failed -> failValidation(step, result.error)
             }
         }
 
@@ -223,14 +249,14 @@ class GpgImportViewModel
             markRunning(GpgImportStep.STORE_ENCRYPTED_KEY)
             try {
                 withMinimumStepTime {
-                    withContext(ioDispatcher) { cryptoOperations.storeImportedGpgKey(armoredKey) }
+                    withContext(ioDispatcher) { gpgKeyStore.storeImportedGpgKey(armoredKey) }
                     appPreferences.setGpgImported(true)
                 }
                 markStep(GpgImportStep.STORE_ENCRYPTED_KEY, GpgImportStepStatus.PASSED)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                withContext(ioDispatcher) { runCatching { cryptoOperations.delete() } }
+                withContext(ioDispatcher) { runCatching { gpgKeyStore.delete() } }
                 failStep(
                     GpgImportStep.STORE_ENCRYPTED_KEY,
                     GpgImportError("could not save key", "could not save the key. please try again."),
@@ -251,6 +277,15 @@ class GpgImportViewModel
                     throw e
                 }
             }
+
+        private fun validationGroup(): List<Validation<GpgImportCandidate, GpgImportStep>> =
+            listOf(
+                encryptionSubkeyValidation,
+                subkeyValidityValidation,
+                privateKeyMaterialValidation,
+                passphraseProtectionValidation,
+                reusableGitSshSubkeyValidation,
+            )
 
         private fun markRunning(step: GpgImportStep) = markStep(step, GpgImportStepStatus.RUNNING)
 
@@ -273,13 +308,49 @@ class GpgImportViewModel
             }
         }
 
+        private fun markValidationPassed(step: GpgImportStep) {
+            if (step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY) {
+                updateRow(step) {
+                    it.copy(
+                        status = GpgImportStepStatus.PASSED,
+                        detail = "you can reuse this key for github ssh on the next step",
+                        error = null,
+                    )
+                }
+            } else {
+                markStep(step, GpgImportStepStatus.PASSED)
+            }
+        }
+
+        private fun markOptionalNeutral(step: GpgImportStep) {
+            updateRow(step) { it.copy(status = GpgImportStepStatus.NEUTRAL, error = null) }
+        }
+
+        private fun failValidation(
+            step: GpgImportStep,
+            error: Throwable,
+        ): Nothing {
+            val importError =
+                if (error is KeyImportError) {
+                    GpgImportError(error.title, error.message ?: "import failed")
+                } else {
+                    GpgImportError("validation failed", "could not validate the key. please try again.")
+                }
+            failStep(step, importError)
+            throw if (error is Exception) error else RuntimeException(error)
+        }
+
         private fun failStep(
             step: GpgImportStep,
             error: GpgImportError,
         ) {
             updateRow(step) { it.copy(status = GpgImportStepStatus.FAILED, error = error) }
             _state.update { state ->
-                state.copy(gpgImportError = error, gpgImported = false, importModal = state.importModal?.copy(phase = GpgImportModalPhase.FAILED))
+                state.copy(
+                    gpgImportError = error,
+                    gpgImported = false,
+                    importModal = state.importModal?.copy(phase = GpgImportModalPhase.FAILED),
+                )
             }
         }
 
@@ -298,13 +369,14 @@ class GpgImportViewModel
         }
 
         private fun initialRows(): List<GpgImportChecklistRow> =
-            listOf(
-                GpgImportChecklistRow(GpgImportStep.SECRET_KEY_FILE, "secret key file", "looks like an openpgp secret key ring"),
-                GpgImportChecklistRow(GpgImportStep.ENCRYPTION_SUBKEY, "encryption subkey", "includes an encryption-capable [E] subkey"),
-                GpgImportChecklistRow(GpgImportStep.SUBKEY_VALIDITY, "subkey validity", "encryption subkey is not expired or revoked"),
-                GpgImportChecklistRow(GpgImportStep.PRIVATE_KEY_MATERIAL, "private key material", "encryption subkey includes secret material"),
-                GpgImportChecklistRow(GpgImportStep.PASSPHRASE_PROTECTION, "passphrase protection", "private key material is protected by a passphrase"),
-                GpgImportChecklistRow(GpgImportStep.REUSABLE_GIT_SSH_SUBKEY, "reusable git ssh subkey", "only ed25519 [A] subkeys can be reused for github ssh"),
-                GpgImportChecklistRow(GpgImportStep.STORE_ENCRYPTED_KEY, "store encrypted key", "save the protected key ring in encrypted app storage"),
-            )
+            listOf(GpgImportChecklistRow(GpgImportStep.SECRET_KEY_FILE, "secret key file", "looks like an openpgp secret key ring")) +
+                validationGroup().map { validation ->
+                    val descriptor = validation.descriptor
+                    GpgImportChecklistRow(descriptor.id, descriptor.label, descriptor.detail)
+                } +
+                GpgImportChecklistRow(
+                    GpgImportStep.STORE_ENCRYPTED_KEY,
+                    "store encrypted key",
+                    "save the protected key ring in encrypted app storage",
+                )
     }

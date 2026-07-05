@@ -8,6 +8,9 @@ import com.zangetsu101.pass.keymanagement.crypto.AesGcmCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.AndroidBiometricCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.BiometricCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.CryptoStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReader
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReaderImpl
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyInspector
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
 import com.zangetsu101.pass.keymanagement.session.AndroidSessionTimer
@@ -59,6 +62,10 @@ abstract class KeyManagementModule {
 
     @Binds
     @Singleton
+    abstract fun bindGpgImportReader(impl: GpgImportReaderImpl): GpgImportReader
+
+    @Binds
+    @Singleton
     abstract fun bindSshKeyStore(impl: SshKeyStoreImpl): SshKeyStore
 
     @Binds
@@ -95,7 +102,9 @@ abstract class KeyManagementModule {
         @Singleton
         fun provideGpgKeyStoreImpl(
             @ApplicationContext context: Context,
-        ): GpgKeyStoreImpl = GpgKeyStoreImpl(AesGcmCryptoStore(context, "gpg"))
+            importReader: GpgImportReader,
+            inspector: GpgKeyInspector,
+        ): GpgKeyStoreImpl = GpgKeyStoreImpl(AesGcmCryptoStore(context, "gpg"), importReader, inspector)
 
         @Provides
         @Singleton

@@ -2,9 +2,16 @@
 package com.zangetsu101.pass.keymanagement
 
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReaderImpl
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyInspector
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.EncryptionSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PassphraseProtectionValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PrivateKeyMaterialValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.SubkeyValidityValidation
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import com.zangetsu101.pass.validation.ValidationResult
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
@@ -51,10 +58,36 @@ private class InMemoryPlainCryptoStore : PlainCryptoStore {
 
 class GpgKeyStoreImplTest {
     private lateinit var gpgKeyStore: GpgKeyStoreImpl
+    private lateinit var importReader: GpgImportReaderImpl
+    private lateinit var inspector: GpgKeyInspector
 
     @BeforeEach
     fun setup() {
-        gpgKeyStore = GpgKeyStoreImpl(InMemoryPlainCryptoStore())
+        importReader = GpgImportReaderImpl()
+        inspector = GpgKeyInspector()
+        gpgKeyStore = GpgKeyStoreImpl(InMemoryPlainCryptoStore(), importReader, inspector)
+    }
+
+    private fun importAndStore(armoredKey: String) {
+        validateOrThrow(armoredKey)
+        gpgKeyStore.storeImportedGpgKey(armoredKey)
+    }
+
+    private fun validateOrThrow(armoredKey: String) {
+        val candidate = importReader.parseCandidate(armoredKey)
+        val validations =
+            listOf(
+                EncryptionSubkeyValidation(inspector),
+                SubkeyValidityValidation(inspector),
+                PrivateKeyMaterialValidation(inspector),
+                PassphraseProtectionValidation(),
+            )
+        validations.forEach { validation ->
+            when (val result = validation.validate(candidate)) {
+                ValidationResult.Passed, ValidationResult.Neutral -> Unit
+                is ValidationResult.Failed -> throw result.error
+            }
+        }
     }
 
     private fun armoredProtectedKey(
@@ -69,7 +102,7 @@ class GpgKeyStoreImplTest {
 
     @Test
     fun `importGpgKey with passphrase-protected key stores key`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey())
+        importAndStore(armoredProtectedKey())
 
         assertTrue(gpgKeyStore.exists())
     }
@@ -77,14 +110,14 @@ class GpgKeyStoreImplTest {
     @Test
     fun `importGpgKey with unprotected key throws NoPassphrase`() {
         assertThrows<KeyImportError.NoPassphrase> {
-            gpgKeyStore.importGpgKey(armoredUnprotectedKey())
+            importAndStore(armoredUnprotectedKey())
         }
     }
 
     @Test
     fun `importGpgKey with malformed text throws Malformed`() {
         assertThrows<KeyImportError.Malformed> {
-            gpgKeyStore.importGpgKey("not a pgp key at all")
+            importAndStore("not a pgp key at all")
         }
     }
 
@@ -93,13 +126,13 @@ class GpgKeyStoreImplTest {
         val keyWithoutEncryption =
             armoredKeyWithEd25519AuthSubkey("correct", "NoEnc <noenc@example.com>", includeEncryption = false)
         assertThrows<KeyImportError.NoEncryptionKey> {
-            gpgKeyStore.importGpgKey(keyWithoutEncryption)
+            importAndStore(keyWithoutEncryption)
         }
     }
 
     @Test
     fun `importGpgKey with encryption subkey and passphrase stores key`() {
-        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey("correct", "Enc <enc@example.com>"))
+        importAndStore(armoredKeyWithEd25519AuthSubkey("correct", "Enc <enc@example.com>"))
 
         assertTrue(gpgKeyStore.exists())
     }
@@ -112,7 +145,7 @@ class GpgKeyStoreImplTest {
         val originalRing = key.pgpSecretKeyRing
         val binaryBytes = ByteArrayOutputStream().also { originalRing.encode(it) }.toByteArray()
 
-        val armored = gpgKeyStore.armorGpgKey(binaryBytes)
+        val armored = importReader.armor(binaryBytes)
 
         assertTrue(armored.contains("BEGIN PGP PRIVATE KEY BLOCK"))
         val resultRing = PGPainless().readKey().parseKey(armored).pgpSecretKeyRing
@@ -124,7 +157,7 @@ class GpgKeyStoreImplTest {
     @Test
     fun `armorGpgKey with malformed bytes throws Malformed`() {
         assertThrows<KeyImportError.Malformed> {
-            gpgKeyStore.armorGpgKey("garbage bytes".toByteArray())
+            importReader.armor("garbage bytes".toByteArray())
         }
     }
 
@@ -132,13 +165,13 @@ class GpgKeyStoreImplTest {
 
     @Test
     fun `validatePassphrase with correct passphrase does not throw`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
+        importAndStore(armoredProtectedKey("correct"))
         gpgKeyStore.validatePassphrase("correct")
     }
 
     @Test
     fun `validatePassphrase with wrong passphrase throws WrongPassphrase`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
+        importAndStore(armoredProtectedKey("correct"))
         assertThrows<SessionError.WrongPassphrase> {
             gpgKeyStore.validatePassphrase("wrong")
         }
@@ -157,7 +190,7 @@ class GpgKeyStoreImplTest {
     fun `loadAndUnlock with correct passphrase returns key usable for decryption`() {
         val passphrase = "correct"
         val protectedKey = PGPainless().generateKey().modernKeyRing("Test <test@example.com>", passphrase)
-        gpgKeyStore.importGpgKey(PGPainless.getInstance().toAsciiArmor(protectedKey))
+        importAndStore(PGPainless.getInstance().toAsciiArmor(protectedKey))
 
         val plaintext = "secret-test-content"
         val ciphertext =
@@ -190,7 +223,7 @@ class GpgKeyStoreImplTest {
 
     @Test
     fun `loadAndUnlock with wrong passphrase throws WrongPassphrase`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey("correct"))
+        importAndStore(armoredProtectedKey("correct"))
         assertThrows<SessionError.WrongPassphrase> {
             gpgKeyStore.loadAndUnlock("wrong")
         }
@@ -205,7 +238,7 @@ class GpgKeyStoreImplTest {
 
     @Test
     fun `getGpgKeyInfo returns keyId and uid with correct format`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey("pass", "Alice <alice@example.com>"))
+        importAndStore(armoredProtectedKey("pass", "Alice <alice@example.com>"))
 
         val info = gpgKeyStore.getGpgKeyInfo()
 
@@ -232,7 +265,7 @@ class GpgKeyStoreImplTest {
 
     @Test
     fun `findAuthSubkey returns null when key has no auth subkey`() {
-        gpgKeyStore.importGpgKey(armoredProtectedKey())
+        importAndStore(armoredProtectedKey())
 
         assertNull(gpgKeyStore.findAuthSubkey())
     }
@@ -241,7 +274,7 @@ class GpgKeyStoreImplTest {
     fun `findAuthSubkey returns AuthSubkeyInfo for key with ed25519 auth subkey`() {
         val passphrase = "testpass"
         val uid = "Test Auth <auth@example.com>"
-        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
+        importAndStore(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
 
         val info = gpgKeyStore.findAuthSubkey()
 
@@ -257,7 +290,7 @@ class GpgKeyStoreImplTest {
     fun `findAuthSubkey picks newest when multiple auth subkeys present`() {
         val passphrase = "testpass"
         val armored = armoredKeyWithTwoEd25519AuthSubkeys(passphrase)
-        gpgKeyStore.importGpgKey(armored)
+        importAndStore(armored)
 
         val info = gpgKeyStore.findAuthSubkey()
 
@@ -270,7 +303,7 @@ class GpgKeyStoreImplTest {
     fun `extractAuthSubkeySeed returns 32-byte seed for correct passphrase`() {
         val passphrase = "correct"
         val uid = "Seed Test <seed@example.com>"
-        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
+        importAndStore(armoredKeyWithEd25519AuthSubkey(passphrase, uid))
         val authSubkey = checkNotNull(gpgKeyStore.findAuthSubkey())
 
         val seed = gpgKeyStore.extractAuthSubkeySeed(passphrase, authSubkey.keyId)
@@ -281,7 +314,7 @@ class GpgKeyStoreImplTest {
     @Test
     fun `extractAuthSubkeySeed throws WrongPassphrase for incorrect passphrase`() {
         val uid = "Seed Test <seed@example.com>"
-        gpgKeyStore.importGpgKey(armoredKeyWithEd25519AuthSubkey("correct", uid))
+        importAndStore(armoredKeyWithEd25519AuthSubkey("correct", uid))
         val authSubkey = checkNotNull(gpgKeyStore.findAuthSubkey())
 
         assertThrows<SessionError.WrongPassphrase> {

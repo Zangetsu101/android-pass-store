@@ -5,30 +5,18 @@ import com.zangetsu101.pass.keymanagement.AuthSubkeyInfo
 import com.zangetsu101.pass.keymanagement.GpgPrivateKey
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.session.SessionError
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.bcpg.EdSecretBCPGKey
-import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
-import org.bouncycastle.bcpg.sig.KeyFlags
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.PGPException
-import org.bouncycastle.openpgp.PGPPublicKey
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
-import org.bouncycastle.openpgp.PGPSignature
 import org.bouncycastle.openpgp.api.OpenPGPKey
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter
-import org.pgpainless.PGPainless
-import org.pgpainless.algorithm.EncryptionPurpose
-import org.pgpainless.algorithm.KeyFlag
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
-import java.security.MessageDigest
-import java.util.Base64
 
 class GpgKeyStoreImpl(
     private val cryptoStore: PlainCryptoStore,
+    private val importReader: GpgImportReader = GpgImportReaderImpl(),
+    private val inspector: GpgKeyInspector = GpgKeyInspector(),
 ) : GpgKeyStore {
     override fun store(data: ByteArray) = cryptoStore.store(data)
 
@@ -38,120 +26,11 @@ class GpgKeyStoreImpl(
 
     override fun delete() = cryptoStore.delete()
 
-    override fun importGpgKey(armoredKey: String) {
-        val candidate = parseGpgKeyImportCandidate(armoredKey)
-        requireEncryptionSubkey(candidate)
-        requireValidEncryptionSubkey(candidate)
-        requirePrivateEncryptionMaterial(candidate)
-        requirePassphraseProtection(candidate)
-        storeImportedGpgKey(armoredKey)
-    }
-
-    override fun parseGpgKeyImportCandidate(armoredKey: String): GpgImportCandidate {
-        val keys =
-            try {
-                PGPainless
-                    .getInstance()
-                    .readKey()
-                    .parseKey(armoredKey)
-                    .pgpSecretKeyRing
-            } catch (e: KeyImportError) {
-                throw e
-            } catch (e: Exception) {
-                throw KeyImportError.Malformed(e)
-            }
-        return GpgImportCandidate(armoredKey, keys)
-    }
-
-    override fun requireEncryptionSubkey(candidate: GpgImportCandidate) {
-        if (anyEncryptionFlaggedKeyIds(candidate.secretKeyRing).isEmpty()) {
-            throw KeyImportError.NoEncryptionKey()
-        }
-    }
-
-    override fun requireValidEncryptionSubkey(candidate: GpgImportCandidate) {
-        val valid = validEncryptionKeyIds(candidate.secretKeyRing)
-        if (valid.isEmpty()) {
-            throw KeyImportError.ExpiredEncryptionKey(anyEncryptionFlaggedKeyIds(candidate.secretKeyRing))
-        }
-    }
-
-    override fun requirePrivateEncryptionMaterial(candidate: GpgImportCandidate) {
-        val keys = candidate.secretKeyRing
-        val privateValidKeyIds =
-            validEncryptionKeyIds(keys)
-                .filter { keyId -> keys.getSecretKey(keyId)?.isPrivateKeyEmpty == false }
-        if (privateValidKeyIds.isEmpty()) {
-            throw KeyImportError.PublicKeyOnly(validEncryptionKeyIds(keys).map { it.shortId() })
-        }
-    }
-
-    override fun requirePassphraseProtection(candidate: GpgImportCandidate) {
-        val unprotected =
-            candidate.secretKeyRing
-                .asSequence()
-                .filter { !it.isPrivateKeyEmpty && it.s2KUsage == 0 }
-                .map { it.publicKey.keyID.shortId() }
-                .toList()
-        if (unprotected.isNotEmpty()) {
-            throw KeyImportError.NoPassphrase(unprotected)
-        }
-    }
-
-    override fun hasReusableAuthSubkey(candidate: GpgImportCandidate): Boolean = findAuthSubkey(candidate.secretKeyRing) != null
-
     override fun storeImportedGpgKey(armoredKey: String) = store(armoredKey.toByteArray())
-
-    /**
-     * The store can only be decrypted by a subkey that is encrypt-capable, valid (not
-     * expired/revoked), AND carries private key material. A stub (gnu-dummy master,
-     * smartcard-diverted subkey) advertises encrypt capability via its public flags but
-     * cannot decrypt — so capability alone is not enough. Checked before the passphrase
-     * requirement so structural problems are reported first.
-     */
-    private fun validateUsableForDecryption(keys: PGPSecretKeyRing) {
-        val info = PGPainless.getInstance().inspect(OpenPGPKey(keys))
-        val valid = info.getEncryptionSubkeys(EncryptionPurpose.ANY)
-        val hasPrivate =
-            valid.any { componentKey ->
-                keys.getSecretKey(componentKey.keyIdentifier)?.isPrivateKeyEmpty == false
-            }
-        if (hasPrivate) return
-        if (valid.isNotEmpty()) {
-            throw KeyImportError.PublicKeyOnly(valid.map { it.pgpPublicKey.keyID.shortId() })
-        }
-        // getKeysWithKeyFlag is not validity-filtered, so anything here is expired/revoked.
-        val anyEncryptFlagged = anyEncryptionFlaggedKeyIds(keys)
-        if (anyEncryptFlagged.isNotEmpty()) {
-            throw KeyImportError.ExpiredEncryptionKey(anyEncryptFlagged)
-        }
-        throw KeyImportError.NoEncryptionKey()
-    }
-
-    override fun armorGpgKey(bytes: ByteArray): String {
-        val ring =
-            try {
-                PGPainless
-                    .getInstance()
-                    .readKey()
-                    .parseKey(bytes.inputStream())
-                    .pgpSecretKeyRing
-            } catch (e: KeyImportError) {
-                throw e
-            } catch (e: Exception) {
-                throw KeyImportError.Malformed(e)
-            }
-        return PGPainless.asciiArmor(ring)
-    }
 
     override fun validatePassphrase(passphrase: String) {
         check(exists()) { "No GPG key imported" }
-        val keys =
-            PGPainless
-                .getInstance()
-                .readKey()
-                .parseKey(String(get(), Charsets.UTF_8))
-                .pgpSecretKeyRing
+        val keys = storedKeyRing()
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
@@ -165,16 +44,11 @@ class GpgKeyStoreImpl(
 
     override fun loadAndUnlock(passphrase: String): GpgPrivateKey {
         check(exists()) { "No GPG key imported" }
-        val keys =
-            PGPainless
-                .getInstance()
-                .readKey()
-                .parseKey(String(get(), Charsets.UTF_8))
-                .pgpSecretKeyRing
+        val keys = storedKeyRing()
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
-        val encryptionKeyIds = validEncryptionKeyIds(keys)
+        val encryptionKeyIds = inspector.validEncryptionKeyIds(keys)
         try {
             return OpenPGPKey(
                 PGPSecretKeyRing(
@@ -201,12 +75,7 @@ class GpgKeyStoreImpl(
     override fun getGpgKeyInfo(): Pair<String, String>? {
         if (!exists()) return null
         return try {
-            val ring =
-                PGPainless
-                    .getInstance()
-                    .readKey()
-                    .parseKey(String(get(), Charsets.UTF_8))
-                    .pgpSecretKeyRing
+            val ring = storedKeyRing()
             val master = ring.firstOrNull { it.isMasterKey }?.publicKey ?: return null
             val shortId = master.keyID and 0xFFFFFFFFL
             val keyId = "%08X".format(shortId).chunked(4).joinToString(" ")
@@ -220,44 +89,10 @@ class GpgKeyStoreImpl(
     override fun findAuthSubkey(): AuthSubkeyInfo? {
         if (!exists()) return null
         return try {
-            val ring =
-                PGPainless
-                    .getInstance()
-                    .readKey()
-                    .parseKey(String(get(), Charsets.UTF_8))
-                    .pgpSecretKeyRing
-            findAuthSubkey(ring)
+            inspector.findAuthSubkey(storedKeyRing())
         } catch (_: Exception) {
             null
         }
-    }
-
-    private fun findAuthSubkey(ring: PGPSecretKeyRing): AuthSubkeyInfo? {
-        val uid =
-            ring
-                .firstOrNull { it.isMasterKey }
-                ?.publicKey
-                ?.userIDs
-                ?.asSequence()
-                ?.firstOrNull() ?: ""
-        val authSubkey =
-            ring
-                .filter { !it.isMasterKey }
-                .filter { secretKey ->
-                    val algo = secretKey.publicKey.algorithm
-                    (algo == PublicKeyAlgorithmTags.EDDSA_LEGACY || algo == PublicKeyAlgorithmTags.Ed25519) &&
-                        hasAuthFlag(secretKey.publicKey)
-                }.maxByOrNull { it.publicKey.creationTime }
-                ?: return null
-        val pubKey = authSubkey.publicKey
-        val sshPubKey = computeOpenSshPublicKey(pubKey)
-        return AuthSubkeyInfo(
-            keyId = pubKey.keyID,
-            sshPublicKey = sshPubKey,
-            sshFingerprint = computeSshFingerprint(sshPubKey),
-            uid = uid,
-            created = pubKey.creationTime.time / 1000L,
-        )
     }
 
     override fun extractAuthSubkeySeed(
@@ -265,12 +100,7 @@ class GpgKeyStoreImpl(
         keyId: Long,
     ): ByteArray {
         check(exists()) { "No GPG key imported" }
-        val keys =
-            PGPainless
-                .getInstance()
-                .readKey()
-                .parseKey(String(get(), Charsets.UTF_8))
-                .pgpSecretKeyRing
+        val keys = storedKeyRing()
         val decryptor =
             BcPBESecretKeyDecryptorBuilder(BcPGPDigestCalculatorProvider())
                 .build(passphrase.toCharArray())
@@ -294,72 +124,16 @@ class GpgKeyStoreImpl(
         }
     }
 
-    private fun anyEncryptionFlaggedKeyIds(keys: PGPSecretKeyRing): List<String> {
-        val info = PGPainless.getInstance().inspect(OpenPGPKey(keys))
-        return (info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_COMMS) + info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_STORAGE))
-            .map { it.pgpPublicKey.keyID.shortId() }
-            .distinct()
-    }
-
-    /** Key IDs of valid (non-expired/revoked) encrypt-capable subkeys, regardless of private material. */
-    private fun validEncryptionKeyIds(keys: PGPSecretKeyRing): Set<Long> =
-        PGPainless
-            .getInstance()
-            .inspect(OpenPGPKey(keys))
-            .getEncryptionSubkeys(EncryptionPurpose.ANY)
-            .map { it.pgpPublicKey.keyID }
-            .toSet()
+    private fun storedKeyRing(): PGPSecretKeyRing = importReader.parseCandidate(String(get(), Charsets.UTF_8)).secretKeyRing
 
     // The passphrase protects every private-bearing key uniformly, so probe whichever key we
     // can actually unlock. Prefer the encryption key (the one decryption needs); fall back to
     // any private-bearing key. A gnu-dummy stub (the master under --export-secret-subkeys) has
     // no private material and must never be the probe target.
     private fun passphraseUnlockKey(keys: PGPSecretKeyRing): PGPSecretKey? {
-        val encryptionKeyIds = validEncryptionKeyIds(keys)
+        val encryptionKeyIds = inspector.validEncryptionKeyIds(keys)
         val unlockable = keys.asSequence().filter { !it.isPrivateKeyEmpty && it.s2KUsage != 0 }
         return unlockable.firstOrNull { it.publicKey.keyID in encryptionKeyIds }
             ?: unlockable.firstOrNull()
-    }
-
-    private fun Long.shortId(): String = "%08X".format(this and 0xFFFFFFFFL)
-
-    private fun hasAuthFlag(pubKey: PGPPublicKey): Boolean {
-        @Suppress("UNCHECKED_CAST")
-        val bindingSigs = pubKey.getSignaturesOfType(PGPSignature.SUBKEY_BINDING) as Iterator<PGPSignature>
-        for (sig in bindingSigs) {
-            if (sig.hashedSubPackets.keyFlags and KeyFlags.AUTHENTICATION != 0) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private fun computeOpenSshPublicKey(pgpPublicKey: PGPPublicKey): String {
-        val converter = JcaPGPKeyConverter().setProvider(BouncyCastleProvider())
-        val jcaKey = converter.getPublicKey(pgpPublicKey)
-        val rawKeyBytes = SubjectPublicKeyInfo.getInstance(jcaKey.encoded).publicKeyData.bytes
-        val buf = ByteArrayOutputStream()
-        val out = DataOutputStream(buf)
-        out.writeSshString("ssh-ed25519")
-        out.writeSshBytes(rawKeyBytes)
-        out.flush()
-        return "ssh-ed25519 ${Base64.getEncoder().withoutPadding().encodeToString(buf.toByteArray())}"
-    }
-
-    private fun computeSshFingerprint(sshPublicKey: String): String {
-        val wireBytes = Base64.getDecoder().decode(sshPublicKey.substringAfter(" "))
-        val digest = MessageDigest.getInstance("SHA-256").digest(wireBytes)
-        return "SHA256:${Base64.getEncoder().withoutPadding().encodeToString(digest)}"
-    }
-
-    private fun DataOutputStream.writeSshString(s: String) {
-        val bytes = s.toByteArray(Charsets.UTF_8)
-        writeInt(bytes.size)
-        write(bytes)
-    }
-
-    private fun DataOutputStream.writeSshBytes(bytes: ByteArray) {
-        writeInt(bytes.size)
-        write(bytes)
     }
 }

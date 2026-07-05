@@ -3,9 +3,17 @@ package com.zangetsu101.pass.onboarding
 
 import androidx.datastore.preferences.core.Preferences
 import com.zangetsu101.pass.keymanagement.gpg.GpgImportCandidate
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReader
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.EncryptionSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PassphraseProtectionValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PrivateKeyMaterialValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.ReusableGitSshSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.SubkeyValidityValidation
 import com.zangetsu101.pass.preferences.AppPreferences
+import com.zangetsu101.pass.validation.ValidationDescriptor
+import com.zangetsu101.pass.validation.ValidationResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -31,7 +39,13 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class GpgImportViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
-    private val cryptoOperations = mockk<GpgKeyStore>()
+    private val gpgKeyStore = mockk<GpgKeyStore>()
+    private val importReader = mockk<GpgImportReader>()
+    private val encryptionSubkeyValidation = mockk<EncryptionSubkeyValidation>()
+    private val subkeyValidityValidation = mockk<SubkeyValidityValidation>()
+    private val privateKeyMaterialValidation = mockk<PrivateKeyMaterialValidation>()
+    private val passphraseProtectionValidation = mockk<PassphraseProtectionValidation>()
+    private val reusableGitSshSubkeyValidation = mockk<ReusableGitSshSubkeyValidation>()
     private val appPreferences = mockk<AppPreferences>(relaxed = true)
     private val candidate = GpgImportCandidate("key", mockk<PGPSecretKeyRing>())
     private lateinit var viewModel: GpgImportViewModel
@@ -39,7 +53,19 @@ class GpgImportViewModelTest {
     @BeforeEach
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = GpgImportViewModel(cryptoOperations, appPreferences, testDispatcher)
+        stubValidationDescriptors()
+        viewModel =
+            GpgImportViewModel(
+                gpgKeyStore,
+                importReader,
+                encryptionSubkeyValidation,
+                subkeyValidityValidation,
+                privateKeyMaterialValidation,
+                passphraseProtectionValidation,
+                reusableGitSshSubkeyValidation,
+                appPreferences,
+                testDispatcher,
+            )
     }
 
     @AfterEach
@@ -73,9 +99,26 @@ class GpgImportViewModelTest {
             assertTrue(state.gpgImported)
             assertNull(state.gpgImportError)
             assertEquals(GpgImportModalPhase.SUCCESS, state.importModal?.phase)
-            assertTrue(state.importModal!!.rows.dropLast(2).all { it.status == GpgImportStepStatus.PASSED })
-            assertEquals(GpgImportStepStatus.NEUTRAL, state.importModal!!.rows.first { it.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY }.status)
-            assertEquals(GpgImportStepStatus.PASSED, state.importModal!!.rows.first { it.step == GpgImportStep.STORE_ENCRYPTED_KEY }.status)
+            assertTrue(
+                state.importModal!!
+                    .rows
+                    .dropLast(2)
+                    .all { it.status == GpgImportStepStatus.PASSED },
+            )
+            assertEquals(
+                GpgImportStepStatus.NEUTRAL,
+                state.importModal!!
+                    .rows
+                    .first { it.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY }
+                    .status,
+            )
+            assertEquals(
+                GpgImportStepStatus.PASSED,
+                state.importModal!!
+                    .rows
+                    .first { it.step == GpgImportStep.STORE_ENCRYPTED_KEY }
+                    .status,
+            )
             coVerify { appPreferences.setGpgImported(true) }
         }
 
@@ -91,25 +134,34 @@ class GpgImportViewModelTest {
 
             assertEquals(
                 GpgImportStepStatus.PASSED,
-                viewModel.state.value.importModal!!.rows.first { it.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY }.status,
+                viewModel.state.value.importModal!!
+                    .rows
+                    .first { it.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY }
+                    .status,
             )
         }
 
     @Test
     fun `importGpgKey throws NoPassphrase fails passphrase row and keeps later rows not checked`() =
         runTest(testDispatcher) {
-            every { cryptoOperations.parseGpgKeyImportCandidate(any()) } returns candidate
-            every { cryptoOperations.requireEncryptionSubkey(candidate) } returns Unit
-            every { cryptoOperations.requireValidEncryptionSubkey(candidate) } returns Unit
-            every { cryptoOperations.requirePrivateEncryptionMaterial(candidate) } returns Unit
-            every { cryptoOperations.requirePassphraseProtection(candidate) } throws KeyImportError.NoPassphrase()
+            every { importReader.parseCandidate(any()) } returns candidate
+            every { encryptionSubkeyValidation.validate(candidate) } returns ValidationResult.Passed
+            every { subkeyValidityValidation.validate(candidate) } returns ValidationResult.Passed
+            every { privateKeyMaterialValidation.validate(candidate) } returns ValidationResult.Passed
+            every { passphraseProtectionValidation.validate(candidate) } returns ValidationResult.Failed(KeyImportError.NoPassphrase())
 
             viewModel.setGpgKeyText("key")
             viewModel.importGpgKey()
             advanceUntilIdle()
 
-            val rows = viewModel.state.value.importModal!!.rows
-            assertEquals(GpgImportModalPhase.FAILED, viewModel.state.value.importModal?.phase)
+            val rows =
+                viewModel.state.value.importModal!!
+                    .rows
+            assertEquals(
+                GpgImportModalPhase.FAILED,
+                viewModel.state.value.importModal
+                    ?.phase,
+            )
             assertEquals(GpgImportStepStatus.FAILED, rows.first { it.step == GpgImportStep.PASSPHRASE_PROTECTION }.status)
             assertEquals(GpgImportStepStatus.NOT_CHECKED, rows.first { it.step == GpgImportStep.REUSABLE_GIT_SSH_SUBKEY }.status)
             assertEquals(GpgImportStepStatus.NOT_CHECKED, rows.first { it.step == GpgImportStep.STORE_ENCRYPTED_KEY }.status)
@@ -119,7 +171,7 @@ class GpgImportViewModelTest {
     @Test
     fun `cancel closes modal and ignores later result`() =
         runTest(testDispatcher) {
-            every { cryptoOperations.parseGpgKeyImportCandidate(any()) } returns candidate
+            every { importReader.parseCandidate(any()) } returns candidate
 
             viewModel.setGpgKeyText("key")
             viewModel.importGpgKey()
@@ -136,17 +188,24 @@ class GpgImportViewModelTest {
         runTest(testDispatcher) {
             stubSuccessfulImport(hasAuthSubkey = false)
             coEvery { appPreferences.setGpgImported(true) } throws RuntimeException("boom")
-            every { cryptoOperations.delete() } returns Unit
+            every { gpgKeyStore.delete() } returns Unit
 
             viewModel.setGpgKeyText("key")
             viewModel.importGpgKey()
             advanceUntilIdle()
 
-            val storeRow = viewModel.state.value.importModal!!.rows.first { it.step == GpgImportStep.STORE_ENCRYPTED_KEY }
-            assertEquals(GpgImportModalPhase.FAILED, viewModel.state.value.importModal?.phase)
+            val storeRow =
+                viewModel.state.value.importModal!!
+                    .rows
+                    .first { it.step == GpgImportStep.STORE_ENCRYPTED_KEY }
+            assertEquals(
+                GpgImportModalPhase.FAILED,
+                viewModel.state.value.importModal
+                    ?.phase,
+            )
             assertEquals(GpgImportStepStatus.FAILED, storeRow.status)
             assertFalse(viewModel.state.value.gpgImported)
-            verify { cryptoOperations.delete() }
+            verify { gpgKeyStore.delete() }
         }
 
     @Test
@@ -160,13 +219,42 @@ class GpgImportViewModelTest {
         assertNull(viewModel.state.value.importModal)
     }
 
+    private fun stubValidationDescriptors() {
+        every { encryptionSubkeyValidation.descriptor } returns
+            ValidationDescriptor(GpgImportStep.ENCRYPTION_SUBKEY, "encryption subkey", "includes an encryption-capable [E] subkey", true)
+        every { subkeyValidityValidation.descriptor } returns
+            ValidationDescriptor(GpgImportStep.SUBKEY_VALIDITY, "subkey validity", "encryption subkey is not expired or revoked", true)
+        every { privateKeyMaterialValidation.descriptor } returns
+            ValidationDescriptor(
+                GpgImportStep.PRIVATE_KEY_MATERIAL,
+                "private key material",
+                "encryption subkey includes secret material",
+                true,
+            )
+        every { passphraseProtectionValidation.descriptor } returns
+            ValidationDescriptor(
+                GpgImportStep.PASSPHRASE_PROTECTION,
+                "passphrase protection",
+                "private key material is protected by a passphrase",
+                true,
+            )
+        every { reusableGitSshSubkeyValidation.descriptor } returns
+            ValidationDescriptor(
+                GpgImportStep.REUSABLE_GIT_SSH_SUBKEY,
+                "reusable git ssh subkey",
+                "only ed25519 [A] subkeys can be reused for github ssh",
+                false,
+            )
+    }
+
     private fun stubSuccessfulImport(hasAuthSubkey: Boolean) {
-        every { cryptoOperations.parseGpgKeyImportCandidate(any()) } returns candidate
-        every { cryptoOperations.requireEncryptionSubkey(candidate) } returns Unit
-        every { cryptoOperations.requireValidEncryptionSubkey(candidate) } returns Unit
-        every { cryptoOperations.requirePrivateEncryptionMaterial(candidate) } returns Unit
-        every { cryptoOperations.requirePassphraseProtection(candidate) } returns Unit
-        every { cryptoOperations.hasReusableAuthSubkey(candidate) } returns hasAuthSubkey
-        every { cryptoOperations.storeImportedGpgKey("key") } returns Unit
+        every { importReader.parseCandidate(any()) } returns candidate
+        every { encryptionSubkeyValidation.validate(candidate) } returns ValidationResult.Passed
+        every { subkeyValidityValidation.validate(candidate) } returns ValidationResult.Passed
+        every { privateKeyMaterialValidation.validate(candidate) } returns ValidationResult.Passed
+        every { passphraseProtectionValidation.validate(candidate) } returns ValidationResult.Passed
+        every { reusableGitSshSubkeyValidation.validate(candidate) } returns
+            if (hasAuthSubkey) ValidationResult.Passed else ValidationResult.Neutral
+        every { gpgKeyStore.storeImportedGpgKey("key") } returns Unit
     }
 }
