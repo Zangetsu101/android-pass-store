@@ -37,7 +37,7 @@ appId: com.zangetsu101.pass
     visible:
       text: "key imported"
     timeout: 10000
-- assertVisible: "store encrypted key"
+- assertVisible: "stored securely"
 
 # Proceed to git init step
 - tapOn: "continue"
