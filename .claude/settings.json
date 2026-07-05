@@ -18,7 +18,8 @@
           {
             "type": "command",
             "command": ".claude/hooks/kotlin-flush.sh",
-            "statusMessage": "Formatting Kotlin..."
+            "statusMessage": "Formatting Kotlin...",
+            "timeout": 180
           }
         ]
       }
