@@ -25,6 +25,32 @@ What the app does:
 - **Autofill** — surface credentials to the system via `AutofillService` (Android 8+), inline suggestions (Android 11+) and Credential Manager (Android 14+).
 - **Manage** — session timeout, manual lock, manual sync, and clear-all-data, in settings.
 
+## Screenshots
+
+|                                   Welcome                                    |                    |                                 Import GPG key                                  |
+| :--------------------------------------------------------------------------: | :----------------: | :-----------------------------------------------------------------------------: |
+| <img src="docs/screenshots/01-welcome.png" width="300" alt="Welcome screen"> | &nbsp;&nbsp;&nbsp; | <img src="docs/screenshots/02-gpg-import.png" width="300" alt="GPG key import"> |
+
+|                                     Key loaded                                      |                    |                                    Key imported                                     |
+| :---------------------------------------------------------------------------------: | :----------------: | :---------------------------------------------------------------------------------: |
+| <img src="docs/screenshots/03-gpg-key-loaded.png" width="300" alt="GPG key loaded"> | &nbsp;&nbsp;&nbsp; | <img src="docs/screenshots/04-key-imported.png" width="300" alt="GPG key imported"> |
+
+|                                       Clone repo                                        |                    |                                   Clone progress                                    |
+| :-------------------------------------------------------------------------------------: | :----------------: | :---------------------------------------------------------------------------------: |
+| <img src="docs/screenshots/05-git-clone.png" width="300" alt="Clone git repo over SSH"> | &nbsp;&nbsp;&nbsp; | <img src="docs/screenshots/06-clone-progress.png" width="300" alt="Clone progress"> |
+
+|                                         Entry browser                                         |                    |                                        Session start                                        |
+| :-------------------------------------------------------------------------------------------: | :----------------: | :-----------------------------------------------------------------------------------------: |
+| <img src="docs/screenshots/07-entry-browser.png" width="300" alt="Entry browser with search"> | &nbsp;&nbsp;&nbsp; | <img src="docs/screenshots/09-session-start.png" width="300" alt="Biometric session start"> |
+
+|                                          Entry detail                                          |                    |                                                      Password revealed                                                       |
+| :--------------------------------------------------------------------------------------------: | :----------------: | :--------------------------------------------------------------------------------------------------------------------------: |
+| <img src="docs/screenshots/10-entry-detail.png" width="300" alt="Entry detail, secret masked"> | &nbsp;&nbsp;&nbsp; | <img src="docs/screenshots/10-entry-detail-revealed.png" width="300" alt="Entry detail, password revealed behind biometric"> |
+
+|                                Settings                                 |
+| :---------------------------------------------------------------------: |
+| <img src="docs/screenshots/08-settings.png" width="300" alt="Settings"> |
+
 ## Goals
 
 Design principles the app is judged against:
@@ -33,6 +59,7 @@ Design principles the app is judged against:
 - **Offline-first** — fully functional after the first sync; local git clone, decrypt on demand, no network needed to read.
 - **Modern-Android-native** — built on Jetpack Compose, Credential Manager, and Android 16 Identity Check — not a legacy-API port.
 - **`pass`-compatible** — standard store layout, GPG, and git remote; no proprietary format, your existing store works as-is.
+- **Terminal-themed** — monospace, terminal-inspired UI that mirrors the `pass` CLI aesthetic.
 
 ## Future work
 
