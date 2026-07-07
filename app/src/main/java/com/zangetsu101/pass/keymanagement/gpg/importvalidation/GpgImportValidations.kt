@@ -4,22 +4,27 @@ package com.zangetsu101.pass.keymanagement.gpg.importvalidation
 import com.zangetsu101.pass.keymanagement.gpg.GpgImportCandidate
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyInspector
 import com.zangetsu101.pass.keymanagement.gpg.KeyImportError
-import com.zangetsu101.pass.onboarding.GpgImportStep
 import com.zangetsu101.pass.validation.Validation
 import com.zangetsu101.pass.validation.ValidationDescriptor
 import com.zangetsu101.pass.validation.ValidationResult
 import javax.inject.Inject
 
+enum class GpgImportValidationId {
+    ENCRYPTION_SUBKEY,
+    SUBKEY_VALIDITY,
+    PRIVATE_KEY_MATERIAL,
+    PASSPHRASE_PROTECTION,
+    REUSABLE_GIT_SSH_SUBKEY,
+}
+
 class EncryptionSubkeyValidation
     @Inject
     constructor(
         private val inspector: GpgKeyInspector,
-    ) : Validation<GpgImportCandidate, GpgImportStep> {
+    ) : Validation<GpgImportCandidate, GpgImportValidationId> {
         override val descriptor =
             ValidationDescriptor(
-                id = GpgImportStep.ENCRYPTION_SUBKEY,
-                label = "encryption subkey",
-                detail = "includes an encryption-capable [E] subkey",
+                id = GpgImportValidationId.ENCRYPTION_SUBKEY,
                 required = true,
             )
 
@@ -35,12 +40,10 @@ class SubkeyValidityValidation
     @Inject
     constructor(
         private val inspector: GpgKeyInspector,
-    ) : Validation<GpgImportCandidate, GpgImportStep> {
+    ) : Validation<GpgImportCandidate, GpgImportValidationId> {
         override val descriptor =
             ValidationDescriptor(
-                id = GpgImportStep.SUBKEY_VALIDITY,
-                label = "subkey validity",
-                detail = "encryption subkey is not expired or revoked",
+                id = GpgImportValidationId.SUBKEY_VALIDITY,
                 required = true,
             )
 
@@ -58,12 +61,10 @@ class PrivateKeyMaterialValidation
     @Inject
     constructor(
         private val inspector: GpgKeyInspector,
-    ) : Validation<GpgImportCandidate, GpgImportStep> {
+    ) : Validation<GpgImportCandidate, GpgImportValidationId> {
         override val descriptor =
             ValidationDescriptor(
-                id = GpgImportStep.PRIVATE_KEY_MATERIAL,
-                label = "private key material",
-                detail = "encryption subkey includes secret material",
+                id = GpgImportValidationId.PRIVATE_KEY_MATERIAL,
                 required = true,
             )
 
@@ -81,12 +82,10 @@ class PrivateKeyMaterialValidation
 
 class PassphraseProtectionValidation
     @Inject
-    constructor() : Validation<GpgImportCandidate, GpgImportStep> {
+    constructor() : Validation<GpgImportCandidate, GpgImportValidationId> {
         override val descriptor =
             ValidationDescriptor(
-                id = GpgImportStep.PASSPHRASE_PROTECTION,
-                label = "passphrase protection",
-                detail = "private key material is protected by a passphrase",
+                id = GpgImportValidationId.PASSPHRASE_PROTECTION,
                 required = true,
             )
 
@@ -109,12 +108,10 @@ class ReusableGitSshSubkeyValidation
     @Inject
     constructor(
         private val inspector: GpgKeyInspector,
-    ) : Validation<GpgImportCandidate, GpgImportStep> {
+    ) : Validation<GpgImportCandidate, GpgImportValidationId> {
         override val descriptor =
             ValidationDescriptor(
-                id = GpgImportStep.REUSABLE_GIT_SSH_SUBKEY,
-                label = "reusable git ssh subkey",
-                detail = "only ed25519 [A] subkeys can be reused for github ssh",
+                id = GpgImportValidationId.REUSABLE_GIT_SSH_SUBKEY,
                 required = false,
             )
 

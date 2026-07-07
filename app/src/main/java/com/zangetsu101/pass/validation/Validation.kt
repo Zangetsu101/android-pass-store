@@ -9,8 +9,6 @@ interface Validation<Candidate, Id> {
 
 data class ValidationDescriptor<Id>(
     val id: Id,
-    val label: String,
-    val detail: String,
     val required: Boolean,
 )
 
