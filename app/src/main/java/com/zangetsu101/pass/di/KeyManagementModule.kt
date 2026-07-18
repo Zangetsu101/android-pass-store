@@ -8,8 +8,18 @@ import com.zangetsu101.pass.keymanagement.crypto.AesGcmCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.AndroidBiometricCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.BiometricCryptoStore
 import com.zangetsu101.pass.keymanagement.crypto.CryptoStore
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportCandidate
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReader
+import com.zangetsu101.pass.keymanagement.gpg.GpgImportReaderImpl
+import com.zangetsu101.pass.keymanagement.gpg.GpgKeyInspector
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStoreImpl
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.EncryptionSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.GpgImportValidationId
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PassphraseProtectionValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PrivateKeyMaterialValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.ReusableGitSshSubkeyValidation
+import com.zangetsu101.pass.keymanagement.gpg.importvalidation.SubkeyValidityValidation
 import com.zangetsu101.pass.keymanagement.session.AndroidSessionTimer
 import com.zangetsu101.pass.keymanagement.session.BiometricPrompter
 import com.zangetsu101.pass.keymanagement.session.CachedPassphrase
@@ -22,6 +32,7 @@ import com.zangetsu101.pass.keymanagement.session.SessionTimer
 import com.zangetsu101.pass.keymanagement.session.SystemBiometricPrompter
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyStoreImpl
+import com.zangetsu101.pass.validation.Validation
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -59,6 +70,10 @@ abstract class KeyManagementModule {
 
     @Binds
     @Singleton
+    abstract fun bindGpgImportReader(impl: GpgImportReaderImpl): GpgImportReader
+
+    @Binds
+    @Singleton
     abstract fun bindSshKeyStore(impl: SshKeyStoreImpl): SshKeyStore
 
     @Binds
@@ -85,6 +100,35 @@ abstract class KeyManagementModule {
     @Singleton
     abstract fun bindSshIntoKeySet(impl: SshKeyStoreImpl): CryptoStore
 
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindEncryptionSubkeyValidation(impl: EncryptionSubkeyValidation): Validation<GpgImportCandidate, GpgImportValidationId>
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindSubkeyValidityValidation(impl: SubkeyValidityValidation): Validation<GpgImportCandidate, GpgImportValidationId>
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindPrivateKeyMaterialValidation(impl: PrivateKeyMaterialValidation): Validation<GpgImportCandidate, GpgImportValidationId>
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindPassphraseProtectionValidation(
+        impl: PassphraseProtectionValidation,
+    ): Validation<GpgImportCandidate, GpgImportValidationId>
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindReusableGitSshSubkeyValidation(
+        impl: ReusableGitSshSubkeyValidation,
+    ): Validation<GpgImportCandidate, GpgImportValidationId>
+
     companion object {
         @Provides
         @Singleton
@@ -95,7 +139,9 @@ abstract class KeyManagementModule {
         @Singleton
         fun provideGpgKeyStoreImpl(
             @ApplicationContext context: Context,
-        ): GpgKeyStoreImpl = GpgKeyStoreImpl(AesGcmCryptoStore(context, "gpg"))
+            importReader: GpgImportReader,
+            inspector: GpgKeyInspector,
+        ): GpgKeyStoreImpl = GpgKeyStoreImpl(AesGcmCryptoStore(context, "gpg"), importReader, inspector)
 
         @Provides
         @Singleton

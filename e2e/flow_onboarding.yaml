@@ -35,11 +35,12 @@ appId: com.zangetsu101.pass
 - tapOn: "> gpg --import"
 - extendedWaitUntil:
     visible:
-      text: "Key imported successfully."
+      text: "key imported"
     timeout: 10000
+- assertVisible: "stored securely"
 
 # Proceed to git init step
-- tapOn: "> git init"
+- tapOn: "continue"
 
 # Step 2: Enter repo URL and clone
 # Note: if test-key.asc has an ed25519 auth subkey, a source toggle appears here.

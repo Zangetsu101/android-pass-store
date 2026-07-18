@@ -13,7 +13,7 @@ project_dir="${CLAUDE_PROJECT_DIR:-.}"
 
 [ -f "$project_dir/gradlew" ] || exit 0
 
-(cd "$project_dir" && ./gradlew formatKotlin 2>&1)
+(cd "$project_dir" && ./gradlew formatKotlin --quiet --console=plain > /dev/null 2>&1)
 exit_code=$?
 
 if [ $exit_code -ne 0 ]; then

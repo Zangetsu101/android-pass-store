@@ -5,13 +5,15 @@ import com.zangetsu101.pass.keymanagement.AuthSubkeyInfo
 import com.zangetsu101.pass.keymanagement.GpgPrivateKey
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import org.bouncycastle.openpgp.PGPSecretKeyRing
+
+data class GpgImportCandidate(
+    val armoredKey: String,
+    val secretKeyRing: PGPSecretKeyRing,
+)
 
 interface GpgKeyStore : PlainCryptoStore {
-    @Throws(KeyImportError::class)
-    fun importGpgKey(armoredKey: String)
-
-    @Throws(KeyImportError::class)
-    fun armorGpgKey(bytes: ByteArray): String
+    fun storeImportedGpgKey(armoredKey: String)
 
     @Throws(SessionError::class)
     fun validatePassphrase(passphrase: String)

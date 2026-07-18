@@ -1,6 +1,8 @@
 appId: com.zangetsu101.pass
 # Prerequisite: flow_onboarding.yaml completed — app is at EntryBrowser screen.
 ---
+- launchApp:
+    stopApp: false
 - assertVisible: "alex\\.dev"
 - tapOn: "alex\\.dev"
 
