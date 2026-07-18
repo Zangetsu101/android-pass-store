@@ -14,10 +14,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-and-build:
-    name: Test and build
+  checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Unit tests
+            tasks: :app:testDebugUnitTest
+          - name: Debug build
+            tasks: :app:assembleDebug
+          - name: Lint
+            tasks: :app:lintDebug lintKotlin
 
     steps:
       - name: Check out repository
@@ -38,5 +48,5 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Run tests and build
-        run: ./gradlew :app:build lintKotlin --console=plain
+      - name: Run ${{ matrix.name }}
+        run: ./gradlew ${{ matrix.tasks }} --console=plain
