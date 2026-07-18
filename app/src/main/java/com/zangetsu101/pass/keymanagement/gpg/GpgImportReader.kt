@@ -23,8 +23,6 @@ class GpgImportReaderImpl
                         .readKey()
                         .parseKey(armoredKey)
                         .pgpSecretKeyRing
-                } catch (e: KeyImportError) {
-                    throw e
                 } catch (e: Exception) {
                     throw KeyImportError.Malformed(e)
                 }
@@ -39,8 +37,6 @@ class GpgImportReaderImpl
                         .readKey()
                         .parseKey(bytes.inputStream())
                         .pgpSecretKeyRing
-                } catch (e: KeyImportError) {
-                    throw e
                 } catch (e: Exception) {
                     throw KeyImportError.Malformed(e)
                 }
