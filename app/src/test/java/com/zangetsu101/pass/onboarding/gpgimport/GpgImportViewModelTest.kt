@@ -256,7 +256,9 @@ class GpgImportViewModelTest {
             viewModel.importGpgKey()
             advanceUntilIdle()
 
-            val storeRow = viewModel.state.value.importModal!!.group(ChecklistGroupId.STORED_SECURELY)
+            val storeRow =
+                viewModel.state.value.importModal!!
+                    .group(ChecklistGroupId.STORED_SECURELY)
             assertEquals(
                 ModalPhase.FAILED,
                 viewModel.state.value.importModal

@@ -27,9 +27,8 @@ class ImportModalState internal constructor(
     val groups: List<ChecklistGroup>
         get() = checklist.groups
 
-    internal fun updateChecklist(
-        transform: (GpgImportChecklist) -> GpgImportChecklist,
-    ): ImportModalState = ImportModalState(phase, transform(checklist))
+    internal fun updateChecklist(transform: (GpgImportChecklist) -> GpgImportChecklist): ImportModalState =
+        ImportModalState(phase, transform(checklist))
 
     internal fun withPhase(phase: ModalPhase): ImportModalState = ImportModalState(phase, checklist)
 }

@@ -38,8 +38,7 @@ internal class GpgImportChecklist private constructor(
         )
 
     companion object {
-        fun initial(): GpgImportChecklist =
-            GpgImportChecklist(stepSpecs.map { ChecklistStepState(it.step, it.runningDetail) })
+        fun initial(): GpgImportChecklist = GpgImportChecklist(stepSpecs.map { ChecklistStepState(it.step, it.runningDetail) })
     }
 }
 
@@ -145,12 +144,22 @@ private fun List<ChecklistStepState>.detailFor(
     neutralDetail: String?,
 ): String? =
     when (status) {
-        StepStatus.FAILED ->
+        StepStatus.FAILED -> {
             firstOrNull { it.status == StepStatus.FAILED }?.error?.message
                 ?: firstOrNull { it.status == StepStatus.FAILED }?.runningDetail
-        StepStatus.RUNNING -> firstOrNull { it.status == StepStatus.RUNNING }?.runningDetail
-        StepStatus.NEUTRAL -> neutralDetail ?: firstOrNull { it.status == StepStatus.NEUTRAL }?.runningDetail
+        }
+
+        StepStatus.RUNNING -> {
+            firstOrNull { it.status == StepStatus.RUNNING }?.runningDetail
+        }
+
+        StepStatus.NEUTRAL -> {
+            neutralDetail ?: firstOrNull { it.status == StepStatus.NEUTRAL }?.runningDetail
+        }
+
         StepStatus.NOT_CHECKED,
         StepStatus.PASSED,
-        -> null
+        -> {
+            null
+        }
     }

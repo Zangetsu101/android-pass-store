@@ -459,17 +459,45 @@ private fun previewGroups(
     return order.map { id ->
         val status =
             when {
-                id == runningGroup -> StepStatus.RUNNING
-                id == failedGroup -> StepStatus.FAILED
-                failedGroup != null && order.indexOf(id) > order.indexOf(failedGroup) -> StepStatus.NOT_CHECKED
-                id == ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE && authSubkeyFound != null ->
+                id == runningGroup -> {
+                    StepStatus.RUNNING
+                }
+
+                id == failedGroup -> {
+                    StepStatus.FAILED
+                }
+
+                failedGroup != null && order.indexOf(id) > order.indexOf(failedGroup) -> {
+                    StepStatus.NOT_CHECKED
+                }
+
+                id == ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE && authSubkeyFound != null -> {
                     if (authSubkeyFound) StepStatus.PASSED else StepStatus.NEUTRAL
-                id == ChecklistGroupId.STORED_SECURELY && stored -> StepStatus.PASSED
-                runningGroup != null && order.indexOf(id) < order.indexOf(runningGroup) -> StepStatus.PASSED
-                runningGroup != null -> StepStatus.NOT_CHECKED
-                failedGroup != null -> StepStatus.PASSED
-                authSubkeyFound != null && id != ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE -> StepStatus.PASSED
-                else -> StepStatus.NOT_CHECKED
+                }
+
+                id == ChecklistGroupId.STORED_SECURELY && stored -> {
+                    StepStatus.PASSED
+                }
+
+                runningGroup != null && order.indexOf(id) < order.indexOf(runningGroup) -> {
+                    StepStatus.PASSED
+                }
+
+                runningGroup != null -> {
+                    StepStatus.NOT_CHECKED
+                }
+
+                failedGroup != null -> {
+                    StepStatus.PASSED
+                }
+
+                authSubkeyFound != null && id != ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE -> {
+                    StepStatus.PASSED
+                }
+
+                else -> {
+                    StepStatus.NOT_CHECKED
+                }
             }
         ChecklistGroup(
             id = id,
@@ -482,12 +510,25 @@ private fun previewGroups(
 
 private fun ChecklistGroupId.previewLabel(status: StepStatus): String =
     when (this) {
-        ChecklistGroupId.SECRET_KEY_RECOGNIZED -> "secret key recognized"
-        ChecklistGroupId.DECRYPTION_KEY_USABLE -> "decryption key usable"
-        ChecklistGroupId.PASSPHRASE_PROTECTED -> "passphrase protected"
-        ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE ->
+        ChecklistGroupId.SECRET_KEY_RECOGNIZED -> {
+            "secret key recognized"
+        }
+
+        ChecklistGroupId.DECRYPTION_KEY_USABLE -> {
+            "decryption key usable"
+        }
+
+        ChecklistGroupId.PASSPHRASE_PROTECTED -> {
+            "passphrase protected"
+        }
+
+        ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE -> {
             if (status == StepStatus.NEUTRAL) "github ssh key not reusable" else "github ssh key reusable"
-        ChecklistGroupId.STORED_SECURELY -> "stored securely"
+        }
+
+        ChecklistGroupId.STORED_SECURELY -> {
+            "stored securely"
+        }
     }
 
 private fun ChecklistGroupId.previewDetail(
@@ -495,10 +536,13 @@ private fun ChecklistGroupId.previewDetail(
     errorMessage: String?,
 ): String? =
     when (status) {
-        StepStatus.FAILED -> errorMessage
+        StepStatus.FAILED -> {
+            errorMessage
+        }
+
         StepStatus.RUNNING,
         StepStatus.NEUTRAL,
-        ->
+        -> {
             when (this) {
                 ChecklistGroupId.SECRET_KEY_RECOGNIZED -> "looks like an openpgp secret key ring"
                 ChecklistGroupId.DECRYPTION_KEY_USABLE -> "encryption subkey includes secret material"
@@ -506,8 +550,11 @@ private fun ChecklistGroupId.previewDetail(
                 ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE -> "only ed25519 [A] subkeys can be reused for github ssh"
                 ChecklistGroupId.STORED_SECURELY -> "save the protected key ring in encrypted app storage"
             }
+        }
 
         StepStatus.NOT_CHECKED,
         StepStatus.PASSED,
-        -> null
+        -> {
+            null
+        }
     }

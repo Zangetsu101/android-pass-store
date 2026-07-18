@@ -199,8 +199,14 @@ class GpgImportViewModel
                     )
                 }
             when (result) {
-                ValidationResult.Passed -> updateChecklist(stage, StepStatus.PASSED)
-                ValidationResult.Neutral -> updateChecklist(stage, StepStatus.NEUTRAL)
+                ValidationResult.Passed -> {
+                    updateChecklist(stage, StepStatus.PASSED)
+                }
+
+                ValidationResult.Neutral -> {
+                    updateChecklist(stage, StepStatus.NEUTRAL)
+                }
+
                 is ValidationResult.Failed -> {
                     val error =
                         if (result.error is KeyImportError) {
@@ -298,5 +304,4 @@ private val validationOrder =
         GpgImportValidationId.REUSABLE_GIT_SSH_SUBKEY,
     )
 
-private fun KeyImportError.toImportError(fallbackMessage: String): ImportError =
-    ImportError(title, message ?: fallbackMessage)
+private fun KeyImportError.toImportError(fallbackMessage: String): ImportError = ImportError(title, message ?: fallbackMessage)
