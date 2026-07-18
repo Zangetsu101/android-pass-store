@@ -24,8 +24,8 @@ import com.zangetsu101.pass.onboarding.CloneProgressScreen
 import com.zangetsu101.pass.onboarding.CloneProgressViewModel
 import com.zangetsu101.pass.onboarding.CloneRepoScreen
 import com.zangetsu101.pass.onboarding.CloneRepoViewModel
-import com.zangetsu101.pass.onboarding.GpgImportViewModel
-import com.zangetsu101.pass.onboarding.OnboardingGpgImportScreen
+import com.zangetsu101.pass.onboarding.gpgimport.GpgImportViewModel
+import com.zangetsu101.pass.onboarding.gpgimport.OnboardingGpgImportScreen
 import com.zangetsu101.pass.onboarding.WelcomeScreen
 import com.zangetsu101.pass.onboarding.WelcomeViewModel
 import com.zangetsu101.pass.preferences.AppPreferences

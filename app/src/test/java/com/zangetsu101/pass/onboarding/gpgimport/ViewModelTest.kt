@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package com.zangetsu101.pass.onboarding
+package com.zangetsu101.pass.onboarding.gpgimport
 
 import androidx.datastore.preferences.core.Preferences
 import com.zangetsu101.pass.keymanagement.gpg.GpgImportCandidate
@@ -89,6 +89,23 @@ class GpgImportViewModelTest {
     }
 
     @Test
+    fun `binary armor failure shows malformed key failure`() =
+        runTest(testDispatcher) {
+            every { importReader.armor(any()) } throws KeyImportError.Malformed()
+
+            viewModel.setGpgKeyFromBytes(byteArrayOf(0))
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(ModalPhase.FAILED, state.importModal?.phase)
+            assertEquals(
+                StepStatus.FAILED,
+                state.importModal!!.group(ChecklistGroupId.SECRET_KEY_RECOGNIZED).status,
+            )
+            assertEquals("unrecognized key", state.gpgImportError?.title)
+        }
+
+    @Test
     fun `importGpgKey success completes checklist and persists via appPreferences`() =
         runTest(testDispatcher) {
             stubSuccessfulImport(hasAuthSubkey = false)
@@ -114,6 +131,23 @@ class GpgImportViewModelTest {
         }
 
     @Test
+    fun `parse failure fails secret key row and leaves later rows not checked`() =
+        runTest(testDispatcher) {
+            every { importReader.parseCandidate(any()) } throws KeyImportError.Malformed()
+
+            viewModel.setGpgKeyText("invalid")
+            viewModel.importGpgKey()
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            val modal = state.importModal!!
+            assertEquals(ModalPhase.FAILED, modal.phase)
+            assertEquals(StepStatus.FAILED, modal.group(ChecklistGroupId.SECRET_KEY_RECOGNIZED).status)
+            assertEquals(StepStatus.NOT_CHECKED, modal.group(ChecklistGroupId.DECRYPTION_KEY_USABLE).status)
+            assertEquals("unrecognized key", state.gpgImportError?.title)
+        }
+
+    @Test
     fun `importGpgKey with auth subkey marks optional row passed`() =
         runTest(testDispatcher) {
             stubSuccessfulImport(hasAuthSubkey = true)
@@ -129,6 +163,25 @@ class GpgImportViewModelTest {
                     .group(ChecklistGroupId.GITHUB_SSH_KEY_REUSABLE)
                     .status,
             )
+        }
+
+    @Test
+    fun `unexpected validation failure fails its checklist group`() =
+        runTest(testDispatcher) {
+            every { importReader.parseCandidate(any()) } returns candidate
+            every { encryptionSubkeyValidation.validate(candidate) } throws RuntimeException("boom")
+
+            viewModel.setGpgKeyText("key")
+            viewModel.importGpgKey()
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(ModalPhase.FAILED, state.importModal?.phase)
+            assertEquals(
+                StepStatus.FAILED,
+                state.importModal!!.group(ChecklistGroupId.DECRYPTION_KEY_USABLE).status,
+            )
+            assertEquals("validation failed", state.gpgImportError?.title)
         }
 
     @Test
@@ -169,6 +222,27 @@ class GpgImportViewModelTest {
             assertNull(viewModel.state.value.importModal)
             assertFalse(viewModel.state.value.gpgImported)
             coVerify(exactly = 0) { appPreferences.setGpgImported(true) }
+        }
+
+    @Test
+    fun `key store failure fails store row and attempts cleanup`() =
+        runTest(testDispatcher) {
+            stubSuccessfulImport(hasAuthSubkey = false)
+            every { gpgKeyStore.storeImportedGpgKey("key") } throws RuntimeException("boom")
+            every { gpgKeyStore.delete() } returns Unit
+
+            viewModel.setGpgKeyText("key")
+            viewModel.importGpgKey()
+            advanceUntilIdle()
+
+            val state = viewModel.state.value
+            assertEquals(ModalPhase.FAILED, state.importModal?.phase)
+            assertEquals(
+                StepStatus.FAILED,
+                state.importModal!!.group(ChecklistGroupId.STORED_SECURELY).status,
+            )
+            assertEquals("could not save key", state.gpgImportError?.title)
+            verify { gpgKeyStore.delete() }
         }
 
     @Test

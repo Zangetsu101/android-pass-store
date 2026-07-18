@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package com.zangetsu101.pass.onboarding
+package com.zangetsu101.pass.onboarding.gpgimport
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.zangetsu101.pass.onboarding.OnboardingScaffold
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassSecondaryButton
 import com.zangetsu101.pass.ui.components.PassTextField
@@ -172,7 +173,7 @@ private fun GpgImportChecklistDialog(
     onChooseAnother: () -> Unit,
     onContinue: () -> Unit,
 ) {
-    val title = modal.title()
+    val title = modal.phase.title()
     AlertDialog(
         onDismissRequest = {
             when (modal.phase) {
@@ -216,8 +217,8 @@ private fun GpgImportChecklistDialog(
     )
 }
 
-private fun ImportModalState.title() =
-    when (phase) {
+private fun ModalPhase.title() =
+    when (this) {
         ModalPhase.RUNNING -> "checking gpg key"
         ModalPhase.FAILED -> "import failed"
         ModalPhase.SUCCESS -> "key imported"
@@ -301,7 +302,8 @@ private const val PREVIEW_BG = 0xFF0B0D0BL
 
 @Composable
 private fun GpgImportChecklistDialogPreview(
-    modal: ImportModalState,
+    phase: ModalPhase,
+    groups: List<ChecklistGroup>,
     onCancel: () -> Unit,
     onClose: () -> Unit,
     onChooseAnother: () -> Unit,
@@ -323,17 +325,17 @@ private fun GpgImportChecklistDialogPreview(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                modal.title(),
+                phase.title(),
                 style = PassType.Title,
-                color = if (modal.phase == ModalPhase.FAILED) PassColorsDark.Danger else PassColorsDark.TextPrimary,
+                color = if (phase == ModalPhase.FAILED) PassColorsDark.Danger else PassColorsDark.TextPrimary,
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                modal.groups.forEach { row -> GpgImportChecklistRowContent(row) }
-                if (modal.phase == ModalPhase.SUCCESS) {
+                groups.forEach { row -> GpgImportChecklistRowContent(row) }
+                if (phase == ModalPhase.SUCCESS) {
                     Text("your gpg key is ready to decrypt your store.", style = PassType.Caption, color = PassColorsDark.TextDim)
                 }
             }
-            when (modal.phase) {
+            when (phase) {
                 ModalPhase.RUNNING -> {
                     PassSecondaryButton(onClick = onCancel, label = "cancel")
                 }
@@ -358,7 +360,8 @@ private fun GpgImportChecklistDialogPreview(
 private fun GpgImportDialogRunningPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = ImportModalState(ModalPhase.RUNNING, previewGroups(runningGroup = ChecklistGroupId.PASSPHRASE_PROTECTED)),
+            phase = ModalPhase.RUNNING,
+            groups = previewGroups(runningGroup = ChecklistGroupId.PASSPHRASE_PROTECTED),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -372,14 +375,12 @@ private fun GpgImportDialogRunningPreview() {
 private fun GpgImportDialogMalformedFailurePreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal =
-                ImportModalState(
-                    ModalPhase.FAILED,
-                    previewGroups(
-                        failedGroup = ChecklistGroupId.SECRET_KEY_RECOGNIZED,
-                        errorMessage =
-                            "this doesn't look like an armored gpg secret key. check you exported a private key, not a public one.",
-                    ),
+            phase = ModalPhase.FAILED,
+            groups =
+                previewGroups(
+                    failedGroup = ChecklistGroupId.SECRET_KEY_RECOGNIZED,
+                    errorMessage =
+                        "this doesn't look like an armored gpg secret key. check you exported a private key, not a public one.",
                 ),
             onCancel = {},
             onClose = {},
@@ -394,15 +395,13 @@ private fun GpgImportDialogMalformedFailurePreview() {
 private fun GpgImportDialogPassphraseFailurePreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal =
-                ImportModalState(
-                    ModalPhase.FAILED,
-                    previewGroups(
-                        failedGroup = ChecklistGroupId.PASSPHRASE_PROTECTED,
-                        errorMessage =
-                            "this key is not passphrase-protected (1A2B3C4D). " +
-                                "re-export it with a passphrase — at-rest security depends on it.",
-                    ),
+            phase = ModalPhase.FAILED,
+            groups =
+                previewGroups(
+                    failedGroup = ChecklistGroupId.PASSPHRASE_PROTECTED,
+                    errorMessage =
+                        "this key is not passphrase-protected (1A2B3C4D). " +
+                            "re-export it with a passphrase — at-rest security depends on it.",
                 ),
             onCancel = {},
             onClose = {},
@@ -417,7 +416,8 @@ private fun GpgImportDialogPassphraseFailurePreview() {
 private fun GpgImportDialogSuccessWithAuthPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = ImportModalState(ModalPhase.SUCCESS, previewGroups(authSubkeyFound = true, stored = true)),
+            phase = ModalPhase.SUCCESS,
+            groups = previewGroups(authSubkeyFound = true, stored = true),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
@@ -431,7 +431,8 @@ private fun GpgImportDialogSuccessWithAuthPreview() {
 private fun GpgImportDialogSuccessWithoutAuthPreview() {
     PassTheme {
         GpgImportChecklistDialogPreview(
-            modal = ImportModalState(ModalPhase.SUCCESS, previewGroups(authSubkeyFound = false, stored = true)),
+            phase = ModalPhase.SUCCESS,
+            groups = previewGroups(authSubkeyFound = false, stored = true),
             onCancel = {},
             onClose = {},
             onChooseAnother = {},
