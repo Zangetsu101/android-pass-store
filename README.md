@@ -61,6 +61,34 @@ Design principles the app is judged against:
 - **`pass`-compatible** — standard store layout, GPG, and git remote; no proprietary format, your existing store works as-is.
 - **Terminal-themed** — monospace, terminal-inspired UI that mirrors the `pass` CLI aesthetic.
 
+## Running locally
+
+### Prerequisites
+
+- JDK 17+ (CI uses 21)
+- Android SDK with `platforms;android-37.0` and `platform-tools`, pointed to by `sdk.dir` in a gitignored `local.properties`
+- A device: a USB-debugging phone, or an emulator (`emulator` + a `system-images;android-36;google_apis;x86_64` image)
+
+```bash
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
+emulator -avd <your-avd> &      # or plug in a phone
+./gradlew installDebug          # build + install on the connected device
+```
+
+### Debug builds use a fixed SSH key
+
+In debug builds, "generate on device" always produces the **same** ed25519 key, derived from a hard-coded seed (`SshKeyStoreImpl.generateTestSshKey`), so e2e runs are deterministic. Consequences:
+
+- The key is public — anyone reading this source can derive its private half. **Never register it on a repo or account you care about.**
+- GitHub allows each SSH key to be registered only once, and this one is already the deploy key of [`Zangetsu101/pass-test-store`](https://github.com/Zangetsu101/pass-test-store). Adding it elsewhere fails with _"Key is already in use"_, so **a debug build can only clone `Zangetsu101/pass-test-store.git`**.
+- That store is encrypted to the test GPG keys in the same repo (`test-key.asc`, passphrase `testpass`). `./gradlew e2eInstall` pushes them to the device's `Download/` folder for import. See [`e2e/README.md`](e2e/README.md).
+
+To use your own store, install a release build, which generates a random key:
+
+```bash
+./gradlew installRelease   # falls back to debug signing when keystore.properties is absent
+```
+
 ## Future work
 
 - **OTP / `pass-otp` support:** I plan to move my own 2FA secrets into `pass` and add TOTP autofill support.
