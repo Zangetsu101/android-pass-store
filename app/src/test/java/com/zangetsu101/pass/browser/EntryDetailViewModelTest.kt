@@ -117,7 +117,7 @@ class EntryDetailViewModelTest {
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
             viewModel.toggleReveal()
-            advanceTimeBy(20_000)
+            advanceTimeBy(50_000)
             viewModel.onScreenDisposed(changingConfigurations = true)
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
@@ -138,7 +138,7 @@ class EntryDetailViewModelTest {
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
             viewModel.onScreenDisposed(changingConfigurations = true)
-            elapsed = 35_000L
+            elapsed = 65_000L
             viewModel.refreshLock()
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
@@ -185,13 +185,13 @@ class EntryDetailViewModelTest {
         }
 
     @Test
-    fun `entry locks thirty seconds after decryption without ending session`() =
+    fun `entry locks sixty seconds after decryption without ending session`() =
         runTest(testDispatcher) {
             coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
-            advanceTimeBy(29_999)
+            advanceTimeBy(59_999)
             assertTrue(viewModel.state.value.unlockState is UnlockState.Decrypted)
             advanceTimeBy(1)
             runCurrent()
@@ -207,7 +207,7 @@ class EntryDetailViewModelTest {
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
-            advanceTimeBy(20_000)
+            advanceTimeBy(50_000)
             viewModel.toggleReveal()
             viewModel.copyPassword()
             advanceTimeBy(10_000)
@@ -224,10 +224,10 @@ class EntryDetailViewModelTest {
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
-            elapsed = 20_000L
+            elapsed = 50_000L
             viewModel.refreshLock()
             assertEquals(UnlockState.Decrypted(fakeCredentials), viewModel.state.value.unlockState)
-            elapsed = 30_000L
+            elapsed = 60_000L
             viewModel.refreshLock()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
         }
@@ -239,7 +239,7 @@ class EntryDetailViewModelTest {
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
-            every { SystemClock.elapsedRealtime() } returns 30_000L
+            every { SystemClock.elapsedRealtime() } returns 60_000L
             viewModel.copyPassword()
             viewModel.toggleReveal()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
@@ -258,7 +258,7 @@ class EntryDetailViewModelTest {
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
             viewModel.authenticate(mockActivity)
             runCurrent()
-            advanceTimeBy(20_000)
+            advanceTimeBy(50_000)
             runCurrent()
             assertTrue(viewModel.state.value.unlockState is UnlockState.Decrypted)
             advanceTimeBy(10_000)
@@ -296,7 +296,7 @@ class EntryDetailViewModelTest {
             runCurrent()
             advanceTimeBy(10_000)
             runCurrent()
-            advanceTimeBy(29_999)
+            advanceTimeBy(59_999)
             assertTrue(viewModel.state.value.unlockState is UnlockState.Decrypted)
             advanceTimeBy(1)
             runCurrent()
@@ -434,7 +434,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `copyPassword keeps clipboard alarm independent of entry expiry`() =
         runTest(testDispatcher) {
-            val timeoutSeconds = 45
+            val timeoutSeconds = 90
             every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(timeoutSeconds)
             val mockClipboard = mockk<ClipboardManager>(relaxed = true)
             every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns mockClipboard
@@ -453,7 +453,7 @@ class EntryDetailViewModelTest {
             runCurrent()
 
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
-            verify(exactly = 1) { ClipboardClearReceiver.schedule(mockContext, 45_000L) }
+            verify(exactly = 1) { ClipboardClearReceiver.schedule(mockContext, 90_000L) }
             verify(exactly = 1) { ClipboardClearReceiver.cancel(mockContext) }
         }
 }

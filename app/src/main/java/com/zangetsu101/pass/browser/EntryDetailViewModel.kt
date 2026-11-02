@@ -151,10 +151,10 @@ class EntryDetailViewModel
                 try {
                     val creds = decryption.decrypt(entry, activity)
                     coroutineContext.ensureActive()
-                    lockDeadline = SystemClock.elapsedRealtime() + 30_000L
+                    lockDeadline = SystemClock.elapsedRealtime() + 60_000L
                     _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
                     autoLockJob = viewModelScope.launch {
-                        delay(30_000L)
+                        delay(60_000L)
                         refreshLock()
                     }
                 } catch (e: CancellationException) {
