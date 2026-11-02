@@ -20,12 +20,14 @@ import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PassphraseProtect
 import com.zangetsu101.pass.keymanagement.gpg.importvalidation.PrivateKeyMaterialValidation
 import com.zangetsu101.pass.keymanagement.gpg.importvalidation.ReusableGitSshSubkeyValidation
 import com.zangetsu101.pass.keymanagement.gpg.importvalidation.SubkeyValidityValidation
+import com.zangetsu101.pass.keymanagement.session.AndroidSessionAlarm
 import com.zangetsu101.pass.keymanagement.session.AndroidSessionTimer
 import com.zangetsu101.pass.keymanagement.session.BiometricPrompter
 import com.zangetsu101.pass.keymanagement.session.CachedPassphrase
 import com.zangetsu101.pass.keymanagement.session.CachingPassphraseProvider
 import com.zangetsu101.pass.keymanagement.session.DirectPassphrase
 import com.zangetsu101.pass.keymanagement.session.PassphraseProvider
+import com.zangetsu101.pass.keymanagement.session.SessionAlarm
 import com.zangetsu101.pass.keymanagement.session.SessionManager
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionTimer
@@ -63,6 +65,10 @@ abstract class KeyManagementModule {
     @Binds
     @Singleton
     abstract fun bindSessionTimer(impl: AndroidSessionTimer): SessionTimer
+
+    @Binds
+    @Singleton
+    abstract fun bindSessionAlarm(impl: AndroidSessionAlarm): SessionAlarm
 
     @Binds
     @Singleton

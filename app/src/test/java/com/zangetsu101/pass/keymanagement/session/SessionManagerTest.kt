@@ -35,6 +35,7 @@ class SessionManagerTest {
     private val keyStore: BiometricCryptoStore = mockk(relaxed = true)
     private val biometricPrompter: BiometricPrompter = mockk()
     private val sessionTimer: SessionTimer = mockk(relaxed = true)
+    private val sessionAlarm: SessionAlarm = mockk(relaxed = true)
     private val appPreferences: AppPreferences = mockk(relaxed = true)
 
     private fun buildManager(): SessionManager =
@@ -42,6 +43,7 @@ class SessionManagerTest {
             keyStore = keyStore,
             biometricPrompter = biometricPrompter,
             sessionTimer = sessionTimer,
+            sessionAlarm = sessionAlarm,
             appPreferences = appPreferences,
             scope = testScope,
             ioDispatcher = testDispatcher,
@@ -208,6 +210,34 @@ class SessionManagerTest {
             }
         }
 
+    // Test 8b: createSession schedules a wall-clock alarm at now + timeout (delay() pauses in deep sleep)
+    @Test
+    fun `createSession schedules session alarm at now plus timeout`() =
+        testScope.runTest {
+            val manager = buildManager()
+
+            val before = System.currentTimeMillis()
+            manager.createSession("mypassphrase")
+            runCurrent()
+            val after = System.currentTimeMillis()
+
+            val timeoutMs = 5 * 60_000L
+            verify { sessionAlarm.schedule(match { it in (before + timeoutMs)..(after + timeoutMs) }) }
+        }
+
+    // Test 8c: endSession cancels the session alarm
+    @Test
+    fun `endSession cancels session alarm`() =
+        testScope.runTest {
+            val manager = buildManager()
+
+            manager.createSession("mypassphrase")
+            runCurrent()
+            manager.endSession(EndReason.MANUAL)
+
+            verify { sessionAlarm.cancel() }
+        }
+
     // Test 9a: touchSession with timeoutMs = 0 → no timer, session stays Active indefinitely
     @Test
     fun `touchSession with timeoutMs 0 does not schedule timer`() =
@@ -227,6 +257,8 @@ class SessionManagerTest {
 
                 cancelAndIgnoreRemainingEvents()
             }
+
+            verify(exactly = 0) { sessionAlarm.schedule(any()) }
         }
 
     // Test 9b: timeoutMs = 0 sessions survive process recreation instead of expiring immediately

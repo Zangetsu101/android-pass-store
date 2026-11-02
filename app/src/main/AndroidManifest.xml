@@ -78,6 +78,10 @@
             android:name=".notification.SessionClearReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".keymanagement.session.SessionTimeoutReceiver"
+            android:exported="false" />
+
         <service
             android:name=".notification.SessionTimerService"
             android:exported="false"

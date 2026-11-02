@@ -31,6 +31,7 @@ class SessionManager
         private val keyStore: BiometricCryptoStore,
         private val biometricPrompter: BiometricPrompter,
         private val sessionTimer: SessionTimer,
+        private val sessionAlarm: SessionAlarm,
         private val appPreferences: AppPreferences,
         @AppBackgroundScope private val scope: CoroutineScope,
         @Named("IoDispatcher") private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -81,6 +82,7 @@ class SessionManager
 
         override fun endSession(reason: EndReason) {
             timeoutJob?.cancel()
+            sessionAlarm.cancel()
             keyStore.delete()
             _sessionState.value = SessionState.Inactive(reason)
             sessionTimer.stop()
@@ -103,6 +105,8 @@ class SessionManager
                 endSession(EndReason.TIMEOUT)
                 return
             }
+            // delay() pauses during deep sleep; the alarm ends the session on wall-clock time.
+            sessionAlarm.schedule(System.currentTimeMillis() + delayMs)
             timeoutJob =
                 scope.launch {
                     delay(timeMillis = delayMs)
