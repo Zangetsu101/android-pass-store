@@ -30,6 +30,8 @@ class SshKeyStoreImpl(
     }
 
     override fun generateSshKey(): String {
+        // Debug builds use a fixed, publicly derivable key registered as the deploy key of
+        // Zangetsu101/pass-test-store (e2e). It can't be added to any other GitHub repo.
         val pair = if (BuildConfig.DEBUG) generateTestSshKey() else generateKeyPair()
         privateKeyStore.store(pair.private.encoded)
         publicKeyStore.store(pair.public.encoded)
