@@ -82,14 +82,15 @@ fun EntryDetailScreen(
     BackHandler(onBack = leaveEntry)
 
     DisposableEffect(viewModel, lifecycleOwner, activity) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshLock()
-                resumed = true
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                resumed = false
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    viewModel.refreshLock()
+                    resumed = true
+                } else if (event == Lifecycle.Event.ON_PAUSE) {
+                    resumed = false
+                }
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
@@ -101,8 +102,13 @@ fun EntryDetailScreen(
         viewModel.onScreenEntered(activity)
     }
 
-    // Read fresh state after the synchronous resume check, not a cached flow emission.
-    val unlockState = if (resumed) viewModel.state.value.unlockState else UnlockState.Idle
+    // A collected decrypted snapshot may outlive the synchronous resume lock check.
+    val unlockState =
+        if (!resumed || (state.unlockState is UnlockState.Decrypted && !viewModel.hasUnexpiredDetails())) {
+            UnlockState.Idle
+        } else {
+            state.unlockState
+        }
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Box(

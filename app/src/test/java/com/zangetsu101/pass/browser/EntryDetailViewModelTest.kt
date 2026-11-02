@@ -32,7 +32,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -41,6 +40,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -108,6 +108,36 @@ class EntryDetailViewModelTest {
             gitSync = mockGitSync,
             appPreferences = mockAppPreferences,
         )
+
+    @Test
+    fun `stale collected details are rejected at expiry and after synchronous lock`() =
+        runTest(testDispatcher) {
+            var elapsed = 0L
+            every { SystemClock.elapsedRealtime() } answers { elapsed }
+            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            val viewModel = createViewModel()
+            assertFalse(viewModel.hasUnexpiredDetails())
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+            val collected = viewModel.state.value
+            elapsed = 59_999L
+            assertTrue(viewModel.hasUnexpiredDetails())
+            elapsed = 60_000L
+            assertFalse(viewModel.hasUnexpiredDetails())
+            // The guard is read-only even before the timer or resume callback runs.
+            assertEquals(collected, viewModel.state.value)
+            viewModel.refreshLock()
+            assertTrue(collected.unlockState is UnlockState.Decrypted)
+            assertFalse(viewModel.hasUnexpiredDetails())
+            assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
+
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+            assertTrue(viewModel.hasUnexpiredDetails())
+            viewModel.lock()
+            assertFalse(viewModel.hasUnexpiredDetails())
+            assertEquals(SessionState.Active, mockSessionOperations.sessionState.value)
+        }
 
     @Test
     fun `configuration recreation preserves details and original deadline`() =

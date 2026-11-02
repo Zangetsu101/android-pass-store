@@ -114,6 +114,12 @@ class EntryDetailViewModel
             _state.update { it.copy(unlockState = UnlockState.Idle) }
         }
 
+        // Read-only guard for collected snapshots; never refresh or extend the deadline here.
+        fun hasUnexpiredDetails(): Boolean {
+            val deadline = lockDeadline ?: return false
+            return SystemClock.elapsedRealtime() < deadline
+        }
+
         fun refreshLock() {
             val deadline = lockDeadline ?: return
             if (SystemClock.elapsedRealtime() >= deadline) lock()
@@ -147,28 +153,30 @@ class EntryDetailViewModel
             if (_state.value.unlockState !is UnlockState.Idle) return
             val entry = _state.value.entry
             _state.update { it.copy(unlockState = UnlockState.Decrypting) }
-            decryptJob = viewModelScope.launch {
-                try {
-                    val creds = decryption.decrypt(entry, activity)
-                    coroutineContext.ensureActive()
-                    lockDeadline = SystemClock.elapsedRealtime() + 60_000L
-                    _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
-                    autoLockJob = viewModelScope.launch {
-                        delay(60_000L)
-                        refreshLock()
+            decryptJob =
+                viewModelScope.launch {
+                    try {
+                        val creds = decryption.decrypt(entry, activity)
+                        coroutineContext.ensureActive()
+                        lockDeadline = SystemClock.elapsedRealtime() + 60_000L
+                        _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
+                        autoLockJob =
+                            viewModelScope.launch {
+                                delay(60_000L)
+                                refreshLock()
+                            }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: BiometricAuthException) {
+                        _state.update { it.copy(unlockState = UnlockState.Idle) }
+                    } catch (e: SessionError.NoActiveSession) {
+                        _state.update { it.copy(unlockState = UnlockState.Failed("Session expired — return to home and unlock")) }
+                    } catch (e: DecryptionError) {
+                        _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
+                    } catch (e: Exception) {
+                        _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: BiometricAuthException) {
-                    _state.update { it.copy(unlockState = UnlockState.Idle) }
-                } catch (e: SessionError.NoActiveSession) {
-                    _state.update { it.copy(unlockState = UnlockState.Failed("Session expired — return to home and unlock")) }
-                } catch (e: DecryptionError) {
-                    _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
-                } catch (e: Exception) {
-                    _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                 }
-            }
         }
 
         fun toggleReveal() {
