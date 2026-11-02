@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.keymanagement.session
 
-import android.os.Build
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
-import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -14,15 +12,6 @@ import javax.crypto.Cipher
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-
-// API 30+: CryptoObject supports BIOMETRIC_STRONG or DEVICE_CREDENTIAL (PIN/pattern fallback)
-// API 26–29: combining with DEVICE_CREDENTIAL throws IllegalArgumentException — biometric only
-private val ALLOWED_AUTHENTICATORS =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        BIOMETRIC_STRONG or DEVICE_CREDENTIAL
-    } else {
-        BIOMETRIC_STRONG
-    }
 
 interface BiometricPrompter {
     suspend fun prompt(
@@ -89,11 +78,9 @@ private suspend fun showBiometricPromptWithCrypto(
             .Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
-            .apply {
-                // setNegativeButtonText is incompatible with DEVICE_CREDENTIAL
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) setNegativeButtonText("Cancel")
-            }.build()
+            .setAllowedAuthenticators(BIOMETRIC_STRONG)
+            .setNegativeButtonText("Cancel")
+            .build()
 
     cont.invokeOnCancellation { /* prompt has no cancel API; activity finish will dismiss it */ }
     prompt.authenticate(info, cryptoObject)
@@ -103,4 +90,4 @@ class BiometricAuthException(
     message: String,
 ) : Exception(message)
 
-class BiometricNotEnrolledException : Exception("No screen lock or biometric enrolled")
+class BiometricNotEnrolledException : Exception("No strong biometric enrolled")

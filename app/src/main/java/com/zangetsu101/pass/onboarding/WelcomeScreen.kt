@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
-import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -242,14 +241,9 @@ private fun BlockedActions(
 
     val (title, description) =
         when (failure) {
-            is PreflightFailure.BiometricNotEnrolled -> {
-                if (failure.canUseDeviceCredential) {
-                    "add a fingerprint, face, or screen lock" to
-                        "pass.android locks your store to your biometric or screen lock. enroll a fingerprint, face, or PIN in Android Settings and we'll re-check automatically."
-                } else {
-                    "add a fingerprint or face" to
-                        "pass.android locks your store to your biometric signature. enroll a fingerprint or face in Android Settings and we'll re-check automatically."
-                }
+            PreflightFailure.BiometricNotEnrolled -> {
+                "strong biometric required" to
+                    "pass.android requires a strong biometric, such as a supported fingerprint or face unlock. enroll one in Android Settings and we'll re-check automatically. a screen lock PIN alone isn't supported."
             }
 
             PreflightFailure.ApiTooLow -> {
@@ -269,7 +263,7 @@ private fun BlockedActions(
                 Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
                     putExtra(
                         Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
-                        if (failure.canUseDeviceCredential) BIOMETRIC_STRONG or DEVICE_CREDENTIAL else BIOMETRIC_STRONG,
+                        BIOMETRIC_STRONG,
                     )
                 }
             } else {
