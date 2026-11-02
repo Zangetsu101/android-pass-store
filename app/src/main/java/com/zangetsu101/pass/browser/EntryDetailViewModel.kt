@@ -4,6 +4,7 @@ package com.zangetsu101.pass.browser
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.SystemClock
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,16 +24,16 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlin.time.Duration.Companion.milliseconds
+import kotlin.coroutines.coroutineContext
 
 sealed class UnlockState {
     data object Idle : UnlockState()
@@ -90,6 +91,33 @@ class EntryDetailViewModel
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
         private var clipClearJob: Job? = null
+        private var autoLockJob: Job? = null
+        private var decryptJob: Job? = null
+        private var lockDeadline: Long? = null
+        private var initialAuthenticationStarted = false
+
+        fun onScreenEntered(activity: FragmentActivity) {
+            refreshLock()
+            if (initialAuthenticationStarted) return
+            initialAuthenticationStarted = true
+            authenticate(activity)
+        }
+
+        fun onScreenDisposed(changingConfigurations: Boolean) {
+            if (!changingConfigurations) lock()
+        }
+
+        fun lock() {
+            decryptJob?.cancel()
+            autoLockJob?.cancel()
+            lockDeadline = null
+            _state.update { it.copy(unlockState = UnlockState.Idle) }
+        }
+
+        fun refreshLock() {
+            val deadline = lockDeadline ?: return
+            if (SystemClock.elapsedRealtime() >= deadline) lock()
+        }
 
         init {
             viewModelScope.launch {
@@ -106,6 +134,7 @@ class EntryDetailViewModel
             viewModelScope.launch {
                 sessionOperations.sessionState.collect { sessionState ->
                     if (sessionState is SessionState.Inactive && _state.value.unlockState is UnlockState.Decrypted) {
+                        lock()
                         _state.update {
                             it.copy(unlockState = UnlockState.Failed("Session ended — unlock again"))
                         }
@@ -118,10 +147,18 @@ class EntryDetailViewModel
             if (_state.value.unlockState !is UnlockState.Idle) return
             val entry = _state.value.entry
             _state.update { it.copy(unlockState = UnlockState.Decrypting) }
-            viewModelScope.launch {
+            decryptJob = viewModelScope.launch {
                 try {
                     val creds = decryption.decrypt(entry, activity)
+                    coroutineContext.ensureActive()
+                    lockDeadline = SystemClock.elapsedRealtime() + 30_000L
                     _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
+                    autoLockJob = viewModelScope.launch {
+                        delay(30_000L)
+                        refreshLock()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: BiometricAuthException) {
                     _state.update { it.copy(unlockState = UnlockState.Idle) }
                 } catch (e: SessionError.NoActiveSession) {
@@ -135,11 +172,13 @@ class EntryDetailViewModel
         }
 
         fun toggleReveal() {
+            refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             _state.update { it.copy(unlockState = current.copy(passwordRevealed = !current.passwordRevealed)) }
         }
 
         fun copyPassword() {
+            refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             val password = String(current.credentials.password)
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
