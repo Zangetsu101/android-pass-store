@@ -54,3 +54,26 @@ private val CHROME_TYPES: Map<String, CardField> =
         "CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR" to CardField.ExpiryDate,
         "CREDIT_CARD_NAME_FULL" to CardField.Cardholder,
     )
+
+/**
+ * Finds how many year digits (2 or 4) a web expiry field takes, or null when the page does not say.
+ * Chrome puts the length in its field type. If the type has no length, the HTML `maxlength` can show it:
+ * 2 or 4 for a year field, 5 (`MM/YY`) or 7 (`MM/YYYY`) for a date field.
+ */
+fun cardYearDigits(htmlAttributes: List<Pair<String, String>>?): Int? {
+    val attrs = htmlAttributes ?: return null
+    val chromeType =
+        CHROME_TYPE_ATTRIBUTES.firstNotNullOfOrNull { name ->
+            attrs.firstOrNull { it.first == name }?.second?.takeIf { it in CHROME_TYPES }
+        }
+    when {
+        chromeType == null -> Unit
+        chromeType.contains("_2_DIGIT_") -> return 2
+        chromeType.contains("_4_DIGIT_") -> return 4
+    }
+    return when (attrs.firstOrNull { it.first == "maxlength" }?.second?.toIntOrNull()) {
+        2, 5 -> 2
+        4, 7 -> 4
+        else -> null
+    }
+}

@@ -75,6 +75,8 @@ class PassAndroidAutofillService : AutofillService() {
                     expiryYearNode?.autofillId,
                     expiryDateNode?.autofillId,
                     cardholderNode?.autofillId,
+                    expiryYearNode?.let { cardYearDigits(it.htmlAttributes()) },
+                    expiryDateNode?.let { cardYearDigits(it.htmlAttributes()) },
                 ),
             )
             return
@@ -134,6 +136,8 @@ class PassAndroidAutofillService : AutofillService() {
         expiryYearId: AutofillId?,
         expiryDateId: AutofillId?,
         cardholderId: AutofillId?,
+        expiryYearDigits: Int?,
+        expiryDateDigits: Int?,
     ): FillResponse {
         val candidates = passStore.index.value.filter { it.isCard }
 
@@ -150,6 +154,8 @@ class PassAndroidAutofillService : AutofillService() {
                     expiryYearId,
                     expiryDateId,
                     cardholderId,
+                    expiryYearDigits,
+                    expiryDateDigits,
                     i,
                     spec,
                 )
@@ -188,6 +194,8 @@ class PassAndroidAutofillService : AutofillService() {
         expiryYearId: AutofillId?,
         expiryDateId: AutofillId?,
         cardholderId: AutofillId?,
+        expiryYearDigits: Int?,
+        expiryDateDigits: Int?,
         requestCode: Int,
         inlineSpec: InlinePresentationSpec?,
     ): android.service.autofill.Dataset {
@@ -201,6 +209,8 @@ class PassAndroidAutofillService : AutofillService() {
                 expiryYearId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_YEAR_ID, it) }
                 expiryDateId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_DATE_ID, it) }
                 cardholderId?.let { putExtra(AutofillAuthActivity.EXTRA_CARDHOLDER_ID, it) }
+                expiryYearDigits?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_YEAR_DIGITS, it) }
+                expiryDateDigits?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_DATE_DIGITS, it) }
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, authIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -366,5 +376,7 @@ class PassAndroidAutofillService : AutofillService() {
     }
 
     private fun cardNodeFinder(field: CardField): (AssistStructure.ViewNode) -> Boolean =
-        { node -> classifyCardField(node.autofillHints, node.htmlInfo?.attributes?.map { it.first to it.second }) == field }
+        { node -> classifyCardField(node.autofillHints, node.htmlAttributes()) == field }
+
+    private fun AssistStructure.ViewNode.htmlAttributes(): List<Pair<String, String>>? = htmlInfo?.attributes?.map { it.first to it.second }
 }

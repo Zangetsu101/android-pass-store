@@ -90,6 +90,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         expiryYearId: AutofillId?,
         expiryDateId: AutofillId?,
         cardholderId: AutofillId?,
+        expiryYearDigits: Int?,
+        expiryDateDigits: Int?,
     ) {
         lifecycleScope.launch {
             try {
@@ -99,12 +101,11 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 val notes = parseNotes(creds.notes)
                 val cvv = notes["cvv"]
                 val expiryRaw = notes["expiry"]
-                val expiryMonth = expiryRaw?.substringBefore("/", "")?.takeIf { it.isNotEmpty() }
-                val expiryYear =
-                    expiryRaw
-                        ?.substringAfter("/", "")
-                        ?.takeIf { it.isNotEmpty() }
-                        ?.let { y -> if (y.length == 2) "20$y" else y }
+                val expiry = expiryRaw?.let(::parseCardExpiry)
+                val expiryMonth = expiry?.month
+                val expiryYear = expiry?.yearText(expiryYearDigits)
+                // Without a known field length, keep the date as the user wrote it.
+                val expiryDate = expiryDateDigits?.let { expiry?.dateText(it) } ?: expiryRaw
                 val cardholder = notes["cardholder"]
 
                 val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
@@ -122,7 +123,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             cvvId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             expiryMonthId?.let { expiryMonth?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             expiryYearId?.let { expiryYear?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
-                            expiryDateId?.let { expiryRaw?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            expiryDateId?.let { expiryDate?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                         }.build()
 
@@ -142,6 +143,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                         expiryYearId,
                         expiryDateId,
                         cardholderId,
+                        expiryYearDigits,
+                        expiryDateDigits,
                     )
                 }
             } catch (e: DecryptionError) {

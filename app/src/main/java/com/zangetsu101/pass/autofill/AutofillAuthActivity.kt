@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.autofill
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.autofill.AutofillId
 import com.zangetsu101.pass.passstore.PassStore
@@ -39,6 +40,8 @@ class AutofillAuthActivity : AutofillBaseActivity() {
                 expiryYearId = intent.getParcelableExtra(EXTRA_EXPIRY_YEAR_ID),
                 expiryDateId = intent.getParcelableExtra(EXTRA_EXPIRY_DATE_ID),
                 cardholderId = intent.getParcelableExtra(EXTRA_CARDHOLDER_ID),
+                expiryYearDigits = intent.intExtraOrNull(EXTRA_EXPIRY_YEAR_DIGITS),
+                expiryDateDigits = intent.intExtraOrNull(EXTRA_EXPIRY_DATE_DIGITS),
             )
             return
         }
@@ -57,6 +60,8 @@ class AutofillAuthActivity : AutofillBaseActivity() {
         authenticate(entry, usernameId, passwordId)
     }
 
+    private fun Intent.intExtraOrNull(name: String): Int? = if (hasExtra(name)) getIntExtra(name, 0) else null
+
     companion object {
         const val EXTRA_ENTRY_PATH = "entry_path"
         const val EXTRA_USERNAME_ID = "username_autofill_id"
@@ -67,5 +72,7 @@ class AutofillAuthActivity : AutofillBaseActivity() {
         const val EXTRA_EXPIRY_YEAR_ID = "expiry_year_autofill_id"
         const val EXTRA_EXPIRY_DATE_ID = "expiry_date_autofill_id"
         const val EXTRA_CARDHOLDER_ID = "cardholder_autofill_id"
+        const val EXTRA_EXPIRY_YEAR_DIGITS = "expiry_year_digits"
+        const val EXTRA_EXPIRY_DATE_DIGITS = "expiry_date_digits"
     }
 }
