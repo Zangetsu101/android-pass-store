@@ -106,6 +106,41 @@ To use your own store, install a release build, which generates a random key:
 ./gradlew installRelease   # falls back to debug signing when keystore.properties is absent
 ```
 
+## Releasing
+
+The [`Release`](.github/workflows/release.yml) workflow builds and signs the APK in CI.
+
+1. Set `versionCode` and `versionName` in `app/build.gradle.kts`. Merge the change to `main`.
+2. Tag the commit and push the tag. The tag must be `v` + `versionName`:
+
+   ```bash
+   git tag -a v0.3.0 -m "Release v0.3.0"
+   git push origin v0.3.0
+   ```
+
+3. The workflow builds `pass-android-<version>.apk`, checks that it is not debug-signed, and creates a draft GitHub release with the APK and its SHA-256 file.
+4. Open the draft release, write the "What's changed" section, and publish it.
+
+### Signing secrets
+
+The workflow reads the release keystore from these repository secrets. If one is missing, the workflow fails. It does not publish a debug-signed APK.
+
+| Secret | Value |
+| --- | --- |
+| `RELEASE_KEYSTORE_BASE64` | The keystore file, base64-encoded |
+| `RELEASE_STORE_PASSWORD` | `storePassword` from `keystore.properties` |
+| `RELEASE_KEY_ALIAS` | `keyAlias` from `keystore.properties` |
+| `RELEASE_KEY_PASSWORD` | `keyPassword` from `keystore.properties` |
+
+Use the same keystore as earlier releases. A different key makes Android reject the upgrade. To set the secrets with the GitHub CLI:
+
+```bash
+base64 -w0 release.keystore | gh secret set RELEASE_KEYSTORE_BASE64
+gh secret set RELEASE_STORE_PASSWORD
+gh secret set RELEASE_KEY_ALIAS
+gh secret set RELEASE_KEY_PASSWORD
+```
+
 ## Future work
 
 - **OTP / `pass-otp` support:** I plan to move my own 2FA secrets into `pass` and add TOTP autofill support.
