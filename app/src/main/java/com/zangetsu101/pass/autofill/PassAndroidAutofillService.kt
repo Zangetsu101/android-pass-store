@@ -58,14 +58,14 @@ class PassAndroidAutofillService : AutofillService() {
                 emptyList()
             }
 
-        val cardNumberNode = findNode(structure, ::isCardNumberNode)
-        val cvvNode = findNode(structure, ::isCvvNode)
+        val cardNumberNode = findNode(structure, cardNodeFinder(CardField.Number))
+        val cvvNode = findNode(structure, cardNodeFinder(CardField.SecurityCode))
 
         if (cardNumberNode != null || cvvNode != null) {
-            val expiryMonthNode = findNode(structure, ::isExpiryMonthNode)
-            val expiryYearNode = findNode(structure, ::isExpiryYearNode)
-            val expiryDateNode = findNode(structure, ::isExpiryDateNode)
-            val cardholderNode = findNode(structure, ::isCardholderNode)
+            val expiryMonthNode = findNode(structure, cardNodeFinder(CardField.ExpiryMonth))
+            val expiryYearNode = findNode(structure, cardNodeFinder(CardField.ExpiryYear))
+            val expiryDateNode = findNode(structure, cardNodeFinder(CardField.ExpiryDate))
+            val cardholderNode = findNode(structure, cardNodeFinder(CardField.Cardholder))
             callback.onSuccess(
                 buildCardFillResponse(
                     inlineSpecs,
@@ -365,20 +365,6 @@ class PassAndroidAutofillService : AutofillService() {
         return false
     }
 
-    private fun isCardNumberNode(node: AssistStructure.ViewNode): Boolean =
-        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_NUMBER) == true
-
-    private fun isCvvNode(node: AssistStructure.ViewNode): Boolean =
-        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_SECURITY_CODE) == true
-
-    private fun isExpiryMonthNode(node: AssistStructure.ViewNode): Boolean =
-        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_MONTH) == true
-
-    private fun isExpiryYearNode(node: AssistStructure.ViewNode): Boolean =
-        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_YEAR) == true
-
-    private fun isExpiryDateNode(node: AssistStructure.ViewNode): Boolean =
-        node.autofillHints?.contains(View.AUTOFILL_HINT_CREDIT_CARD_EXPIRATION_DATE) == true
-
-    private fun isCardholderNode(node: AssistStructure.ViewNode): Boolean = node.autofillHints?.contains(View.AUTOFILL_HINT_NAME) == true
+    private fun cardNodeFinder(field: CardField): (AssistStructure.ViewNode) -> Boolean =
+        { node -> classifyCardField(node.autofillHints, node.htmlInfo?.attributes?.map { it.first to it.second }) == field }
 }

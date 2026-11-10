@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassScaffold
+import com.zangetsu101.pass.ui.components.PassTag
 import com.zangetsu101.pass.ui.components.PassTextField
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
@@ -300,6 +301,7 @@ private fun TreeEntryRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = entry.username, style = PassType.Body, modifier = Modifier.weight(1f))
+        if (entry.isCard) PassTag("card", Modifier.padding(end = 8.dp))
         Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
@@ -325,6 +327,7 @@ private fun FlatEntryRow(
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
         }
+        if (entry.isCard) PassTag("card", Modifier.padding(end = 8.dp))
         Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }

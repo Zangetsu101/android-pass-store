@@ -57,6 +57,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassScaffold
+import com.zangetsu101.pass.ui.components.PassTag
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
@@ -197,12 +198,13 @@ private fun EntryTopBar(
             )
         }
         Spacer(Modifier.width(10.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             entry.domain?.let {
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
             Text(entry.username, style = PassType.Title)
         }
+        if (entry.isCard) PassTag("card")
     }
 }
 
@@ -321,6 +323,8 @@ private fun MetadataCard(
                 .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
         MetaRow("path", entry.path)
+        HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+        MetaRow("type", if (entry.isCard) "card" else "login")
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         when (gitStatus) {
             is GitStatus.Loading -> {
