@@ -30,12 +30,12 @@ class AutofillHistory
         @AutofillHistoryStore private val store: DataStore<Preferences>,
     ) {
         suspend fun record(
-            target: String,
+            fillTarget: String,
             entry: PassEntry,
         ) {
             try {
                 store.edit {
-                    it[targetKey(target, entry.isCard)] = entry.path
+                    it[targetKey(fillTarget, entry.isCard)] = entry.path
                     if (entry.isCard) it[KEY_LAST_CARD] = entry.path
                 }
             } catch (_: IOException) {
@@ -43,11 +43,11 @@ class AutofillHistory
         }
 
         /**
-         * Sorts [candidates] for [target]. The entry that was filled last on the target comes first.
+         * Sorts [candidates] for [fillTarget]. The entry that was filled last on the target comes first.
          * The card that was filled last on any target comes second. The other entries keep their order.
          */
         suspend fun rank(
-            target: String,
+            fillTarget: String,
             candidates: List<PassEntry>,
         ): List<PassEntry> {
             val history =
@@ -59,7 +59,7 @@ class AutofillHistory
             val lastCard = history[KEY_LAST_CARD]
             return candidates.sortedBy {
                 when (it.path) {
-                    history[targetKey(target, it.isCard)] -> 0
+                    history[targetKey(fillTarget, it.isCard)] -> 0
                     lastCard -> 1
                     else -> 2
                 }
@@ -72,9 +72,9 @@ class AutofillHistory
 
         // A login and a card on one target have separate keys, so that one does not replace the other.
         private fun targetKey(
-            target: String,
+            fillTarget: String,
             isCard: Boolean,
-        ) = stringPreferencesKey("${if (isCard) "card" else "login"}:$target")
+        ) = stringPreferencesKey("${if (isCard) "card" else "login"}:$fillTarget")
 
         private companion object {
             val KEY_LAST_CARD = stringPreferencesKey("last_card")

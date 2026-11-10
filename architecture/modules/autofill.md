@@ -68,7 +68,7 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 - A record that points to a missing entry path has no effect.
 - The history is in its own Preferences DataStore file (`autofill_history`) on the device. Git sync does not copy it.
 - Settings has a "clear autofill history" action. "delete local store" also clears the history.
-- An entry that the user selects through `Search...` is recorded, but the history does not make it a candidate.
+- An entry that the user selects through `Search...` is not recorded.
 
 ## Session / Biometric Gate
 

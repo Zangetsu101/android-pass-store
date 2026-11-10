@@ -68,7 +68,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
                         }.build()
 
-                rememberFill(entry)
+                recordFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -130,7 +130,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                         }.build()
 
-                rememberFill(entry)
+                recordFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -159,7 +159,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         }
     }
 
-    private suspend fun rememberFill(entry: PassEntry) {
+    private suspend fun recordFill(entry: PassEntry) {
         val fillTarget = intent.getStringExtra(EXTRA_FILL_TARGET) ?: return
         autofillHistory.record(fillTarget, entry)
     }

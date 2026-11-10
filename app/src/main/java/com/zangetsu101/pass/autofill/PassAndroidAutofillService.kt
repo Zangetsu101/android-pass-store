@@ -249,7 +249,6 @@ class PassAndroidAutofillService : AutofillService() {
                 usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
                 passwordId?.let { putExtra(AutofillSearchActivity.EXTRA_PASSWORD_ID, it) }
                 putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, fillTarget)
-                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
