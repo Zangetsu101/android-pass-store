@@ -34,8 +34,6 @@ jobs:
     name: Build signed release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: read
     outputs:
       apk-name: ${{ steps.name.outputs.apk }}
       artifact-name: ${{ steps.name.outputs.artifact }}
@@ -51,11 +49,7 @@ jobs:
         run: |
           apk="$APK_NAME"
           if [ -z "$apk" ]; then
-            version_name="$(sed -nE 's/^\s*versionName\s*=\s*"([^"]+)".*/\1/p' app/build.gradle.kts)"
-            if [ -z "$version_name" ]; then
-              echo "::error::Cannot read versionName from app/build.gradle.kts."
-              exit 1
-            fi
+            version_name="$(.github/scripts/version-name.sh)"
             apk="pass-android-$version_name-$(git rev-parse --short=7 HEAD).apk"
           fi
           echo "apk=$apk" >> "$GITHUB_OUTPUT"
@@ -129,3 +123,5 @@ jobs:
             ${{ steps.name.outputs.apk }}
             ${{ steps.name.outputs.apk }}.sha256
           if-no-files-found: error
+          # The APK is signed with the release key. Do not keep it longer than a test needs.
+          retention-days: 7

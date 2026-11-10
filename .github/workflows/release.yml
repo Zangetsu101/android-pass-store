@@ -20,8 +20,6 @@ jobs:
     name: Check version
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: read
     outputs:
       apk: ${{ steps.version.outputs.apk }}
 
@@ -34,7 +32,7 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           version="${tag#v}"
-          version_name="$(sed -nE 's/^\s*versionName\s*=\s*"([^"]+)".*/\1/p' app/build.gradle.kts)"
+          version_name="$(.github/scripts/version-name.sh)"
           if [ "$version" != "$version_name" ]; then
             echo "::error::Tag $tag does not match versionName \"$version_name\" in app/build.gradle.kts."
             exit 1
@@ -44,8 +42,6 @@ jobs:
   build:
     name: Build APK
     needs: check
-    permissions:
-      contents: read
     uses: ./.github/workflows/build-apk.yml
     with:
       apk-name: ${{ needs.check.outputs.apk }}
