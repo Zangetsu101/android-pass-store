@@ -26,6 +26,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
     @AutofillDecryption @Inject
     lateinit var decryption: Decryption
 
+    @Inject lateinit var autofillHistory: AutofillHistory
+
     /**
      * Renders the unlock screen in-place. On success [onUnlocked] runs in the same activity,
      * letting the caller retry decryption and return the autofill result without a second
@@ -66,6 +68,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
                         }.build()
 
+                rememberFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -127,6 +130,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                         }.build()
 
+                rememberFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -155,6 +159,11 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         }
     }
 
+    private suspend fun rememberFill(entry: PassEntry) {
+        val fillTarget = intent.getStringExtra(EXTRA_FILL_TARGET) ?: return
+        autofillHistory.record(fillTarget, entry)
+    }
+
     protected fun cancelAndFinish() {
         setResult(RESULT_CANCELED)
         finish()
@@ -167,4 +176,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 val idx = line.indexOf(':')
                 if (idx < 0) null else line.substring(0, idx).trim().lowercase() to line.substring(idx + 1).trim()
             }.toMap()
+
+    companion object {
+        const val EXTRA_FILL_TARGET = "fill_target"
+    }
 }

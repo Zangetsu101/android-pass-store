@@ -3,6 +3,7 @@ package com.zangetsu101.pass.settings
 
 import android.content.Context
 import app.cash.turbine.test
+import com.zangetsu101.pass.autofill.AutofillHistory
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.keymanagement.KeyManagement
@@ -47,6 +48,7 @@ class SettingsViewModelTest {
     private val gpgKeyOperations = mockk<GpgKeyStore>()
     private val appPreferences = mockk<AppPreferences>(relaxed = true)
     private val gitSync = mockk<GitSync>()
+    private val autofillHistory = mockk<AutofillHistory>(relaxed = true)
     private val context = mockk<Context>(relaxed = true)
 
     @TempDir
@@ -79,6 +81,7 @@ class SettingsViewModelTest {
             gpgKeyOperations = gpgKeyOperations,
             appPreferences = appPreferences,
             gitSync = gitSync,
+            autofillHistory = autofillHistory,
         )
 
     @Test
@@ -116,5 +119,34 @@ class SettingsViewModelTest {
             advanceUntilIdle()
             assertFalse(vm.state.value.clearing)
             assertTrue(completed)
+        }
+
+    @Test
+    fun `clearAutofillHistory clears the autofill history`() =
+        runTest(testDispatcher) {
+            val vm = createViewModel()
+
+            vm.clearAutofillHistory()
+            advanceUntilIdle()
+
+            coVerify { autofillHistory.clear() }
+        }
+
+    @Test
+    fun `clearAllData clears the autofill history`() =
+        runTest(testDispatcher) {
+            every { keyManagement.clearAllKeys() } just Runs
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            var completed = false
+            vm.clearAllData { completed = true }
+            // See the test above for the reason for the sleep between the two advances.
+            advanceUntilIdle()
+            Thread.sleep(100)
+            advanceUntilIdle()
+
+            assertTrue(completed)
+            coVerify { autofillHistory.clear() }
         }
 }

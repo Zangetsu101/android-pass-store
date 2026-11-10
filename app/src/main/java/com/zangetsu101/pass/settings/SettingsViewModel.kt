@@ -4,6 +4,7 @@ package com.zangetsu101.pass.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zangetsu101.pass.autofill.AutofillHistory
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.KeyManagement
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
@@ -42,6 +43,7 @@ class SettingsViewModel
         private val gpgKeyOperations: GpgKeyStore,
         private val appPreferences: AppPreferences,
         private val gitSync: GitSync,
+        private val autofillHistory: AutofillHistory,
     ) : ViewModel() {
         private val _state = MutableStateFlow(SettingsUiState())
         val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -100,6 +102,10 @@ class SettingsViewModel
             sessionOperations.endSession()
         }
 
+        fun clearAutofillHistory() {
+            viewModelScope.launch { autofillHistory.clear() }
+        }
+
         fun clearAllData(onComplete: () -> Unit) {
             _state.update { it.copy(clearing = true) }
             viewModelScope.launch {
@@ -108,6 +114,7 @@ class SettingsViewModel
                     File(context.filesDir, "repo").deleteRecursively()
                 }
                 appPreferences.clearAll()
+                autofillHistory.clear()
                 _state.update { it.copy(clearing = false) }
                 onComplete()
             }

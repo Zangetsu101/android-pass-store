@@ -91,6 +91,16 @@ Relationships:
 - An **External Credential Surface** always requires fresh biometric confirmation before releasing a secret.
 - The internal app browser may use the active session/passphrase cache; external credential surfaces may not.
 
+**Fill Target**:
+The place that asks for an autofill. It is the web domain of a browser form, or the package name of a native app.
+
+**Autofill History**:
+The record on the device of the entry that the user filled last on each **Fill Target**. It holds entry paths, never secrets.
+
+Relationships:
+
+- The **Autofill History** only sorts the suggestions. It never adds a suggestion and never removes the biometric confirmation.
+
 ## Card Entry
 
 A **Card Entry** is a pass entry whose path contains a directory segment named exactly the lowercase `cards` or `credit-cards`; that segment marks the root of the card subtree. It is detected at index time from the file path — no decryption required.

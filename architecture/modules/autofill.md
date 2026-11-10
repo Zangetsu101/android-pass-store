@@ -25,6 +25,8 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
   - Chrome puts its own field types (`CREDIT_CARD_NUMBER`) in the HtmlInfo attributes `computed-autofill-hints`, `crowdsourcing-autofill-hints` and `ua-autofill-hints`.
 - Calls `PassStore.resolve()` or `resolveByPackage()` for login candidates; no decryption during matching.
 - Lists all indexed **Card Entries** for card forms.
+- Sorts the candidates with the **Autofill History** before it builds the datasets.
+- Answers the fill request from a coroutine, because the read of the history suspends.
 - Returns locked datasets using `Dataset.setAuthentication(...)`.
 - Includes a `Search...` login dataset for explicit user selection when automatic matching is insufficient.
 
@@ -34,6 +36,7 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 - Use the autofill-qualified decryption path, which bypasses the app UI passphrase cache.
 - If no active session exists, render the session-start screen in-place; after session start, retry decryption.
 - Return a filled `Dataset` to Android or cancel on auth/decryption failure.
+- Record the entry in the **Autofill History** after a successful decryption.
 
 **Credential Manager Provider** (`PassAndroidCredentialProviderService`, Android 14+)
 
@@ -50,6 +53,22 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 - Login fill writes username from the path-derived entry username and password from line 1 of decrypted content.
 - Card fill writes card number from line 1 and card fields (`cvv`, `expiry`, `cardholder`) from notes; selecting a card fills all detected card fields as a unit.
 - The `expiry` note is `MM/YY` or `MM/YYYY`. Card fill writes the year with 2 or 4 digits to match the field. The service gets the length from the Chrome field type or from the HTML `maxlength`. When the length is unknown, a year field gets 4 digits and a date field gets the note as the user wrote it.
+
+## Autofill History
+
+`AutofillHistory` remembers the entry that the user filled last on each **Fill Target**. The service uses it to sort the suggestions:
+
+1. The entry that was filled last on the fill target comes first.
+2. For card forms, the card that was filled last on any fill target comes second.
+3. The other entries keep their order.
+
+- The history changes the order only. It never adds a candidate, so the matching rules stay the same.
+- The history holds entry paths and fill targets. It holds no secrets. Each fill still needs a fresh biometric confirmation.
+- A login and a card on one fill target have separate records.
+- A record that points to a missing entry path has no effect.
+- The history is in its own Preferences DataStore file (`autofill_history`) on the device. Git sync does not copy it.
+- Settings has a "clear autofill history" action. "delete local store" also clears the history.
+- An entry that the user selects through `Search...` is recorded, but the history does not make it a candidate.
 
 ## Session / Biometric Gate
 

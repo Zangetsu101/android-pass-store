@@ -26,30 +26,44 @@ import com.zangetsu101.pass.MainActivity
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class PassAndroidAutofillService : AutofillService() {
     @Inject lateinit var passStore: PassStore
 
+    @Inject lateinit var autofillHistory: AutofillHistory
+
+    private val scope = MainScope()
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
     override fun onFillRequest(
         request: FillRequest,
         cancellationSignal: CancellationSignal,
         callback: FillCallback,
     ) {
-        val context =
-            request.fillContexts.lastOrNull() ?: run {
-                callback.onSuccess(null)
-                return
-            }
+        // The read of the autofill history suspends, so the response goes back from a coroutine.
+        val job = scope.launch { callback.onSuccess(buildFillResponse(request)) }
+        cancellationSignal.setOnCancelListener { job.cancel() }
+    }
+
+    private suspend fun buildFillResponse(request: FillRequest): FillResponse? {
+        val context = request.fillContexts.lastOrNull() ?: return null
 
         val structure = context.structure
         val packageName = structure.activityComponent.packageName
 
-        if (packageName == applicationContext.packageName) {
-            callback.onSuccess(null)
-            return
-        }
+        if (packageName == applicationContext.packageName) return null
+
+        val webDomain = findWebDomain(structure)
+        val fillTarget = webDomain ?: packageName
 
         val inlineSpecs =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -66,39 +80,36 @@ class PassAndroidAutofillService : AutofillService() {
             val expiryYearNode = findNode(structure, cardNodeFinder(CardField.ExpiryYear))
             val expiryDateNode = findNode(structure, cardNodeFinder(CardField.ExpiryDate))
             val cardholderNode = findNode(structure, cardNodeFinder(CardField.Cardholder))
-            callback.onSuccess(
-                buildCardFillResponse(
-                    inlineSpecs,
-                    cardNumberNode?.autofillId,
-                    cvvNode?.autofillId,
-                    expiryMonthNode?.autofillId,
-                    expiryYearNode?.autofillId,
-                    expiryDateNode?.autofillId,
-                    cardholderNode?.autofillId,
-                    expiryYearNode?.let { cardYearDigits(it.htmlAttributes()) },
-                    expiryDateNode?.let { cardYearDigits(it.htmlAttributes()) },
-                ),
+            return buildCardFillResponse(
+                fillTarget,
+                inlineSpecs,
+                cardNumberNode?.autofillId,
+                cvvNode?.autofillId,
+                expiryMonthNode?.autofillId,
+                expiryYearNode?.autofillId,
+                expiryDateNode?.autofillId,
+                cardholderNode?.autofillId,
+                expiryYearNode?.let { cardYearDigits(it.htmlAttributes()) },
+                expiryDateNode?.let { cardYearDigits(it.htmlAttributes()) },
             )
-            return
         }
 
         val usernameNode = findNode(structure, ::isUsernameNode)
         val passwordNode = findNode(structure, ::isPasswordNode)
 
-        if (usernameNode == null && passwordNode == null) {
-            callback.onSuccess(null)
-            return
-        }
+        if (usernameNode == null && passwordNode == null) return null
 
-        val webDomain = findWebDomain(structure)
         val candidates =
-            (if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName))
-                .filter { !it.isCard }
+            autofillHistory.rank(
+                fillTarget,
+                (if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName))
+                    .filter { !it.isCard },
+            )
 
         val datasets =
             candidates.mapIndexed { i, entry ->
                 val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
-                buildLockedDataset(entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
+                buildLockedDataset(fillTarget, entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
             }
 
         val searchSpec = inlineSpecs.getOrNull(candidates.size) ?: inlineSpecs.lastOrNull()
@@ -108,17 +119,15 @@ class PassAndroidAutofillService : AutofillService() {
                 passwordNode?.autofillId,
                 candidates.size,
                 searchSpec,
-                webDomain ?: packageName,
+                fillTarget,
             )
 
-        callback.onSuccess(
-            FillResponse
-                .Builder()
-                .apply {
-                    datasets.forEach { addDataset(it) }
-                    addDataset(searchDataset)
-                }.build(),
-        )
+        return FillResponse
+            .Builder()
+            .apply {
+                datasets.forEach { addDataset(it) }
+                addDataset(searchDataset)
+            }.build()
     }
 
     override fun onSaveRequest(
@@ -128,7 +137,8 @@ class PassAndroidAutofillService : AutofillService() {
         callback.onSuccess()
     }
 
-    private fun buildCardFillResponse(
+    private suspend fun buildCardFillResponse(
+        fillTarget: String,
         inlineSpecs: List<InlinePresentationSpec>,
         cardNumberId: AutofillId?,
         cvvId: AutofillId?,
@@ -139,7 +149,7 @@ class PassAndroidAutofillService : AutofillService() {
         expiryYearDigits: Int?,
         expiryDateDigits: Int?,
     ): FillResponse {
-        val candidates = passStore.index.value.filter { it.isCard }
+        val candidates = autofillHistory.rank(fillTarget, passStore.index.value.filter { it.isCard })
 
         if (candidates.isEmpty()) return FillResponse.Builder().build()
 
@@ -147,6 +157,7 @@ class PassAndroidAutofillService : AutofillService() {
             candidates.mapIndexed { i, entry ->
                 val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
                 buildLockedCardDataset(
+                    fillTarget,
                     entry,
                     cardNumberId,
                     cvvId,
@@ -168,6 +179,7 @@ class PassAndroidAutofillService : AutofillService() {
     }
 
     private fun buildLockedDataset(
+        fillTarget: String,
         entry: PassEntry,
         usernameId: AutofillId?,
         passwordId: AutofillId?,
@@ -178,6 +190,7 @@ class PassAndroidAutofillService : AutofillService() {
         val authIntent =
             Intent(this, AutofillAuthActivity::class.java).apply {
                 putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
                 usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
                 passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
             }
@@ -187,6 +200,7 @@ class PassAndroidAutofillService : AutofillService() {
     }
 
     private fun buildLockedCardDataset(
+        fillTarget: String,
         entry: PassEntry,
         cardNumberId: AutofillId?,
         cvvId: AutofillId?,
@@ -203,6 +217,7 @@ class PassAndroidAutofillService : AutofillService() {
         val authIntent =
             Intent(this, AutofillAuthActivity::class.java).apply {
                 putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
                 cardNumberId?.let { putExtra(AutofillAuthActivity.EXTRA_CARD_NUMBER_ID, it) }
                 cvvId?.let { putExtra(AutofillAuthActivity.EXTRA_CVV_ID, it) }
                 expiryMonthId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_MONTH_ID, it) }
@@ -227,13 +242,14 @@ class PassAndroidAutofillService : AutofillService() {
         passwordId: AutofillId?,
         requestCode: Int,
         inlineSpec: InlinePresentationSpec?,
-        initialQuery: String,
+        fillTarget: String,
     ): android.service.autofill.Dataset {
         val searchIntent =
             Intent(this, AutofillSearchActivity::class.java).apply {
                 usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
                 passwordId?.let { putExtra(AutofillSearchActivity.EXTRA_PASSWORD_ID, it) }
-                putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, initialQuery)
+                putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, fillTarget)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

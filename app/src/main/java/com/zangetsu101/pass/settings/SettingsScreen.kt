@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.settings
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -161,6 +162,17 @@ fun SettingsScreen(
                 )
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 DangerRow(label = "clear session", enabled = sessionActive, onClick = { viewModel.clearSession() })
+            }
+
+            // AUTOFILL
+            SettingsSection(label = "autofill") {
+                DangerRow(
+                    label = "clear autofill history",
+                    onClick = {
+                        viewModel.clearAutofillHistory()
+                        Toast.makeText(context, "autofill history cleared", Toast.LENGTH_SHORT).show()
+                    },
+                )
             }
 
             // STORE
