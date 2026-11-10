@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.browser
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -32,9 +33,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -46,6 +51,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassScaffold
@@ -62,12 +70,45 @@ fun EntryDetailScreen(
     viewModel: EntryDetailViewModel,
     onBack: () -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    val state = viewModel.state.collectAsState().value
     val activity = LocalActivity.current as FragmentActivity
 
-    LaunchedEffect(Unit) {
-        viewModel.authenticate(activity)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumed by remember(viewModel, lifecycleOwner) { mutableStateOf(false) }
+    val leaveEntry = {
+        viewModel.lock()
+        onBack()
     }
+    BackHandler(onBack = leaveEntry)
+
+    DisposableEffect(viewModel, lifecycleOwner, activity) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    viewModel.refreshLock()
+                    resumed = true
+                } else if (event == Lifecycle.Event.ON_PAUSE) {
+                    resumed = false
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onScreenDisposed(changingConfigurations = activity.isChangingConfigurations)
+        }
+    }
+
+    LaunchedEffect(viewModel, activity) {
+        viewModel.onScreenEntered(activity)
+    }
+
+    // A collected decrypted snapshot may outlive the synchronous resume lock check.
+    val unlockState =
+        if (!resumed || (state.unlockState is UnlockState.Decrypted && !viewModel.hasUnexpiredDetails())) {
+            UnlockState.Idle
+        } else {
+            state.unlockState
+        }
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Box(
@@ -77,7 +118,7 @@ fun EntryDetailScreen(
                     .padding(padding),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                EntryTopBar(entry = state.entry, onBack = onBack)
+                EntryTopBar(entry = state.entry, onBack = leaveEntry)
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
                 Column(
@@ -87,7 +128,7 @@ fun EntryDetailScreen(
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 18.dp, vertical = 16.dp),
                 ) {
-                    when (val unlock = state.unlockState) {
+                    when (val unlock = unlockState) {
                         is UnlockState.Idle,
                         is UnlockState.Decrypting,
                         -> PasswordSkeleton()
@@ -97,7 +138,7 @@ fun EntryDetailScreen(
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
 
-                    if (state.unlockState !is UnlockState.Decrypted && state.unlockState !is UnlockState.Failed) {
+                    if (unlockState !is UnlockState.Decrypted && unlockState !is UnlockState.Failed) {
                         Spacer(Modifier.height(6.dp))
                         // Invisible placeholder — reserves identical height to the real caption in
                         // DecryptedContent so layout doesn't shift on transition.
@@ -118,7 +159,7 @@ fun EntryDetailScreen(
                 }
             }
 
-            if (state.unlockState is UnlockState.Idle) {
+            if (resumed && unlockState is UnlockState.Idle) {
                 PassPrimaryButton(
                     onClick = { viewModel.authenticate(activity) },
                     label = "decrypt",
