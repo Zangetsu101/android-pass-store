@@ -1,0 +1,131 @@
+name: Build APK
+
+# Builds a release-signed APK and uploads it as a workflow artifact.
+#
+# Run it by hand to get a test build from any branch. The test build uses the
+# release key, so it can upgrade an existing release install and keep the app
+# data:
+#
+#   gh workflow run build-apk.yml --ref <branch>
+#
+# The release workflow also calls this workflow to build the release APK.
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      apk-name:
+        description: File name of the APK. If empty, the name is pass-android-<versionName>-<short SHA>.apk.
+        type: string
+        required: false
+        default: ""
+    outputs:
+      apk-name:
+        description: File name of the APK.
+        value: ${{ jobs.build.outputs.apk-name }}
+      artifact-name:
+        description: Name of the workflow artifact that holds the APK and its checksum.
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build signed release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      apk-name: ${{ steps.name.outputs.apk }}
+      artifact-name: ${{ steps.name.outputs.artifact }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set the APK name
+        id: name
+        env:
+          APK_NAME: ${{ inputs.apk-name }}
+        run: |
+          apk="$APK_NAME"
+          if [ -z "$apk" ]; then
+            version_name="$(sed -nE 's/^\s*versionName\s*=\s*"([^"]+)".*/\1/p' app/build.gradle.kts)"
+            if [ -z "$version_name" ]; then
+              echo "::error::Cannot read versionName from app/build.gradle.kts."
+              exit 1
+            fi
+            apk="pass-android-$version_name-$(git rev-parse --short=7 HEAD).apk"
+          fi
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+          echo "artifact=${apk%.apk}" >> "$GITHUB_OUTPUT"
+
+      - name: Write the signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          # Without these secrets, Gradle signs with the debug key.
+          # A debug-signed APK cannot upgrade an existing install, so stop here.
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The release signing secret for $name is not set."
+              exit 1
+            fi
+          done
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-37.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease --console=plain
+
+      - name: Verify the APK signature
+        env:
+          APK: ${{ steps.name.outputs.apk }}
+        run: |
+          build_tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          "$build_tools/apksigner" verify --print-certs "$APK" | tee signer.txt
+          if grep -q "CN=Android Debug" signer.txt; then
+            echo "::error::The APK is signed with the debug key."
+            exit 1
+          fi
+          sha256sum "$APK" > "$APK.sha256"
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f release.keystore keystore.properties
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: |
+            ${{ steps.name.outputs.apk }}
+            ${{ steps.name.outputs.apk }}.sha256
+          if-no-files-found: error
