@@ -19,7 +19,10 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 
 - Receives fill requests with app package name and, for web forms, web domain.
 - Detects login fields and credit-card fields from autofill hints / input metadata.
-- Card fields are detected from three sources: native `View.AUTOFILL_HINT_*` hints, HTML `autocomplete` tokens (`cc-number`, `cc-csc`, `cc-exp`, ...) that Chrome passes as autofill hints, and Chrome field types (`CREDIT_CARD_NUMBER`, ...) that Chrome puts in the HtmlInfo attributes `computed-autofill-hints`, `crowdsourcing-autofill-hints` and `ua-autofill-hints`. See `CardField.kt`.
+- The service reads card fields from three sources. `CardField.kt` holds the mapping.
+  - Native apps set `View.AUTOFILL_HINT_*` hints.
+  - Chrome passes the HTML `autocomplete` tokens (`cc-number`, `cc-csc`, `cc-exp`) as autofill hints.
+  - Chrome puts its own field types (`CREDIT_CARD_NUMBER`) in the HtmlInfo attributes `computed-autofill-hints`, `crowdsourcing-autofill-hints` and `ua-autofill-hints`.
 - Calls `PassStore.resolve()` or `resolveByPackage()` for login candidates; no decryption during matching.
 - Lists all indexed **Card Entries** for card forms.
 - Returns locked datasets using `Dataset.setAuthentication(...)`.
