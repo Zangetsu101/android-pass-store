@@ -113,6 +113,7 @@ class GitSyncImpl
                     val cmd =
                         git
                             .pull()
+                            .setRebase(false)
                             .setFastForward(FastForwardMode.FF_ONLY)
                     if (keyPair != null) {
                         cmd.setTransportConfigCallback(makeSshCallback(keyPair))
