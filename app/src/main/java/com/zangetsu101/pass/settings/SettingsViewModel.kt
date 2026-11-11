@@ -4,6 +4,7 @@ package com.zangetsu101.pass.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zangetsu101.pass.autofill.AutofillHistory
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.KeyManagement
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
 
@@ -42,6 +44,7 @@ class SettingsViewModel
         private val gpgKeyOperations: GpgKeyStore,
         private val appPreferences: AppPreferences,
         private val gitSync: GitSync,
+        private val autofillHistory: AutofillHistory,
     ) : ViewModel() {
         private val _state = MutableStateFlow(SettingsUiState())
         val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -100,6 +103,10 @@ class SettingsViewModel
             sessionOperations.endSession()
         }
 
+        fun clearAutofillHistory(onResult: (cleared: Boolean) -> Unit) {
+            viewModelScope.launch { onResult(tryClearAutofillHistory()) }
+        }
+
         fun clearAllData(onComplete: () -> Unit) {
             _state.update { it.copy(clearing = true) }
             viewModelScope.launch {
@@ -108,8 +115,17 @@ class SettingsViewModel
                     File(context.filesDir, "repo").deleteRecursively()
                 }
                 appPreferences.clearAll()
+                tryClearAutofillHistory()
                 _state.update { it.copy(clearing = false) }
                 onComplete()
             }
         }
+
+        private suspend fun tryClearAutofillHistory(): Boolean =
+            try {
+                autofillHistory.clear()
+                true
+            } catch (_: IOException) {
+                false
+            }
     }
