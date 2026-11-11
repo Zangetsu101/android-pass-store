@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.autofill
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
 import com.zangetsu101.pass.passstore.PassEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -104,6 +109,37 @@ class AutofillHistoryTest {
             assertEquals(cards, history.rank("payments.google.com", cards))
             assertEquals(cards, history.rank("shop.example.com", cards))
         }
+
+    @Test
+    fun `rank keeps the order when the read of the history fails`() =
+        testScope.runTest {
+            val broken = AutofillHistory(FakeStore(flow { error("broken store") }))
+
+            assertEquals(cards, broken.rank("payments.google.com", cards))
+        }
+
+    @Test
+    fun `rank keeps the order when the read of the history does not finish`() =
+        testScope.runTest {
+            val stuck = AutofillHistory(FakeStore(flow { awaitCancellation() }))
+
+            assertEquals(cards, stuck.rank("payments.google.com", cards))
+        }
+
+    @Test
+    fun `record does not fail when the write of the history fails`() =
+        testScope.runTest {
+            val broken = AutofillHistory(FakeStore(flow { error("broken store") }))
+
+            broken.record("payments.google.com", master)
+        }
+
+    /** A store that reads from [data] and fails on each write. */
+    private class FakeStore(
+        override val data: Flow<Preferences>,
+    ) : DataStore<Preferences> {
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = error("broken store")
+    }
 
     private fun card(path: String) = entry(path, isCard = true)
 

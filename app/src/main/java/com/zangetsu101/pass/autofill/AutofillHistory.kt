@@ -6,8 +6,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.zangetsu101.pass.passstore.PassEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import java.io.IOException
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -21,7 +22,7 @@ annotation class AutofillHistoryStore
  * A fill target is the web domain of a browser form, or the package name of a native app.
  *
  * The history holds entry paths only. It changes the order of suggestions and never adds one.
- * A fill must work without the history, so [record] and [rank] ignore a storage error.
+ * A fill must work without the history, so [record] and [rank] ignore an error of the store.
  */
 @Singleton
 class AutofillHistory
@@ -38,7 +39,9 @@ class AutofillHistory
                     it[targetKey(fillTarget, entry.isCard)] = entry.path
                     if (entry.isCard) it[KEY_LAST_CARD] = entry.path
                 }
-            } catch (_: IOException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
             }
         }
 
@@ -52,10 +55,12 @@ class AutofillHistory
         ): List<PassEntry> {
             val history =
                 try {
-                    store.data.first()
-                } catch (_: IOException) {
-                    return candidates
-                }
+                    withTimeoutOrNull(READ_TIMEOUT_MS) { store.data.first() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                } ?: return candidates
             val lastCard = history[KEY_LAST_CARD]
             return candidates.sortedBy {
                 when (it.path) {
@@ -78,5 +83,8 @@ class AutofillHistory
 
         private companion object {
             val KEY_LAST_CARD = stringPreferencesKey("last_card")
+
+            // The system waits only a short time for the answer to a fill request.
+            const val READ_TIMEOUT_MS = 1_000L
         }
     }

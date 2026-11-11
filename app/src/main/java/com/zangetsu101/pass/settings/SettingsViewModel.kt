@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import javax.inject.Inject
 
@@ -102,8 +103,8 @@ class SettingsViewModel
             sessionOperations.endSession()
         }
 
-        fun clearAutofillHistory() {
-            viewModelScope.launch { autofillHistory.clear() }
+        fun clearAutofillHistory(onResult: (cleared: Boolean) -> Unit) {
+            viewModelScope.launch { onResult(tryClearAutofillHistory()) }
         }
 
         fun clearAllData(onComplete: () -> Unit) {
@@ -114,9 +115,17 @@ class SettingsViewModel
                     File(context.filesDir, "repo").deleteRecursively()
                 }
                 appPreferences.clearAll()
-                autofillHistory.clear()
+                tryClearAutofillHistory()
                 _state.update { it.copy(clearing = false) }
                 onComplete()
             }
         }
+
+        private suspend fun tryClearAutofillHistory(): Boolean =
+            try {
+                autofillHistory.clear()
+                true
+            } catch (_: IOException) {
+                false
+            }
     }

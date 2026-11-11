@@ -66,6 +66,7 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 - The history holds entry paths and fill targets. It holds no secrets. Each fill still needs a fresh biometric confirmation.
 - A login and a card on one fill target have separate records.
 - A record that points to a missing entry path has no effect.
+- A fill works without the history. If the read of the history fails or takes more than 1 second, the candidates keep their order. A failed write is ignored.
 - The history is in its own Preferences DataStore file (`autofill_history`) on the device. Git sync does not copy it.
 - Settings has a "clear autofill history" action. "delete local store" also clears the history.
 - An entry that the user selects through `Search...` is not recorded.

@@ -169,8 +169,10 @@ fun SettingsScreen(
                 DangerRow(
                     label = "clear autofill history",
                     onClick = {
-                        viewModel.clearAutofillHistory()
-                        Toast.makeText(context, "autofill history cleared", Toast.LENGTH_SHORT).show()
+                        viewModel.clearAutofillHistory { cleared ->
+                            val message = if (cleared) "autofill history cleared" else "could not clear autofill history"
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
                     },
                 )
             }
