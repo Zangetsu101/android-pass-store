@@ -83,14 +83,16 @@ class PassAndroidAutofillService : AutofillService() {
             return buildCardFillResponse(
                 fillTarget,
                 inlineSpecs,
-                cardNumberNode?.autofillId,
-                cvvNode?.autofillId,
-                expiryMonthNode?.autofillId,
-                expiryYearNode?.autofillId,
-                expiryDateNode?.autofillId,
-                cardholderNode?.autofillId,
-                expiryYearNode?.let { cardYearDigits(it.htmlAttributes()) },
-                expiryDateNode?.let { cardYearDigits(it.htmlAttributes()) },
+                CardFormFields(
+                    numberId = cardNumberNode?.autofillId,
+                    securityCodeId = cvvNode?.autofillId,
+                    expiryMonthId = expiryMonthNode?.autofillId,
+                    expiryYearId = expiryYearNode?.autofillId,
+                    expiryDateId = expiryDateNode?.autofillId,
+                    cardholderId = cardholderNode?.autofillId,
+                    expiryYearDigits = expiryYearNode?.let { cardYearDigits(it.htmlAttributes()) },
+                    expiryDateDigits = expiryDateNode?.let { cardYearDigits(it.htmlAttributes()) },
+                ),
             )
         }
 
@@ -140,14 +142,7 @@ class PassAndroidAutofillService : AutofillService() {
     private suspend fun buildCardFillResponse(
         fillTarget: String,
         inlineSpecs: List<InlinePresentationSpec>,
-        cardNumberId: AutofillId?,
-        cvvId: AutofillId?,
-        expiryMonthId: AutofillId?,
-        expiryYearId: AutofillId?,
-        expiryDateId: AutofillId?,
-        cardholderId: AutofillId?,
-        expiryYearDigits: Int?,
-        expiryDateDigits: Int?,
+        fields: CardFormFields,
     ): FillResponse {
         val candidates = autofillHistory.rank(fillTarget, passStore.index.value.filter { it.isCard })
 
@@ -156,20 +151,7 @@ class PassAndroidAutofillService : AutofillService() {
         val datasets =
             candidates.mapIndexed { i, entry ->
                 val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
-                buildLockedCardDataset(
-                    fillTarget,
-                    entry,
-                    cardNumberId,
-                    cvvId,
-                    expiryMonthId,
-                    expiryYearId,
-                    expiryDateId,
-                    cardholderId,
-                    expiryYearDigits,
-                    expiryDateDigits,
-                    i,
-                    spec,
-                )
+                buildLockedCardDataset(fillTarget, entry, fields, i, spec)
             }
 
         return FillResponse
@@ -202,14 +184,7 @@ class PassAndroidAutofillService : AutofillService() {
     private fun buildLockedCardDataset(
         fillTarget: String,
         entry: PassEntry,
-        cardNumberId: AutofillId?,
-        cvvId: AutofillId?,
-        expiryMonthId: AutofillId?,
-        expiryYearId: AutofillId?,
-        expiryDateId: AutofillId?,
-        cardholderId: AutofillId?,
-        expiryYearDigits: Int?,
-        expiryDateDigits: Int?,
+        fields: CardFormFields,
         requestCode: Int,
         inlineSpec: InlinePresentationSpec?,
     ): android.service.autofill.Dataset {
@@ -218,23 +193,11 @@ class PassAndroidAutofillService : AutofillService() {
             Intent(this, AutofillAuthActivity::class.java).apply {
                 putExtra(AutofillAuthActivity.EXTRA_ENTRY_PATH, entry.path)
                 putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
-                cardNumberId?.let { putExtra(AutofillAuthActivity.EXTRA_CARD_NUMBER_ID, it) }
-                cvvId?.let { putExtra(AutofillAuthActivity.EXTRA_CVV_ID, it) }
-                expiryMonthId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_MONTH_ID, it) }
-                expiryYearId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_YEAR_ID, it) }
-                expiryDateId?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_DATE_ID, it) }
-                cardholderId?.let { putExtra(AutofillAuthActivity.EXTRA_CARDHOLDER_ID, it) }
-                expiryYearDigits?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_YEAR_DIGITS, it) }
-                expiryDateDigits?.let { putExtra(AutofillAuthActivity.EXTRA_EXPIRY_DATE_DIGITS, it) }
+                fields.putInto(this)
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, authIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return buildDataset(
-            label,
-            listOfNotNull(cardNumberId, cvvId, expiryMonthId, expiryYearId, expiryDateId, cardholderId),
-            sender,
-            inlineSpec,
-        )
+        return buildDataset(label, fields.ids, sender, inlineSpec)
     }
 
     private fun buildLoginSearchDataset(
