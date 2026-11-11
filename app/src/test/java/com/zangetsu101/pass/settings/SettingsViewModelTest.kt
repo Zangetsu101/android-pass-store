@@ -145,6 +145,7 @@ class SettingsViewModelTest {
         runTest(testDispatcher) {
             every { keyManagement.clearAllKeys() } just Runs
             autofillHistory.record("shop.example.com", lastUsedCard)
+            assertEquals(listOf(lastUsedCard, card), autofillHistory.rank("shop.example.com", cards))
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -158,7 +159,7 @@ class SettingsViewModelTest {
     fun `clearAllData completes when the autofill history cannot be cleared`() =
         runTest(testDispatcher) {
             every { keyManagement.clearAllKeys() } just Runs
-            val vm = createViewModel(AutofillHistory(ReadOnlyStore()))
+            val vm = createViewModel(AutofillHistory(FailingWriteStore()))
             advanceUntilIdle()
 
             var completed = false
@@ -173,6 +174,7 @@ class SettingsViewModelTest {
     fun `clearAutofillHistory clears the autofill history and reports success`() =
         runTest(testDispatcher) {
             autofillHistory.record("shop.example.com", lastUsedCard)
+            assertEquals(listOf(lastUsedCard, card), autofillHistory.rank("shop.example.com", cards))
             val vm = createViewModel()
 
             var cleared: Boolean? = null
@@ -186,7 +188,7 @@ class SettingsViewModelTest {
     @Test
     fun `clearAutofillHistory reports a failure when the autofill history cannot be cleared`() =
         runTest(testDispatcher) {
-            val vm = createViewModel(AutofillHistory(ReadOnlyStore()))
+            val vm = createViewModel(AutofillHistory(FailingWriteStore()))
 
             var cleared: Boolean? = null
             vm.clearAutofillHistory { cleared = it }
@@ -207,7 +209,7 @@ class SettingsViewModelTest {
         advanceUntilIdle()
     }
 
-    private class ReadOnlyStore : DataStore<Preferences> {
+    private class FailingWriteStore : DataStore<Preferences> {
         override val data: Flow<Preferences> = emptyFlow()
 
         override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =

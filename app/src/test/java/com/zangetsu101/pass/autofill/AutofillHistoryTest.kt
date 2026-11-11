@@ -113,7 +113,7 @@ class AutofillHistoryTest {
     @Test
     fun `rank keeps the order when the read of the history fails`() =
         testScope.runTest {
-            val broken = AutofillHistory(FakeStore(flow { error("broken store") }))
+            val broken = AutofillHistory(FailingWriteStore(flow { error("broken store") }))
 
             assertEquals(cards, broken.rank("payments.google.com", cards))
         }
@@ -121,7 +121,7 @@ class AutofillHistoryTest {
     @Test
     fun `rank keeps the order when the read of the history does not finish`() =
         testScope.runTest {
-            val stuck = AutofillHistory(FakeStore(flow { awaitCancellation() }))
+            val stuck = AutofillHistory(FailingWriteStore(flow { awaitCancellation() }))
 
             assertEquals(cards, stuck.rank("payments.google.com", cards))
         }
@@ -129,13 +129,12 @@ class AutofillHistoryTest {
     @Test
     fun `record does not fail when the write of the history fails`() =
         testScope.runTest {
-            val broken = AutofillHistory(FakeStore(flow { error("broken store") }))
+            val broken = AutofillHistory(FailingWriteStore(flow { error("broken store") }))
 
             broken.record("payments.google.com", master)
         }
 
-    /** A store that reads from [data] and fails on each write. */
-    private class FakeStore(
+    private class FailingWriteStore(
         override val data: Flow<Preferences>,
     ) : DataStore<Preferences> {
         override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = error("broken store")

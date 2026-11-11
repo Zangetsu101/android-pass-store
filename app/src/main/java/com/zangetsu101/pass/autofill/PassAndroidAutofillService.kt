@@ -85,7 +85,7 @@ class PassAndroidAutofillService : AutofillService() {
                 inlineSpecs,
                 CardFormFields(
                     numberId = cardNumberNode?.autofillId,
-                    securityCodeId = cvvNode?.autofillId,
+                    cvvId = cvvNode?.autofillId,
                     expiryMonthId = expiryMonthNode?.autofillId,
                     expiryYearId = expiryYearNode?.autofillId,
                     expiryDateId = expiryDateNode?.autofillId,

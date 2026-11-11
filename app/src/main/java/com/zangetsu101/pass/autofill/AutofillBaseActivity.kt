@@ -116,7 +116,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                         .Builder()
                         .apply {
                             fields.numberId?.let { setValue(it, AutofillValue.forText(cardNumber), presentation) }
-                            fields.securityCodeId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.cvvId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             fields.expiryMonthId?.let { expiryMonth?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             fields.expiryYearId?.let { expiryYear?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                             fields.expiryDateId?.let { expiryDate?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
