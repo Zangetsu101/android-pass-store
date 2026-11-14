@@ -19,6 +19,10 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 
 - Receives fill requests with app package name and, for web forms, web domain.
 - Detects login fields and credit-card fields from autofill hints / input metadata.
+- The service reads card fields from three sources. `CardField.kt` holds the mapping.
+  - Native apps set `View.AUTOFILL_HINT_*` hints.
+  - Chrome passes the HTML `autocomplete` tokens (`cc-number`, `cc-csc`, `cc-exp`) as autofill hints.
+  - Chrome puts its own field types (`CREDIT_CARD_NUMBER`) in the HtmlInfo attributes `computed-autofill-hints`, `crowdsourcing-autofill-hints` and `ua-autofill-hints`.
 - Calls `PassStore.resolve()` or `resolveByPackage()` for login candidates; no decryption during matching.
 - Lists all indexed **Card Entries** for card forms.
 - Returns locked datasets using `Dataset.setAuthentication(...)`.
@@ -45,6 +49,7 @@ Expose pass credentials to Android **External Credential Surfaces**: AutofillSer
 - Fuzzy matching is not used for automatic external suggestions; it is available only through explicit user search.
 - Login fill writes username from the path-derived entry username and password from line 1 of decrypted content.
 - Card fill writes card number from line 1 and card fields (`cvv`, `expiry`, `cardholder`) from notes; selecting a card fills all detected card fields as a unit.
+- The `expiry` note is `MM/YY` or `MM/YYYY`. Card fill writes the year with 2 or 4 digits to match the field. The service gets the length from the Chrome field type or from the HTML `maxlength`. When the length is unknown, a year field gets 4 digits and a date field gets the note as the user wrote it.
 
 ## Session / Biometric Gate
 
