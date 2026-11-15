@@ -6,9 +6,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.storage.file.FileBasedConfig
+import org.eclipse.jgit.util.FS
+import org.eclipse.jgit.util.SystemReader
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -21,6 +26,7 @@ import java.nio.file.Files
 
 @RunWith(RobolectricTestRunner::class)
 class GitSyncImplTest {
+    private lateinit var originalSystemReader: SystemReader
     private lateinit var bareRepo: File
     private lateinit var context: Context
     private lateinit var gitSync: GitSyncImpl
@@ -29,6 +35,15 @@ class GitSyncImplTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        originalSystemReader = SystemReader.getInstance()
+        val emptyConfig = FileBasedConfig(File(context.cacheDir, "isolated-git-config"), FS.DETECTED)
+        SystemReader.setInstance(
+            spyk(originalSystemReader) {
+                every { userConfig } returns emptyConfig
+                every { systemConfig } returns emptyConfig
+                every { jGitConfig } returns emptyConfig
+            },
+        )
         val sshKeyStore = mockk<SshKeyStore>(relaxed = true)
         every { sshKeyStore.exists() } returns false
         gitSync = GitSyncImpl(context, sshKeyStore)
@@ -67,8 +82,12 @@ class GitSyncImplTest {
 
     @After
     fun teardown() {
-        bareRepo.deleteRecursively()
-        repoDir.deleteRecursively()
+        try {
+            bareRepo.deleteRecursively()
+            repoDir.deleteRecursively()
+        } finally {
+            SystemReader.setInstance(originalSystemReader)
+        }
     }
 
     @Test
@@ -125,12 +144,16 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `pull returns NotFastForward when remote diverged`() =
+    fun `pull rejects divergence even when rebase is configured`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 
             // Diverge local repo
             val localGit = Git.open(repoDir)
+            localGit.repository.config.apply {
+                setBoolean("pull", null, "rebase", true)
+                save()
+            }
             File(repoDir, "local_only.gpg").writeText("local")
             localGit.add().addFilepattern(".").call()
             localGit
@@ -138,6 +161,7 @@ class GitSyncImplTest {
                 .setMessage("local diverge")
                 .setAuthor("test", "test@test.com")
                 .call()
+            val localHead = localGit.repository.resolve("HEAD").name
             localGit.close()
 
             // Push a different commit to remote
@@ -166,6 +190,7 @@ class GitSyncImplTest {
                 threw = e
             }
             assertNotNull("Expected NotFastForward", threw)
+            assertEquals(localHead, gitSync.syncStatus().localCommit)
         }
 
     @Test

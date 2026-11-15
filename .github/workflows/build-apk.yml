@@ -14,17 +14,13 @@ on:
   workflow_call:
     inputs:
       apk-name:
+        # The artifact name is this name without ".apk". release.yml relies on that.
+        # This workflow has no outputs: GitHub drops a job output that contains
+        # a secret value, and this job reads the signing secrets.
         description: File name of the APK. If empty, the name is pass-android-<versionName>-<short SHA>.apk.
         type: string
         required: false
         default: ""
-    outputs:
-      apk-name:
-        description: File name of the APK.
-        value: ${{ jobs.build.outputs.apk-name }}
-      artifact-name:
-        description: Name of the workflow artifact that holds the APK and its checksum.
-        value: ${{ jobs.build.outputs.artifact-name }}
 
 permissions:
   contents: read
@@ -34,9 +30,6 @@ jobs:
     name: Build signed release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      apk-name: ${{ steps.name.outputs.apk }}
-      artifact-name: ${{ steps.name.outputs.artifact }}
 
     steps:
       - name: Check out repository

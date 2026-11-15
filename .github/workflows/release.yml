@@ -20,8 +20,11 @@ jobs:
     name: Check version
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Make the names here, not in build-apk.yml. GitHub drops a job output
+    # that contains a secret value, and the build job reads the signing secrets.
     outputs:
       apk: ${{ steps.version.outputs.apk }}
+      artifact: ${{ steps.version.outputs.artifact }}
 
     steps:
       - name: Check out repository
@@ -38,6 +41,7 @@ jobs:
             exit 1
           fi
           echo "apk=pass-android-$version.apk" >> "$GITHUB_OUTPUT"
+          echo "artifact=pass-android-$version" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build APK
@@ -49,7 +53,7 @@ jobs:
 
   release:
     name: Draft release
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -59,14 +63,14 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@v8
         with:
-          name: ${{ needs.build.outputs.artifact-name }}
+          name: ${{ needs.check.outputs.artifact }}
 
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-          APK: ${{ needs.build.outputs.apk-name }}
+          APK: ${{ needs.check.outputs.apk }}
         run: |
           checksum="$(cat "$APK.sha256")"
           cat > notes.md <<EOF
