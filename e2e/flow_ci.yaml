@@ -1,0 +1,4 @@
+appId: com.zangetsu101.pass
+---
+- runFlow: flow_onboarding_gpg_auth.yaml
+- runFlow: flow_entry_tap.yaml

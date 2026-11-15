@@ -25,20 +25,13 @@ tasks.register("e2eInstall") {
     notCompatibleWithConfigurationCache("e2e tasks interact with a device at runtime")
     doLast {
         cmd("adb", "install", "-r", apkPath)
-        if (!file(testKeyLocal).exists() || !file(testKeyAuthLocal).exists()) {
-            // TODO: switch to curl/wget once pass-test-store is public
-            logger.lifecycle("Test key(s) not found — cloning pass-test-store via gh...")
-            if (!file("/tmp/pass-test-store").exists()) {
-                cmd("gh", "repo", "clone", "Zangetsu101/pass-test-store", "/tmp/pass-test-store")
-            } else {
-                cmd("git", "-C", "/tmp/pass-test-store", "pull", "--ff-only")
-            }
-            if (!file(testKeyLocal).exists()) {
-                file("/tmp/pass-test-store/test-key.asc").copyTo(file(testKeyLocal))
-            }
-            if (!file(testKeyAuthLocal).exists()) {
-                file("/tmp/pass-test-store/test-key-auth.asc").copyTo(file(testKeyAuthLocal))
-            }
+        val fixtureRevision = "3912051da6e6d4553a990ca63900c3ef2adc06cb"
+        for (path in listOf(testKeyLocal, testKeyAuthLocal)) {
+            cmd(
+                "curl", "--fail", "--location", "--retry", "3",
+                "https://raw.githubusercontent.com/Zangetsu101/pass-test-store/$fixtureRevision/${file(path).name}",
+                "--output", path,
+            )
         }
         cmd("adb", "push", testKeyLocal, "/sdcard/Download/test-key.asc")
         cmd("adb", "push", testKeyAuthLocal, "/sdcard/Download/test-key-auth.asc")

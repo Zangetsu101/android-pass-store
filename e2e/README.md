@@ -14,7 +14,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 
 ### Test store
 
-Repo: `Zangetsu101/pass-test-store` — keys are fetched automatically by `e2eInstall`.
+Repo: `Zangetsu101/pass-test-store` (public) — `e2eInstall` downloads keys from a pinned fixture commit using curl. No GitHub CLI login is needed.
 
 GPG passphrase: `testpass`
 
@@ -69,11 +69,38 @@ Onboarding flow waits until `alex.dev` is visible — that's the readiness signa
 | `flow_onboarding.yaml`          | Welcome → GPG import → git clone (device key)             |
 | `flow_onboarding_gpg_auth.yaml` | Welcome → GPG import (auth subkey) → git clone (gpg auth) |
 | `flow_entry_tap.yaml`           | Tap entry → passphrase → biometric prompt                 |
-| `flow_all.yaml`                 | `onboarding` + `entry_tap` chained (use for CI)           |
+| `flow_all.yaml`                 | `onboarding` + `entry_tap` chained (local device key)           |
 
 ## Environment variables
 
 ```bash
 export MAESTRO_CLI_NO_ANALYTICS=1
 export MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
+```
+
+## GitHub Actions
+
+`.github/workflows/e2e.yml` runs on pull requests, pushes to `main`, and manual dispatch.
+It builds the debug APK, then runs pinned Maestro 2.12.1 on an API 36 Google APIs
+x86_64 emulator with KVM. Gradle task caching is already enabled; main-branch runs
+populate the cache for pull requests. No release signing secrets are used.
+
+`flow_ci.yaml` chains GPG-auth onboarding and entry tap. The fixed test auth key
+must be registered on GitHub with read access to the test store. Public repositories
+still require authentication over SSH. These keys and their passphrase are public
+test fixtures: never grant them access to private stores. The device-key onboarding
+flow is local-only because it generates a new SSH key that needs registration.
+The entry test asserts that the biometric prompt appears; it does not authenticate
+or verify a decrypted secret.
+
+Download `maestro-results-<SHA>` from the workflow run for the JUnit report and
+Maestro screenshots, hierarchy, and logs. Results are retained for seven days.
+Assertions fail immediately without a blanket retry. AVD snapshot caching and
+React Native C++ caching are omitted.
+
+The workflow does not configure branch protection. To run it manually after the
+workflow reaches the default branch:
+
+```bash
+gh workflow run e2e.yml --ref <branch>
 ```
