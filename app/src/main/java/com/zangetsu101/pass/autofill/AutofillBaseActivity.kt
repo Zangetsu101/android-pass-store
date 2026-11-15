@@ -26,6 +26,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
     @AutofillDecryption @Inject
     lateinit var decryption: Decryption
 
+    @Inject lateinit var autofillHistory: AutofillHistory
+
     /**
      * Renders the unlock screen in-place. On success [onUnlocked] runs in the same activity,
      * letting the caller retry decryption and return the autofill result without a second
@@ -66,6 +68,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
                         }.build()
 
+                recordFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -84,14 +87,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
 
     protected fun authenticateCard(
         entry: PassEntry,
-        cardNumberId: AutofillId?,
-        cvvId: AutofillId?,
-        expiryMonthId: AutofillId?,
-        expiryYearId: AutofillId?,
-        expiryDateId: AutofillId?,
-        cardholderId: AutofillId?,
-        expiryYearDigits: Int?,
-        expiryDateDigits: Int?,
+        fields: CardFormFields,
     ) {
         lifecycleScope.launch {
             try {
@@ -103,9 +99,9 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 val expiryRaw = notes["expiry"]
                 val expiry = expiryRaw?.let(::parseCardExpiry)
                 val expiryMonth = expiry?.month
-                val expiryYear = expiry?.yearText(expiryYearDigits)
+                val expiryYear = expiry?.yearText(fields.expiryYearDigits)
                 // Without a known field length, keep the date as the user wrote it.
-                val expiryDate = expiryDateDigits?.let { expiry?.dateText(it) } ?: expiryRaw
+                val expiryDate = fields.expiryDateDigits?.let { expiry?.dateText(it) } ?: expiryRaw
                 val cardholder = notes["cardholder"]
 
                 val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
@@ -119,14 +115,15 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                     Dataset
                         .Builder()
                         .apply {
-                            cardNumberId?.let { setValue(it, AutofillValue.forText(cardNumber), presentation) }
-                            cvvId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
-                            expiryMonthId?.let { expiryMonth?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
-                            expiryYearId?.let { expiryYear?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
-                            expiryDateId?.let { expiryDate?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
-                            cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.numberId?.let { setValue(it, AutofillValue.forText(cardNumber), presentation) }
+                            fields.cvvId?.let { cvv?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.expiryMonthId?.let { expiryMonth?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.expiryYearId?.let { expiryYear?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.expiryDateId?.let { expiryDate?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
+                            fields.cardholderId?.let { cardholder?.let { v -> setValue(it, AutofillValue.forText(v), presentation) } }
                         }.build()
 
+                recordFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
@@ -134,25 +131,18 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 setResult(RESULT_OK, replyIntent)
                 finish()
             } catch (e: SessionError.NoActiveSession) {
-                showSessionGate {
-                    authenticateCard(
-                        entry,
-                        cardNumberId,
-                        cvvId,
-                        expiryMonthId,
-                        expiryYearId,
-                        expiryDateId,
-                        cardholderId,
-                        expiryYearDigits,
-                        expiryDateDigits,
-                    )
-                }
+                showSessionGate { authenticateCard(entry, fields) }
             } catch (e: DecryptionError) {
                 cancelAndFinish()
             } catch (e: Exception) {
                 cancelAndFinish()
             }
         }
+    }
+
+    private suspend fun recordFill(entry: PassEntry) {
+        val fillTarget = intent.getStringExtra(EXTRA_FILL_TARGET) ?: return
+        autofillHistory.record(fillTarget, entry)
     }
 
     protected fun cancelAndFinish() {
@@ -167,4 +157,8 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 val idx = line.indexOf(':')
                 if (idx < 0) null else line.substring(0, idx).trim().lowercase() to line.substring(idx + 1).trim()
             }.toMap()
+
+    companion object {
+        const val EXTRA_FILL_TARGET = "fill_target"
+    }
 }
