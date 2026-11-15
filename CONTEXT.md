@@ -13,7 +13,7 @@ Entries are GPG-encrypted files in the standard `pass` format:
 
 **OTP-only Entry**: A pass entry whose only content is an `otpauth://` line. It has no password.
 
-**OTP Line**: A line starting with `otpauth://`. The first OTP Line wins; every OTP Line is excluded from passwords and notes, including invalid and unsupported lines. TOTP codes are read-only; HOTP and OTP on External Credential Surfaces are deferred.
+**OTP Line**: A line starting with `otpauth://` after leading spaces and tabs are removed. The first OTP Line wins; every OTP Line is excluded from passwords and notes, including invalid and unsupported lines. TOTP codes are read-only; HOTP and OTP on External Credential Surfaces are deferred.
 
 ## Entry Path Convention
 

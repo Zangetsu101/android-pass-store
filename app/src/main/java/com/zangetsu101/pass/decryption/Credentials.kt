@@ -39,21 +39,23 @@ internal fun parseCredentials(
     username: String,
 ): Credentials {
     val lines = plaintext.lines()
-    val otpLine = lines.firstOrNull { it.startsWith("otpauth://") }
+    val otpLine = lines.firstOrNull(::isOtpLine)
     return Credentials(
         password =
             lines
                 .firstOrNull()
-                ?.takeUnless { it.startsWith("otpauth://") }
+                ?.takeUnless(::isOtpLine)
                 .orEmpty()
                 .toCharArray(),
         notes =
             lines
                 .drop(1)
-                .filterNot { it.startsWith("otpauth://") }
+                .filterNot(::isOtpLine)
                 .joinToString("\n")
                 .trimEnd(),
         username = username,
         otp = otpLine?.let(::parseOtp),
     )
 }
+
+private fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")

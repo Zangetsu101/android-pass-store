@@ -9,6 +9,32 @@ import org.junit.jupiter.api.Test
 
 class TotpTest {
     @Test
+    fun `accept spaces in label and issuer`() {
+        val otp = parseOtp("otpauth://totp/Amazon Web Services:root@acme?secret=JBSWY3DPEHPK3PXP&issuer=Amazon Web Services") as Otp.Totp
+        assertEquals("282760", otp.code(0))
+    }
+
+    @Test
+    fun `accept spaces and hyphens in secret`() {
+        for (secret in listOf("JBSW Y3DP EHPK 3PXP", "jbsw-y3dp-ehpk-3pxp")) {
+            val otp = parseOtp("otpauth://totp/Acme:alice?secret=$secret") as Otp.Totp
+            assertEquals("282760", otp.code(0))
+        }
+    }
+
+    @Test
+    fun `accept pipe in issuer parameter`() {
+        val otp = parseOtp("otpauth://totp/Acme:alice?secret=JBSWY3DPEHPK3PXP&issuer=Acme|Co") as Otp.Totp
+        assertEquals("282760", otp.code(0))
+    }
+
+    @Test
+    fun `accept leading spaces and tabs`() {
+        val otp = parseOtp(" \t otpauth://totp/Acme:alice?secret=JBSWY3DPEHPK3PXP") as Otp.Totp
+        assertEquals("282760", otp.code(0))
+    }
+
+    @Test
     fun `RFC 6238 appendix B vectors for all algorithms`() {
         val times = listOf(59L, 1111111109L, 1111111111L, 1234567890L, 2000000000L, 20000000000L)
         val vectors =

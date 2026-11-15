@@ -11,6 +11,18 @@ class CredentialsParsingTest {
     private val uri = "otpauth://totp/test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
     @Test
+    fun `indented OTP lines are recognized removed and first wins`() {
+        val creds = parseCredentials(" \t $uri\nnotes: retained\n\totpauth://bad", "alice")
+        assertTrue(creds.password.isEmpty())
+        assertEquals("notes: retained", creds.notes)
+        assertTrue(creds.otp is Otp.Totp)
+        val withPassword = parseCredentials("password\n \t $uri\n\totpauth://bad", "alice")
+        assertEquals("password", String(withPassword.password))
+        assertEquals("", withPassword.notes)
+        assertTrue(withPassword.otp is Otp.Totp)
+    }
+
+    @Test
     fun `password plus OTP strips every URI and first wins`() {
         val creds = parseCredentials("password\r\n$uri\r\nurl: example.com\r\notpauth://bad\r\n", "alice")
         assertEquals("password", String(creds.password))

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.otp
 
-import java.net.URI
 import java.net.URLDecoder
 import java.nio.ByteBuffer
 import java.util.Locale
@@ -40,18 +39,17 @@ sealed interface Otp {
     ) : Otp
 }
 
+private val otpPattern = Regex("""^otpauth://(totp|hotp)(/(([^:?]+)?(:([^:?]*))?)(:([0-9]+))?)?\?(.+)$""")
+
 /** Errors are fixed messages: parser exceptions can contain the secret URI. */
 fun parseOtp(line: String): Otp =
     try {
-        val uri = URI(line)
-        require(uri.scheme == "otpauth")
-        if (uri.host == "hotp") {
+        val match = requireNotNull(otpPattern.matchEntire(line.trimStart(' ', '\t')))
+        if (match.groupValues[1] == "hotp") {
             Otp.Invalid("hotp is not supported")
         } else {
-            require(uri.host == "totp" && !uri.rawPath.isNullOrEmpty() && uri.rawPath != "/")
-            require(uri.fragment == null && uri.userInfo == null && uri.port == -1)
             val parameters = mutableMapOf<String, String>()
-            for (part in (uri.rawQuery ?: "").split('&')) {
+            for (part in match.groupValues[9].split('&')) {
                 val pair = part.split('=', limit = 2)
                 require(pair.size == 2)
                 val key = URLDecoder.decode(pair[0], "UTF-8")
@@ -64,7 +62,8 @@ fun parseOtp(line: String): Otp =
             require(period > 0)
             val algorithm = (parameters["algorithm"] ?: "SHA1").uppercase(Locale.ROOT)
             require(algorithm in setOf("SHA1", "SHA256", "SHA512"))
-            Otp.Totp(decodeBase32(parameters["secret"] ?: error("missing secret")), digits, period, algorithm)
+            val secret = requireNotNull(parameters["secret"]).replace(" ", "").replace("-", "")
+            Otp.Totp(decodeBase32(secret), digits, period, algorithm)
         }
     } catch (_: Exception) {
         Otp.Invalid("invalid otpauth URI")
