@@ -16,6 +16,7 @@ import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
+import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.util.markSensitive
@@ -44,6 +45,7 @@ sealed class UnlockState {
         val credentials: Credentials,
         val passwordRevealed: Boolean = false,
         val clipboardCopied: Boolean = false,
+        val otpCopied: Boolean = false,
     ) : UnlockState()
 
     data class Failed(
@@ -91,6 +93,7 @@ class EntryDetailViewModel
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
         private var clipClearJob: Job? = null
+        private var otpHintJob: Job? = null
         private var autoLockJob: Job? = null
         private var decryptJob: Job? = null
         private var lockDeadline: Long? = null
@@ -109,6 +112,7 @@ class EntryDetailViewModel
 
         fun lock() {
             decryptJob?.cancel()
+            otpHintJob?.cancel()
             autoLockJob?.cancel()
             lockDeadline = null
             _state.update { it.copy(unlockState = UnlockState.Idle) }
@@ -188,10 +192,36 @@ class EntryDetailViewModel
         fun copyPassword() {
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            if (current.credentials.password.isEmpty()) return
             val password = String(current.credentials.password)
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("password", password).markSensitive())
+            copySecret("password", password)
             _state.update { it.copy(unlockState = current.copy(clipboardCopied = true)) }
+        }
+
+        fun copyOtp() {
+            refreshLock()
+            val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            val otp = current.credentials.otp as? Otp.Totp ?: return
+            copySecret("otp", otp.code(System.currentTimeMillis() / 1000))
+            _state.update { it.copy(unlockState = current.copy(otpCopied = true)) }
+            otpHintJob?.cancel()
+            otpHintJob =
+                viewModelScope.launch {
+                    delay(1500)
+                    _state.update { state ->
+                        val unlocked = state.unlockState as? UnlockState.Decrypted ?: return@update state
+                        if (unlocked.credentials !== current.credentials) return@update state
+                        state.copy(unlockState = unlocked.copy(otpCopied = false))
+                    }
+                }
+        }
+
+        private fun copySecret(
+            label: String,
+            value: String,
+        ) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText(label, value).markSensitive())
             val timeoutMillis = _state.value.clipboardTimeoutSeconds * 1000L
             ClipboardClearReceiver.cancel(context)
             ClipboardClearReceiver.schedule(context, timeoutMillis)
