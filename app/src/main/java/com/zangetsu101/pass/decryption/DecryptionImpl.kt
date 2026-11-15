@@ -24,10 +24,7 @@ class DecryptionImpl(
     ): Credentials {
         val secretKeyRing = gpgKeyProvider.getGpgKey(activity)
         val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
-        val lines = plaintext.lines()
-        val password = (lines.firstOrNull() ?: "").toCharArray()
-        val notes = lines.drop(1).joinToString("\n").trimEnd()
-        return Credentials(password = password, notes = notes, username = entry.username)
+        return parseCredentials(plaintext, entry.username)
     }
 
     private fun decryptFile(
