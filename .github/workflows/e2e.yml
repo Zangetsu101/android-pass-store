@@ -40,6 +40,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Check device setup safeguards
+        run: python3 e2e/scripts/test_prepare_device.py
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --console=plain
 
@@ -65,18 +68,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            mkdir -p build/e2e
-            adb shell locksettings set-pin 1234
-            adb shell am start -a android.settings.FINGERPRINT_ENROLL
-            (for i in $(seq 1 60); do sleep 1; adb emu finger touch 1; done) > build/e2e/fingerprint-console.log 2>&1 &
-            finger_pid=$!
-            trap 'kill "$finger_pid" 2>/dev/null || true' EXIT
-            maestro test --test-output-dir build/e2e/enrollment --debug-output build/e2e/enrollment-debug e2e/enroll_fingerprint.yaml
-            kill "$finger_pid" 2>/dev/null || true
-            ./gradlew e2eInstall --console=plain
-            mkdir -p build/e2e
-            maestro test --format junit --output build/e2e/report.xml --test-output-dir build/e2e/artifacts --debug-output build/e2e/debug e2e/flow_ci.yaml
+          script: ./gradlew e2e --console=plain
 
       - name: Upload Maestro results
         if: always()

@@ -1,7 +1,7 @@
 appId: com.android.settings
 ---
 - extendedWaitUntil:
-    visible: "Enter your PIN"
+    visible: "Enter your PIN|Re-enter your PIN|Confirm your PIN"
     timeout: 10000
 - inputText: "1234"
 - pressKey: Enter

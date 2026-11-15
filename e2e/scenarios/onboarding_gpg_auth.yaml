@@ -1,0 +1,7 @@
+appId: com.zangetsu101.pass
+---
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
