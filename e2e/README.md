@@ -83,7 +83,8 @@ export MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
 `.github/workflows/e2e.yml` runs on pull requests, pushes to `main`, and manual dispatch.
 It builds the debug APK, then runs pinned Maestro 2.12.1 on an API 36 Google APIs
 x86_64 emulator with KVM. Gradle task caching is already enabled; main-branch runs
-populate the cache for pull requests. No release signing secrets are used.
+populate the cache for pull requests. No release signing secrets are used. The fresh emulator gets a test PIN (`1234`)
+and fingerprint enrollment through Settings before onboarding.
 
 `flow_ci.yaml` chains GPG-auth onboarding and entry tap. The fixed test auth key
 must be registered on GitHub with read access to the test store. Public repositories
