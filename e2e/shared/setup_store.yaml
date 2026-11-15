@@ -48,6 +48,7 @@ appId: com.zangetsu101.pass
 - assertVisible: "user/pass-store.git"
 - tapOn: "user/pass-store.git"
 - inputText: "Zangetsu101/pass-test-store.git"
+- hideKeyboard
 - tapOn: "> git clone"
 
 - runFlow:
@@ -57,6 +58,7 @@ appId: com.zangetsu101.pass
       - assertVisible: "gpg passphrase"
       - tapOn: "passphrase"
       - inputText: "testpass"
+      - hideKeyboard
       - tapOn: "confirm"
 
 - extendedWaitUntil:

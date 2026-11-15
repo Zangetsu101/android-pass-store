@@ -37,7 +37,7 @@ adb shell am start -a android.settings.FINGERPRINT_ENROLL
 # The emulator console has no enrollment-ready event. Bound the sensor input loop
 # and stop it as soon as the Settings flow finishes, including on failure.
 (
-  for ((i=0; i<60; i++)); do
+  for ((i=0; i<180; i++)); do
     sleep 1
     adb emu finger touch 1
     adb emu finger remove
