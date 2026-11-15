@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway). Q5: what does the screen show when the app cannot make a code from the otpauth line? -->
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;font-family:var(--font-sans)}
+  .tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;font-family:var(--font-sans);font-size:13px;color:var(--muted-foreground)}
+  .tabs button{font:inherit;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--foreground);cursor:pointer}
+  .tabs button.on{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+  .side{flex:1 1 240px;font-size:13px;line-height:1.5;color:var(--foreground)}
+  .side h3{margin:0 0 6px;font-size:14px}
+  .side ul{margin:6px 0 12px;padding-left:18px}
+  .side pre{font-family:var(--font-mono);font-size:11px;background:var(--code-background);padding:10px;border-radius:var(--radius);white-space:pre-wrap;word-break:break-all;margin:6px 0 0}
+  .side .dim{color:var(--muted-foreground)}
+  .phone{--bg:#0B0D0B;--surface:#0F120F;--raised:#131A13;--border:#1D2B1D;--border2:#243324;--accent:#39FF6B;--accentDim:#39FF6B20;--accentMid:#39FF6B44;--text:#C8E6C9;--dim:#527A52;--faint:#2E4A2E;--warn:#FFCC44;
+    flex:0 0 340px;max-width:100%;height:640px;background:var(--bg);border:1px solid var(--border2);border-radius:16px;overflow:auto;
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:var(--text);box-sizing:border-box}
+  .phone *{box-sizing:border-box}
+  .top{display:flex;align-items:center;padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+  .cap{font-size:11px;color:var(--dim)}
+  .title{font-size:16px;font-weight:700;color:var(--accent)}
+  .body{padding:16px 18px}
+  .label{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--accent);margin:0 0 6px}
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:12px 14px;margin-bottom:6px;word-break:break-all}
+  .faint{font-size:11px;color:var(--faint);margin-bottom:20px}
+  .btns{display:flex;gap:6px;margin-top:8px}
+  .btn{flex:1;height:40px;border-radius:3px;font:inherit;cursor:pointer;background:var(--surface);color:var(--dim);border:1px solid var(--border2)}
+  .btn.p{background:var(--accentDim);color:var(--accent);border-color:var(--accentMid)}
+  .pw{color:var(--accent);letter-spacing:.1em}
+  .blur{filter:blur(5px)}
+  .code{font-size:26px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+  .late{color:var(--warn)!important}
+  .bar{height:2px;background:var(--border2);margin-top:8px}
+  .bar b{display:block;height:100%;background:var(--accent)}
+  .secs{font-size:11px;color:var(--dim)}
+  .tag{font-size:10px;color:var(--accent);border:1px solid var(--accentMid);background:var(--accentDim);border-radius:3px;padding:2px 6px;margin-left:auto}
+  .fold{display:flex;justify-content:space-between;cursor:pointer;color:var(--dim);font-size:11px}
+  .ring{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:10px;color:var(--dim)}
+  .ring i{font-style:normal;background:var(--surface);width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+  .tap{cursor:pointer}.tap:active{background:var(--raised)}
+</style>
+
+<div class="tabs" id="vt"></div>
+<div class="tabs" id="st">otpauth line:</div>
+<div class="wrap">
+  <div class="phone" id="phone"></div>
+  <div class="side" id="side"></div>
+</div>
+
+<script>
+const S={
+ hotp:["hotp (counter)","otpauth://hotp/GitHub:alex.dev?secret=JBSWY3DPEHPK3PXP&counter=4","hotp is not supported","A counter code needs a write to the file and a git push. Reads only are in scope."],
+ bad:["cannot parse","otpauth://totp/GitHub:alex.dev?issuer=GitHub","otpauth line has no secret","The line has no secret, or the secret is not valid base32, or the line is not a valid URI."],
+ ok8:["valid: 8 digits, 60s, sha256","otpauth://totp/Corp:alex?secret=JBSWY3DPEHPK3PXP&digits=8&period=60&algorithm=SHA256","",""]};
+const V={
+ A:["A · Error in the otp card","The otp card stays in its place. It shows the reason in red. The line stays out of the notes.",["You know that the entry has OTP and why no code shows.","The secret is not on screen."]],
+ B:["B · No card","The screen shows no otp card. The line stays out of the notes.",["The entry looks like an entry without OTP.","You get no sign of the problem."]],
+ C:["C · Leave the line in the notes","The screen shows no otp card. The line is not removed, so it shows in the notes.",["Nothing is hidden from you.","The secret is on screen in plain text."]]};
+let v="A",s="hotp";
+const $=s=>document.querySelector(s);
+$("#vt").innerHTML=Object.keys(V).map(k=>`<button data-v="${k}">${V[k][0]}</button>`).join("");
+$("#st").innerHTML+=Object.keys(S).map(k=>`<button data-s="${k}">${S[k][0]}</button>`).join("");
+document.body.addEventListener("click",ev=>{const d=ev.target.dataset;if(d.v)v=d.v;if(d.s)s=d.s;if(d.v||d.s)render()});
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ document.querySelectorAll("[data-s]").forEach(b=>b.classList.toggle("on",b.dataset.s===s));
+ const x=S[s],ok=s==="ok8";let otp="",notes="url: https://github.com";
+ if(ok)otp=`<div class="label">otp</div><div class="card tap" style="display:flex;align-items:center;justify-content:space-between"><div><div class="code" id="code"></div><div class="cap" style="margin-top:4px">tap to copy</div></div><div class="ring" id="ring"><i id="secs"></i></div></div><div class="faint">totp · 8 digits · 60s</div>`;
+ else if(v==="A")otp=`<div class="label">otp</div><div class="card" style="color:#FF5555">error: ${x[2]}</div><div class="faint">no code available</div>`;
+ else if(v==="C")notes+="\n"+x[1];
+ $("#phone").innerHTML=`<div class="top"><span style="color:var(--dim);margin-right:10px">‹</span><div><div class="cap">github.com</div><div class="title">alex.dev</div></div></div><div class="body"><div class="label">password</div><div class="card"><div class="pw blur">orbit-river-cobalt-42</div><div class="btns"><button class="btn p">copy</button><button class="btn">reveal</button></div></div><div class="faint">decrypted in-memory</div>${otp}<div class="label">notes</div><div class="card" style="white-space:pre-wrap">${notes}</div></div>`;
+ const n=V[v];$("#side").innerHTML=`<h3>${n[0]}</h3><div>${n[1]}</div><ul>${n[2].map(t=>`<li>${t}</li>`).join("")}</ul><div class="dim">${ok?"A valid line with other parameters makes a code in all variants. The caption shows the parameters.":x[3]}</div><pre>${x[1]}</pre>`;tick()}
+function tick(){const c=$("#code");if(!c)return;const left=60-(Date.now()/1000)%60,late=left<6,col=late?"#FFCC44":"#39FF6B";const t=String(Math.floor(Date.now()/60000)*7919%100000000).padStart(8,"0");
+ c.textContent=t.slice(0,4)+" "+t.slice(4);c.classList.toggle("late",late);$("#ring").style.background=`conic-gradient(${col} ${left/60*360}deg,#243324 0)`;$("#secs").textContent=Math.ceil(left)}
+setInterval(tick,250);render();
+</script>

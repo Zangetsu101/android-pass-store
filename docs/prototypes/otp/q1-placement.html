@@ -1,0 +1,146 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway). Q1: where do OTP codes live in the app? Three variants, switched by the tabs. -->
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;font-family:var(--font-sans)}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tabs button{font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--foreground);cursor:pointer}
+  .tabs button.on{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+  .side{flex:1 1 240px;font-size:13px;line-height:1.5;color:var(--foreground)}
+  .side h3{margin:0 0 6px;font-size:14px}
+  .side ul{margin:6px 0 12px;padding-left:18px}
+  .side .dim{color:var(--muted-foreground)}
+
+  /* phone: app theme tokens from PassColors.kt */
+  .phone{--bg:#0B0D0B;--surface:#0F120F;--raised:#131A13;--border:#1D2B1D;--border2:#243324;--accent:#39FF6B;--accentDim:#39FF6B20;--accentMid:#39FF6B44;--text:#C8E6C9;--dim:#527A52;--faint:#2E4A2E;--warn:#FFCC44;
+    flex:0 0 340px;max-width:100%;height:640px;background:var(--bg);border:1px solid var(--border2);border-radius:16px;overflow:hidden;position:relative;
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:var(--text);box-sizing:border-box}
+  .phone *{box-sizing:border-box}
+  .screen{display:none;height:100%;overflow:auto}
+  .screen.on{display:block}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+  .cap{font-size:11px;color:var(--dim)}
+  .title{font-size:16px;font-weight:700;color:var(--accent)}
+  .title i{font-style:normal;font-weight:300;color:var(--dim)}
+  .pill{font-size:11px;color:var(--dim);background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:5px 9px}
+  .search{margin:8px 16px;padding:10px 12px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--dim)}
+  .hr{border-top:1px solid var(--border)}
+  .row{display:flex;align-items:center;padding:10px 18px;border-bottom:1px solid var(--border);cursor:pointer}
+  .row:hover{background:var(--raised)}
+  .row .g{flex:1;min-width:0}
+  .chev{color:var(--faint);font-size:11px}
+  .tag{font-size:10px;color:var(--accent);border:1px solid var(--accentMid);background:var(--accentDim);border-radius:3px;padding:2px 6px;margin-right:8px;cursor:pointer}
+  .body{padding:16px 18px}
+  .label{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--accent);margin:0 0 6px}
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:12px 14px;margin-bottom:6px}
+  .faint{font-size:11px;color:var(--faint);margin-bottom:20px}
+  .btns{display:flex;gap:6px;margin-top:8px}
+  .btn{flex:1;height:40px;border-radius:3px;font:inherit;cursor:pointer;background:var(--surface);color:var(--dim);border:1px solid var(--border2)}
+  .btn.p{background:var(--accentDim);color:var(--accent);border-color:var(--accentMid)}
+  .pw{color:var(--accent);letter-spacing:.1em;filter:blur(5px)}
+  .code{font-size:26px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+  .code.late{color:var(--warn)}
+  .bar{height:2px;background:var(--border2);margin-top:8px}
+  .bar b{display:block;height:100%;background:var(--accent)}
+  .bar.late b{background:var(--warn)}
+  .secs{font-size:11px;color:var(--dim)}
+  .meta{display:flex;justify-content:space-between;padding:9px 14px;font-size:11px;color:var(--dim);border-bottom:1px solid var(--border)}
+  .seg{display:flex;margin:8px 16px;border:1px solid var(--border2);border-radius:4px;overflow:hidden}
+  .seg div{flex:1;text-align:center;padding:8px;color:var(--dim);cursor:pointer;background:var(--surface)}
+  .seg div.on{background:var(--accentDim);color:var(--accent)}
+  .crow .code{font-size:20px}
+  .lock{padding:60px 24px;text-align:center;color:var(--dim);line-height:1.6}
+  .cta{width:100%;height:44px;margin-top:16px;background:var(--accent);color:var(--bg);border:0;border-radius:4px;font:inherit;font-weight:700;cursor:pointer}
+  .scrim{position:absolute;inset:0;background:#0B0D0Bcc;display:none}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--accentMid);border-radius:12px 12px 0 0;padding:18px;display:none}
+  .open .scrim,.open .sheet{display:block}
+  .back{cursor:pointer;color:var(--dim);margin-right:10px}
+</style>
+
+<div class="tabs" id="tabs"></div>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <!-- A: card in entry detail -->
+    <div class="screen" data-v="A">
+      <div class="top" style="justify-content:flex-start"><span class="back">‹</span><div><div class="cap">github.com</div><div class="title">alex.dev</div></div></div>
+      <div class="body">
+        <div class="label">password</div>
+        <div class="card"><div class="pw">orbit-river-cobalt-42</div><div class="btns"><button class="btn p" data-copy>copy</button><button class="btn">reveal</button></div></div>
+        <div class="faint">decrypted in-memory</div>
+        <div class="label">otp</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="code" data-code="github">— —</span><span class="secs" data-secs></span></div>
+          <div class="bar" data-bar><b></b></div>
+          <div class="btns"><button class="btn p" data-copy>copy code</button></div>
+        </div>
+        <div class="faint">totp · 6 digits · 30s</div>
+        <div class="label">notes</div>
+        <div class="card">url: https://github.com</div>
+        <div style="height:14px"></div>
+        <div class="label">metadata</div>
+        <div class="card" style="padding:0"><div class="meta"><span>path</span><span>dev/github.com/alex.dev.gpg</span></div><div class="meta" style="border:0"><span>commit</span><span>67256be</span></div></div>
+      </div>
+    </div>
+
+    <!-- B: dedicated codes screen -->
+    <div class="screen" data-v="B">
+      <div class="top"><div><div class="cap">~/.password-store</div><div class="title">pass<i>.android</i></div></div><span class="pill">⟳ sync</span></div>
+      <div class="seg"><div data-seg="pw">passwords</div><div data-seg="codes" class="on">codes</div></div>
+      <div class="hr"></div>
+      <div id="bLock" class="lock">6 entries have an otp secret.<br>Codes stay hidden until you unlock.<button class="cta" id="bUnlock">unlock codes</button></div>
+      <div id="bList" style="display:none"></div>
+      <div id="bPw" style="display:none"></div>
+    </div>
+
+    <!-- C: quick sheet from the browser list -->
+    <div class="screen" data-v="C">
+      <div class="top"><div><div class="cap">~/.password-store</div><div class="title">pass<i>.android</i></div></div><span class="pill">⟳ sync</span></div>
+      <div class="search">&gt; grep -r</div>
+      <div class="hr"></div>
+      <div id="cList"></div>
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet">
+        <div class="cap" id="sDom"></div><div class="title" id="sUser" style="margin-bottom:12px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="code" id="sCode"></span><span class="secs" data-secs></span></div>
+        <div class="bar" data-bar><b></b></div>
+        <div class="faint" style="margin:10px 0 0">copied · clipboard clears in 45s</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side" id="side"></div>
+</div>
+
+<script>
+const entries=[["github.com","alex.dev",1],["gitlab.com","alex",1],["npmjs.com","alexm",1],["netflix.com","alex",0],["spotify.com","alex",0],["chase.com","alex",1],["paypal.com","alex.morgan",1],["aws.amazon.com","root",1]];
+const notes={
+ A:["A · Card in entry detail","Open an entry. The code shows as a new <b>otp</b> card under the password.",["No new screen. Reuses the decrypt step that exists.","One entry at a time: find entry, open, copy.","Works for any file layout, because the app reads the file after decryption."]],
+ B:["B · Dedicated codes screen","A <b>passwords | codes</b> switch on the home screen. The codes screen lists every code, live. Tap a row to copy.",["Fastest when you only want a code. Feels like an authenticator app.","The app must decrypt every OTP entry at once.","The app must know which entries have OTP <i>before</i> decryption (a path rule or a cached index)."]],
+ C:["C · Quick sheet from the list","Entries with OTP show an <b>otp</b> tag in the browser list. Tap the tag: the app decrypts that entry, copies the code and shows a sheet. Tap the row for the full detail.",["Two taps from home to a copied code. Decrypts one entry only.","Search works as it does today.","Also needs to know which entries have OTP before decryption."]]};
+const code=(k)=>{let h=Math.floor(Date.now()/30000);for(const c of k)h=(h*31+c.charCodeAt(0))%1000003;const s=String(h*7919%1000000).padStart(6,"0");return s.slice(0,3)+" "+s.slice(3)};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let v="A",sheetKey=null;
+$("#tabs").innerHTML=Object.keys(notes).map(k=>`<button data-t="${k}">${notes[k][0]}</button>`).join("");
+function show(k){v=k;$$("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===k));$$(".screen").forEach(s=>s.classList.toggle("on",s.dataset.v===k));
+ const n=notes[k];$("#side").innerHTML=`<h3>${n[0]}</h3><div>${n[1]}</div><ul>${n[2].map(x=>`<li>${x}</li>`).join("")}</ul><div class="dim">Prototype. Codes are fake. They change every 30 seconds.</div>`;$("#phone").classList.remove("open")}
+$("#tabs").onclick=e=>e.target.dataset.t&&show(e.target.dataset.t);
+const row=(e,right)=>`<div class="row" data-k="${e[0]}"><div class="g"><div>${e[1]}</div><div class="cap">${e[0]}</div></div>${right}</div>`;
+$("#bList").innerHTML=entries.filter(e=>e[2]).map(e=>`<div class="row crow" data-k="${e[0]}"><div class="g"><div class="cap">${e[0]} · ${e[1]}</div><div class="code" data-code="${e[0]}"></div><div class="bar" data-bar style="margin-top:6px"><b></b></div></div><span class="secs" data-tap>tap to copy</span></div>`).join("");
+$("#bPw").innerHTML=entries.map(e=>row(e,`<span class="chev">›</span>`)).join("");
+$("#cList").innerHTML=entries.map(e=>row(e,(e[2]?`<span class="tag" data-otp="${e[0]}">otp</span>`:"")+`<span class="chev">›</span>`)).join("");
+let unlocked=false;
+$("#bUnlock").onclick=()=>{unlocked=true;seg("codes")};
+function seg(s){$$("[data-seg]").forEach(d=>d.classList.toggle("on",d.dataset.seg===s));$("#bPw").style.display=s==="pw"?"":"none";$("#bLock").style.display=s==="codes"&&!unlocked?"":"none";$("#bList").style.display=s==="codes"&&unlocked?"":"none"}
+$$("[data-seg]").forEach(d=>d.onclick=()=>seg(d.dataset.seg));
+$("#bList").onclick=e=>{const r=e.target.closest(".row");if(!r)return;const t=r.querySelector("[data-tap]");t.textContent="copied";t.style.color="#39FF6B";setTimeout(()=>{t.textContent="tap to copy";t.style.color=""},1500)};
+$("#cList").onclick=e=>{const k=e.target.dataset.otp;if(!k)return;const en=entries.find(x=>x[0]===k);sheetKey=k;$("#sDom").textContent=en[0];$("#sUser").textContent=en[1];$("#phone").classList.add("open");tick()};
+$("#scrim").onclick=()=>$("#phone").classList.remove("open");
+$$("[data-copy]").forEach(b=>b.onclick=()=>{const o=b.textContent;b.textContent="copied";setTimeout(()=>b.textContent=o,1500)});
+function tick(){const left=30-(Date.now()/1000)%30,late=left<6;
+ $$("[data-code]").forEach(c=>{c.textContent=code(c.dataset.code);c.classList.toggle("late",late)});
+ if(sheetKey){$("#sCode").textContent=code(sheetKey);$("#sCode").classList.toggle("late",late)}
+ $$("[data-bar]").forEach(b=>{b.classList.toggle("late",late);b.firstChild.style.width=(left/30*100)+"%"});
+ $$("[data-secs]").forEach(s=>s.textContent=Math.ceil(left)+"s")}
+setInterval(tick,250);show("A");tick();
+</script>

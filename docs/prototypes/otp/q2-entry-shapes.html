@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway). Q2: how does the detail screen treat the otpauth line, and an entry that has only OTP? -->
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;font-family:var(--font-sans)}
+  .tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;font-family:var(--font-sans);font-size:13px;color:var(--muted-foreground)}
+  .tabs button{font:inherit;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--foreground);cursor:pointer}
+  .tabs button.on{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+  .side{flex:1 1 240px;font-size:13px;line-height:1.5;color:var(--foreground)}
+  .side h3{margin:0 0 6px;font-size:14px}
+  .side ul{margin:6px 0 12px;padding-left:18px}
+  .side pre{font-family:var(--font-mono);font-size:11px;background:var(--code-background);padding:10px;border-radius:var(--radius);white-space:pre-wrap;word-break:break-all;margin:6px 0 0}
+  .side .dim{color:var(--muted-foreground)}
+  .phone{--bg:#0B0D0B;--surface:#0F120F;--raised:#131A13;--border:#1D2B1D;--border2:#243324;--accent:#39FF6B;--accentDim:#39FF6B20;--accentMid:#39FF6B44;--text:#C8E6C9;--dim:#527A52;--faint:#2E4A2E;--warn:#FFCC44;
+    flex:0 0 340px;max-width:100%;height:640px;background:var(--bg);border:1px solid var(--border2);border-radius:16px;overflow:auto;
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:var(--text);box-sizing:border-box}
+  .phone *{box-sizing:border-box}
+  .top{display:flex;align-items:center;padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+  .cap{font-size:11px;color:var(--dim)}
+  .title{font-size:16px;font-weight:700;color:var(--accent)}
+  .body{padding:16px 18px}
+  .label{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--accent);margin:0 0 6px}
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:12px 14px;margin-bottom:6px;word-break:break-all}
+  .faint{font-size:11px;color:var(--faint);margin-bottom:20px}
+  .btns{display:flex;gap:6px;margin-top:8px}
+  .btn{flex:1;height:40px;border-radius:3px;font:inherit;cursor:pointer;background:var(--surface);color:var(--dim);border:1px solid var(--border2)}
+  .btn.p{background:var(--accentDim);color:var(--accent);border-color:var(--accentMid)}
+  .pw{color:var(--accent);letter-spacing:.1em}
+  .blur{filter:blur(5px)}
+  .code{font-size:26px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+  .late{color:var(--warn)!important}
+  .bar{height:2px;background:var(--border2);margin-top:8px}
+  .bar b{display:block;height:100%;background:var(--accent)}
+  .secs{font-size:11px;color:var(--dim)}
+  .tag{font-size:10px;color:var(--accent);border:1px solid var(--accentMid);background:var(--accentDim);border-radius:3px;padding:2px 6px;margin-left:auto}
+  .fold{display:flex;justify-content:space-between;cursor:pointer;color:var(--dim);font-size:11px}
+</style>
+
+<div class="tabs" id="vt"></div>
+<div class="tabs" id="et">entry file:</div>
+<div class="wrap">
+  <div class="phone" id="phone"></div>
+  <div class="side" id="side"></div>
+</div>
+
+<script>
+const URI="otpauth://totp/GitHub:alex.dev?secret=JBSWY3DPEHPK3PXP&issuer=GitHub";
+const files={both:"orbit-river-cobalt-42\nurl: https://github.com\n"+URI,only:URI};
+const V={
+ A:["A · Raw","Add the otp card. Change nothing else.",["Line 1 is always the password, also when it is the otpauth URI.","Notes show the otpauth line, with the secret in plain text.","Smallest change, but the secret is visible on screen."]],
+ B:["B · Clean","The app removes every otpauth line from the password and the notes.",["An entry with only OTP shows no password card. It gets an <b>otp</b> tag.","The secret is never on screen.","You cannot read the raw URI in the app."]],
+ C:["C · Clean + raw URI on request","Same as B, plus a closed <b>otpauth uri</b> row at the bottom. Tap it to open, then reveal or copy.",["Useful to move a secret to a different device or app.","The secret can be on screen, but only after two taps.","One more control on the screen."]]};
+let v="B",e="both",open=false,rev=false;
+const $=s=>document.querySelector(s);
+const code=()=>{let h=Math.floor(Date.now()/30000)*7919%1000000;const s=String(h).padStart(6,"0");return s.slice(0,3)+" "+s.slice(3)};
+$("#vt").innerHTML=Object.keys(V).map(k=>`<button data-v="${k}">${V[k][0]}</button>`).join("");
+$("#et").innerHTML+=`<button data-e="both">password + otp</button><button data-e="only">otp only</button>`;
+document.body.addEventListener("click",ev=>{const d=ev.target.dataset;if(d.v){v=d.v;open=rev=false}if(d.e)e=d.e;if(d.fold!==undefined)open=!open;if(d.rev!==undefined)rev=!rev;
+ if(d.copy!==undefined){const b=ev.target,o=b.textContent;b.textContent="copied";setTimeout(()=>b.textContent=o,1200);return}render()});
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ document.querySelectorAll("[data-e]").forEach(b=>b.classList.toggle("on",b.dataset.e===e));
+ const raw=v==="A",only=e==="only";
+ const pw=only?(raw?URI:null):"orbit-river-cobalt-42";
+ let notes=only?"":"url: https://github.com"+(raw?"\n"+URI:"");
+ let h=`<div class="top"><span style="color:var(--dim);margin-right:10px">‹</span><div><div class="cap">github.com</div><div class="title">alex.dev</div></div>${!raw&&only?'<span class="tag">otp</span>':""}</div><div class="body">`;
+ const otp=`<div class="label">otp</div><div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="code" id="code"></span><span class="secs" id="secs"></span></div><div class="bar"><b id="bar"></b></div><div class="btns"><button class="btn p" data-copy>copy code</button></div></div><div class="faint">totp · 6 digits · 30s</div>`;
+ const pwc=pw?`<div class="label">password</div><div class="card"><div class="pw blur">${pw}</div><div class="btns"><button class="btn p" data-copy>copy</button><button class="btn">reveal</button></div></div><div class="faint">decrypted in-memory</div>`:"";
+ h+=(only?otp+pwc:pwc+otp);
+ h+=`<div class="label">notes</div><div class="card" style="white-space:pre-wrap;${notes?"":"color:var(--faint)"}">${notes||"no notes"}</div>`;
+ if(v==="C")h+=`<div style="height:14px"></div><div class="card"><div class="fold" data-fold>otpauth uri <span data-fold>${open?"▼":"▶"}</span></div>${open?`<div class="pw ${rev?"":"blur"}" style="margin-top:10px;font-size:11px;letter-spacing:0">${URI}</div><div class="btns"><button class="btn p" data-copy>copy uri</button><button class="btn" data-rev>${rev?"hide":"reveal"}</button></div>`:""}</div>`;
+ h+=`<div style="height:14px"></div><div class="label">metadata</div><div class="card cap">path &nbsp; dev/github.com/alex.dev.gpg</div></div>`;
+ $("#phone").innerHTML=h;
+ const n=V[v];$("#side").innerHTML=`<h3>${n[0]}</h3><div>${n[1]}</div><ul>${n[2].map(x=>`<li>${x}</li>`).join("")}</ul><div class="dim">Decrypted file for this entry:</div><pre>${files[e]}</pre>`;tick()}
+function tick(){const left=30-(Date.now()/1000)%30,late=left<6,c=$("#code");if(!c)return;c.textContent=code();c.classList.toggle("late",late);$("#bar").style.width=(left/30*100)+"%";$("#bar").style.background=late?"#FFCC44":"";$("#secs").textContent=Math.ceil(left)+"s"}
+setInterval(tick,250);render();
+</script>

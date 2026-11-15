@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway). FINAL: all settled decisions in one flow. Q6: the skeleton before decryption. -->
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;font-family:var(--font-sans)}
+  .tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;font-family:var(--font-sans);font-size:13px;color:var(--muted-foreground)}
+  .tabs button{font:inherit;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--foreground);cursor:pointer}
+  .tabs button.on{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+  .side{flex:1 1 240px;font-size:13px;line-height:1.5;color:var(--foreground)}
+  .side h3{margin:0 0 6px;font-size:14px}
+  .side ul{margin:6px 0 12px;padding-left:18px}
+  .side pre{font-family:var(--font-mono);font-size:11px;background:var(--code-background);padding:10px;border-radius:var(--radius);white-space:pre-wrap;word-break:break-all;margin:6px 0 0}
+  .side .dim{color:var(--muted-foreground)}
+  .phone{--bg:#0B0D0B;--surface:#0F120F;--raised:#131A13;--border:#1D2B1D;--border2:#243324;--accent:#39FF6B;--accentDim:#39FF6B20;--accentMid:#39FF6B44;--text:#C8E6C9;--dim:#527A52;--faint:#2E4A2E;--warn:#FFCC44;
+    flex:0 0 340px;max-width:100%;height:640px;background:var(--bg);border:1px solid var(--border2);border-radius:16px;overflow:auto;
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:var(--text);box-sizing:border-box}
+  .phone *{box-sizing:border-box}
+  .top{display:flex;align-items:center;padding:12px 16px 10px;border-bottom:1px solid var(--border)}
+  .cap{font-size:11px;color:var(--dim)}
+  .title{font-size:16px;font-weight:700;color:var(--accent)}
+  .body{padding:16px 18px}
+  .label{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--accent);margin:0 0 6px}
+  .card{background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:12px 14px;margin-bottom:6px;word-break:break-all}
+  .faint{font-size:11px;color:var(--faint);margin-bottom:20px}
+  .btns{display:flex;gap:6px;margin-top:8px}
+  .btn{flex:1;height:40px;border-radius:3px;font:inherit;cursor:pointer;background:var(--surface);color:var(--dim);border:1px solid var(--border2)}
+  .btn.p{background:var(--accentDim);color:var(--accent);border-color:var(--accentMid)}
+  .pw{color:var(--accent);letter-spacing:.1em}
+  .blur{filter:blur(5px)}
+  .code{font-size:26px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+  .late{color:var(--warn)!important}
+  .bar{height:2px;background:var(--border2);margin-top:8px}
+  .bar b{display:block;height:100%;background:var(--accent)}
+  .secs{font-size:11px;color:var(--dim)}
+  .tag{font-size:10px;color:var(--accent);border:1px solid var(--accentMid);background:var(--accentDim);border-radius:3px;padding:2px 6px;margin-left:auto}
+  .fold{display:flex;justify-content:space-between;cursor:pointer;color:var(--dim);font-size:11px}
+  .ring{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:10px;color:var(--dim)}
+  .ring i{font-style:normal;background:var(--surface);width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+  .tap{cursor:pointer}.tap:active{background:var(--raised)}
+  .phone{position:relative}
+  .sh{background:var(--raised);border-radius:3px;height:13px}
+  .cta{position:sticky;bottom:24px;margin:0 18px;width:calc(100% - 36px);height:44px;background:var(--accent);color:var(--bg);border:0;border-radius:4px;font:inherit;font-weight:700;cursor:pointer}
+</style>
+
+<div class="tabs" id="vt">skeleton:</div>
+<div class="tabs" id="et">entry file:</div>
+<div class="tabs">state: <button data-act="open">open the entry again</button><button data-act="lock">60s pass (lock)</button></div>
+<div class="wrap">
+  <div class="phone" id="phone"></div>
+  <div class="side" id="side"></div>
+</div>
+
+<script>
+const V={A:["A · Same as today","The skeleton always shows <b>password</b> and <b>notes</b>. The otp card shows only after decryption.",["No change to the skeleton.","The layout moves one time when the otp card comes in. For an entry with only OTP, the password skeleton changes into the otp card."]],
+ B:["B · No labels","The skeleton shows blocks without labels. The labels come with the content.",["The skeleton makes no promise about a password that the entry possibly does not have.","A change to a screen that works today. The layout moves in this variant too."]]};
+const E={both:"password + otp",only:"otp only",none:"no otp",hotp:"otp error"};
+let v="A",e="both",st="decrypting",copiedAt=0,t;
+const $=s=>document.querySelector(s);
+const code=()=>{const s=String(Math.floor(Date.now()/30000)*7919%1000000).padStart(6,"0");return s.slice(0,3)+" "+s.slice(3)};
+$("#vt").innerHTML+=Object.keys(V).map(k=>`<button data-v="${k}">${V[k][0]}</button>`).join("");
+$("#et").innerHTML+=Object.keys(E).map(k=>`<button data-e="${k}">${E[k]}</button>`).join("");
+function open(){st="decrypting";clearTimeout(t);t=setTimeout(()=>{st="decrypted";render()},1100);render()}
+document.body.addEventListener("click",ev=>{const x=ev.target.closest("[data-v],[data-e],[data-act],[data-copy]");if(!x)return;const d=x.dataset;
+ if(d.v){v=d.v;open()}if(d.e){e=d.e;open()}if(d.act==="open"||d.act==="decrypt")open();if(d.act==="lock"){clearTimeout(t);st="idle";render()}
+ if(d.copy!==undefined){copiedAt=Date.now();render();setTimeout(render,1600)}});
+const skCard=(l,w,btn)=>`${l&&v==="A"?`<div class="label">${l}</div>`:`<div style="height:${l?19:0}px"></div>`}<div class="card"><div class="sh" style="width:${w}%"></div>${btn?'<div class="btns"><div class="sh" style="flex:1;height:40px"></div><div class="sh" style="flex:1;height:40px"></div></div>':`<div class="sh" style="width:60%;margin-top:8px"></div>`}</div>`;
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ document.querySelectorAll("[data-e]").forEach(b=>b.classList.toggle("on",b.dataset.e===e));
+ const only=e==="only",copied=Date.now()-copiedAt<1500;
+ let body;
+ if(st!=="decrypted")body=skCard("password",55,1)+`<div class="faint" style="opacity:0">x</div>`+skCard("notes",85,0);
+ else{
+  const pw=only?"":`<div class="label">password</div><div class="card"><div class="pw blur">orbit-river-cobalt-42</div><div class="btns"><button class="btn p">copy</button><button class="btn">reveal</button></div></div><div class="faint">decrypted in-memory</div>`;
+  const otp=e==="none"?"":e==="hotp"?`<div class="label">otp</div><div class="card" style="color:#FF5555">error: hotp is not supported</div><div class="faint">no code available</div>`:
+   `<div class="label">otp</div><div class="card tap" data-copy style="display:flex;align-items:center;justify-content:space-between"><div><div class="code" id="code"></div><div class="cap" style="margin-top:4px;${copied?"color:#39FF6B":""}">${copied?"copied":"tap to copy"}</div></div><div class="ring" id="ring"><i id="secs"></i></div></div><div class="faint">${copied?"clipboard clears in 45s":"totp · 6 digits · 30s"}</div>`;
+  body=pw+otp+`<div class="label">notes</div><div class="card" style="${only?"color:var(--faint)":""}">${only?"no notes":"url: https://github.com"}</div>`}
+ body+=`<div style="height:14px"></div><div class="label">metadata</div><div class="card cap">path &nbsp; dev/github.com/alex.dev.gpg</div>`;
+ $("#phone").innerHTML=`<div class="top"><span style="color:var(--dim);margin-right:10px">‹</span><div><div class="cap">github.com</div><div class="title">alex.dev</div></div></div><div class="body" style="min-height:520px">${body}</div>${st==="idle"?'<button class="cta" data-act="decrypt">decrypt</button>':""}`;
+ const n=V[v];$("#side").innerHTML=`<h3>${n[0]}</h3><div>${n[1]}</div><ul>${n[2].map(x=>`<li>${x}</li>`).join("")}</ul><div class="dim">State: ${st}. This page has all the settled decisions. Change the entry file to see each case.</div>`;tick()}
+function tick(){const c=$("#code");if(!c)return;const left=30-(Date.now()/1000)%30,late=left<6,col=late?"#FFCC44":"#39FF6B";c.textContent=code();c.classList.toggle("late",late);$("#ring").style.background=`conic-gradient(${col} ${left/30*360}deg,#243324 0)`;$("#secs").textContent=Math.ceil(left)}
+setInterval(tick,250);open();
+</script>
