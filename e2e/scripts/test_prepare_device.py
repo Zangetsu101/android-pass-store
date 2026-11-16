@@ -8,12 +8,18 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 ADB = r'''#!/usr/bin/env python3
-import os, pathlib, sys
+import os, pathlib, sys, time
 args = sys.argv[1:]
 root = pathlib.Path(os.environ['FAKE_DEVICE'])
 with (root / 'calls').open('a') as log:
     log.write(' '.join(args) + '\n')
 mode = os.environ['FAKE_MODE']
+if mode == 'delayed-console' and args == ['emu', 'finger', 'touch', '1']:
+    (root / 'console-started').touch()
+    time.sleep(0.2)
+    with (root / 'calls').open('a') as log:
+        log.write('console-finished\n')
+
 if args == ['shell', 'am', 'get-current-user']:
     print(0)
 elif args == ['shell', 'dumpsys', 'fingerprint']:
@@ -25,14 +31,20 @@ elif args == ['shell', 'dumpsys', 'fingerprint']:
 elif args[:3] == ['shell', 'getprop', 'ro.kernel.qemu']:
     print(1)
 elif args[:3] == ['shell', 'locksettings', 'verify']:
-    sys.exit(0 if (mode in ('fresh', 'enrollment-fails', 'no-enrollment') and '--old' not in args) or (mode == 'existing-pin' and '--old' in args) else 1)
+    sys.exit(0 if (mode in ('fresh', 'enrollment-fails', 'no-enrollment', 'delayed-console') and '--old' not in args) or (mode == 'existing-pin' and '--old' in args) else 1)
 '''
 
 MAESTRO = r'''#!/usr/bin/env python3
-import os, pathlib, sys
+import os, pathlib, sys, time
 root = pathlib.Path(os.environ['FAKE_DEVICE'])
 with (root / 'calls').open('a') as log:
     log.write('maestro\n')
+if os.environ['FAKE_MODE'] == 'delayed-console':
+    deadline = time.monotonic() + 5
+    while not (root / 'console-started').exists():
+        if time.monotonic() > deadline:
+            sys.exit('Console input never started')
+        time.sleep(0.01)
 if os.environ['FAKE_MODE'] == 'enrollment-fails':
     sys.exit(1)
 if os.environ['FAKE_MODE'] != 'no-enrollment':
@@ -91,6 +103,11 @@ class DeviceSetupTest(unittest.TestCase):
         result, calls = self.run_setup('no-enrollment')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Settings completed without an enrolled fingerprint', result.stderr)
+
+    def test_console_command_finishes_before_setup_returns(self):
+        result, calls = self.run_setup('delayed-console')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('console-finished', calls)
 
     def test_unknown_diagnostics_fail_without_modifying_device(self):
         result, calls = self.run_setup('unknown')

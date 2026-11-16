@@ -34,17 +34,24 @@ else
   exit 1
 fi
 adb shell am start -a android.settings.FINGERPRINT_ENROLL
-# The emulator console has no enrollment-ready event. Bound the sensor input loop
-# and stop it as soon as the Settings flow finishes, including on failure.
+# Let an in-flight console command finish before removing its working files.
+# Killing just the loop shell would leave that command running after cleanup.
+input_dir=$(mktemp -d build/e2e/fingerprint-input.XXXXXX)
 (
   for ((i=0; i<180; i++)); do
     sleep 1
-    adb emu finger touch 1
-    adb emu finger remove
+    [[ ! -e "$input_dir/stop" ]] || break
+    timeout 10s adb emu finger touch 1
+    timeout 10s adb emu finger remove
   done
 ) > build/e2e/fingerprint-console.log 2>&1 &
 finger_pid=$!
-trap 'kill "$finger_pid" 2>/dev/null || true; wait "$finger_pid" 2>/dev/null || true' EXIT
+stop_fingerprint_input() {
+  touch "$input_dir/stop"
+  wait "$finger_pid" || true
+  rm -r "$input_dir"
+}
+trap stop_fingerprint_input EXIT
 "$MAESTRO_BIN" test --device "$ANDROID_SERIAL" --test-output-dir build/e2e/enrollment \
   --debug-output build/e2e/enrollment-debug e2e/shared/enroll_fingerprint.yaml
 count=$(fingerprint_count)
