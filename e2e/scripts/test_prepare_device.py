@@ -14,7 +14,7 @@ root = pathlib.Path(os.environ['FAKE_DEVICE'])
 with (root / 'calls').open('a') as log:
     log.write(' '.join(args) + '\n')
 mode = os.environ['FAKE_MODE']
-if mode == 'delayed-console' and args == ['emu', 'finger', 'touch', '1']:
+if mode == 'delayed-console' and args == ['emu', 'finger', 'touch', '1'] and (root / 'actual-enrollment').exists():
     (root / 'console-started').touch()
     time.sleep(0.2)
     with (root / 'calls').open('a') as log:
@@ -39,6 +39,11 @@ import os, pathlib, sys, time
 root = pathlib.Path(os.environ['FAKE_DEVICE'])
 with (root / 'calls').open('a') as log:
     log.write('maestro\n')
+if sys.argv[-1].endswith('find_fingerprint_sensor.yaml'):
+    sys.exit(0)
+if sys.argv[-1].endswith('await_fingerprint_enrollment.yaml'):
+    (root / 'actual-enrollment').touch()
+    sys.exit(0)
 if os.environ['FAKE_MODE'] == 'delayed-console':
     deadline = time.monotonic() + 5
     while not (root / 'console-started').exists():
@@ -108,6 +113,15 @@ class DeviceSetupTest(unittest.TestCase):
         result, calls = self.run_setup('delayed-console')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('console-finished', calls)
+
+    def test_sensor_discovery_gets_one_touch_before_enrollment(self):
+        result, calls = self.run_setup('fresh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stages = calls.split('maestro\n')
+        self.assertEqual(len(stages), 4, 'Discovery, readiness, and completion must run separately')
+        self.assertEqual(stages[0].count('emu finger touch 1'), 0)
+        self.assertEqual(stages[1].count('emu finger touch 1'), 1)
+        self.assertIn('emu finger remove', stages[1])
 
     def test_unknown_diagnostics_fail_without_modifying_device(self):
         result, calls = self.run_setup('unknown')

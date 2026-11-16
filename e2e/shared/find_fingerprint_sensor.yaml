@@ -1,0 +1,19 @@
+appId: com.android.settings
+---
+- extendedWaitUntil:
+    visible: "Enter your PIN|Re-enter your PIN|Confirm your PIN"
+    timeout: 10000
+- inputText: "1234"
+- pressKey: Enter
+- tapOn:
+    text: "More"
+    optional: true
+- tapOn:
+    text: "I agree"
+    optional: true
+- tapOn:
+    text: "Next"
+    optional: true
+- extendedWaitUntil:
+    visible: ".*Touch.*sensor.*|.*touch.*sensor.*"
+    timeout: 15000

@@ -74,7 +74,8 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 - `scripts/prepare-device.sh` checks enrollment for the current Android user. If a
   fingerprint exists, it preserves the device credentials and skips enrollment.
   Otherwise it enrolls a fingerprint on an emulator using test PIN `1234` and
-  `shared/enroll_fingerprint.yaml`. An existing different credential is preserved:
+  `shared/` Settings flows. Sensor discovery receives one touch; further input waits
+  until the enrollment screen is ready. An existing different credential is preserved:
   enroll manually or use a fresh test emulator. Unrecognized fingerprint diagnostics
   fail explicitly rather than being treated as an empty enrollment.
 - `scripts/run.sh` prepares the device and runs the selected scenarios with the same

@@ -34,6 +34,14 @@ else
   exit 1
 fi
 adb shell am start -a android.settings.FINGERPRINT_ENROLL
+"$MAESTRO_BIN" test --device "$ANDROID_SERIAL" --test-output-dir build/e2e/find-sensor \
+  --debug-output build/e2e/find-sensor-debug e2e/shared/find_fingerprint_sensor.yaml
+# Settings uses a separate enrollment session for sensor discovery. Send exactly
+# one touch there, then wait for the actual enrollment screen before repeating.
+timeout 10s adb emu finger touch 1
+timeout 10s adb emu finger remove
+"$MAESTRO_BIN" test --device "$ANDROID_SERIAL" --test-output-dir build/e2e/await-enrollment \
+  --debug-output build/e2e/await-enrollment-debug e2e/shared/await_fingerprint_enrollment.yaml
 # Let an in-flight console command finish before removing its working files.
 # Killing just the loop shell would leave that command running after cleanup.
 input_dir=$(mktemp -d build/e2e/fingerprint-input.XXXXXX)
