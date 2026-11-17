@@ -14,7 +14,7 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 
 ### Test store
 
-Repo: `Zangetsu101/pass-test-store` (public) — `e2eInstall` downloads keys from a pinned fixture commit using curl. No GitHub CLI login is needed.
+Repo: `Zangetsu101/pass-test-store` — keys are fetched automatically by `e2eInstall`.
 
 GPG passphrase: `testpass`
 
@@ -94,11 +94,9 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 Every scenario starts with fresh onboarding; suite order does not matter. Add future
 scenarios to `scenarios/` and call `shared/setup_store.yaml` with `KEY_FILE` and
 `USE_GPG_AUTH`. Tests must not rely on another scenario's session or navigation state.
-The entry test stops at the biometric prompt; it does not authenticate or verify a
-released secret.
 
 Both SSH paths work in debug builds: the device SSH key uses a fixed seed, and the
-GPG auth key comes from the public fixture. Both public SSH keys must be registered
+GPG auth key comes from the public fixture. Both public SSH keys are registered
 on GitHub with read access to the test store. Release device keys are random.
 These are public test keys: never grant them access to private stores.
 
@@ -106,13 +104,12 @@ These are public test keys: never grant them access to private stores.
 
 `.github/workflows/e2e.yml` runs on pull requests, pushes to `main`, and manual dispatch.
 It builds the APK before starting the emulator, then invokes `./gradlew e2e`.
-Gradle's task cache avoids rebuilding unchanged output. There is no CI-specific flow.
-The job uses KVM, pinned Maestro 2.12.1, and no release signing secrets.
+Gradle's task cache avoids rebuilding unchanged output. The job uses KVM,
+pinned Maestro 2.12.1, and no release signing secrets.
 
 Local output is in `build/e2e/`. CI uploads that directory as
 `maestro-results-<SHA>` for seven days, including the JUnit report and Maestro
 failure screenshots, hierarchy, and logs. Test assertions are not retried.
-The workflow does not configure branch protection.
 
 ```bash
 gh workflow run e2e.yml --ref <branch>
