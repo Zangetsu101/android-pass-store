@@ -103,7 +103,6 @@ These are public test keys: never grant them access to private stores.
 ## GitHub Actions
 
 `.github/workflows/e2e.yml` runs on pushes to `develop` (including merges) and manual dispatch.
-Pull requests keep the standard build, lint, and unit checks; E2E runs after integration.
 It builds the APK before starting the emulator, then invokes `./gradlew e2e`.
 Gradle's task cache avoids rebuilding unchanged output. The job uses KVM,
 pinned Maestro 2.12.1, and no release signing secrets.
