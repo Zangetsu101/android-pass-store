@@ -1,6 +1,10 @@
 appId: com.zangetsu101.pass
-# Prerequisite: flow_onboarding.yaml completed — app is at EntryBrowser screen.
 ---
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
 - launchApp:
     stopApp: false
 - assertVisible: "alex\\.dev"

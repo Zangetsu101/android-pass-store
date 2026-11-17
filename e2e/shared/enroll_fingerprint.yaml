@@ -1,0 +1,6 @@
+appId: com.android.settings
+---
+- extendedWaitUntil:
+    visible: ".*Fingerprint added.*"
+    timeout: 60000
+- tapOn: "Done"
