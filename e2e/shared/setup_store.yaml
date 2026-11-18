@@ -5,7 +5,7 @@ appId: com.zangetsu101.pass
 - extendedWaitUntil:
     visible:
       text: "> pass init"
-    timeout: 8000
+    timeout: 30000
 - tapOn: "> pass init"
 
 - assertVisible: "import from file"

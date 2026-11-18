@@ -51,6 +51,10 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@AutofillBaseActivity)
+                if (creds.password.isEmpty()) {
+                    cancelAndFinish()
+                    return@launch
+                }
 
                 val label = "${entry.username}${entry.domain?.let { " ($it)" } ?: ""}"
                 val presentation =
@@ -92,6 +96,10 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@AutofillBaseActivity)
+                if (creds.password.isEmpty()) {
+                    cancelAndFinish()
+                    return@launch
+                }
 
                 val cardNumber = String(creds.password)
                 val notes = parseNotes(creds.notes)

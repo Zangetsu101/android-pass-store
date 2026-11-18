@@ -6,6 +6,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,10 +52,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassScaffold
@@ -61,6 +65,7 @@ import com.zangetsu101.pass.ui.components.PassTag
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
+import kotlinx.coroutines.delay
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -214,14 +219,89 @@ private fun DecryptedContent(
     clipboardTimeoutSeconds: Int,
     viewModel: EntryDetailViewModel,
 ) {
-    PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
+    if (unlock.credentials.password.isNotEmpty()) {
+        PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
+            style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
+        )
+        Spacer(Modifier.height(20.dp))
+    }
+    unlock.credentials.otp?.let { otp ->
+        OtpCard(otp, unlock.otpCopied, clipboardTimeoutSeconds, viewModel::copyOtp)
+        Spacer(Modifier.height(20.dp))
+    }
+    NotesCard(notes = unlock.credentials.notes)
+}
+
+@Composable
+private fun OtpCard(
+    otp: Otp,
+    copied: Boolean,
+    clipboardTimeoutSeconds: Int,
+    onCopy: () -> Unit,
+) {
+    var now by remember(otp) { mutableStateOf(System.currentTimeMillis() / 1000) }
+    LaunchedEffect(otp) {
+        if (otp is Otp.Totp) {
+            while (true) {
+                now = System.currentTimeMillis() / 1000
+                delay(200)
+            }
+        }
+    }
+    Text("otp", style = PassType.Label)
+    Spacer(Modifier.height(6.dp))
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(PassColorsDark.Surface, PassShapes.small)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small)
+                .clip(PassShapes.small)
+                .then(if (otp is Otp.Totp) Modifier.clickable(onClick = onCopy) else Modifier)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        when (otp) {
+            is Otp.Invalid -> {
+                Text("error: ${otp.reason}", style = PassType.Body, color = PassColorsDark.Danger)
+            }
+
+            is Otp.Totp -> {
+                val left = otp.secondsRemaining(now)
+                val color = if (left <= 5) PassColorsDark.Warning else PassColorsDark.Accent
+                val code = otp.code(now)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        code.chunked((code.length + 1) / 2).joinToString(" "),
+                        style = PassType.Title.copy(fontSize = 26.sp, letterSpacing = 0.08.em, color = color),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (copied) "copied" else "tap to copy",
+                        style = PassType.Caption.copy(color = if (copied) PassColorsDark.Accent else PassColorsDark.TextDim),
+                    )
+                }
+                Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(progress = {
+                        left.toFloat() / otp.period
+                    }, modifier = Modifier.size(34.dp), color = color, strokeWidth = 3.dp, trackColor = PassColorsDark.Border2)
+                    Text(left.toString(), style = PassType.Caption.copy(color = PassColorsDark.TextDim))
+                }
+            }
+        }
+    }
     Spacer(Modifier.height(6.dp))
     Text(
-        "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
+        when (otp) {
+            is Otp.Invalid -> "no code available"
+            is Otp.Totp -> if (copied) "clipboard clears in ${clipboardTimeoutSeconds}s" else "totp · ${otp.digits} digits · ${otp.period}s"
+        },
         style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
     )
-    Spacer(Modifier.height(20.dp))
-    NotesCard(notes = unlock.credentials.notes)
 }
 
 @Composable

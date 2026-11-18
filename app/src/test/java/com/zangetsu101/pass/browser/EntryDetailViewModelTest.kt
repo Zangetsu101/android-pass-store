@@ -91,6 +91,34 @@ class EntryDetailViewModelTest {
         every { ClipboardClearReceiver.schedule(any(), any()) } just Runs
     }
 
+    @Test
+    fun `OTP copy is sensitive uses settings and resets hint without extending lock`() =
+        runTest {
+            val otp =
+                com.zangetsu101.pass.otp
+                    .parseOtp("otpauth://totp/test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
+            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials.copy(otp = otp)
+            every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(12)
+            val clipboard = mockk<ClipboardManager>(relaxed = true)
+            every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboard
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.copyOtp()
+            verify { ClipData.newPlainText("otp", match { it.toString().matches(Regex("[0-9]{6}")) }) }
+            verify { clipboard.setPrimaryClip(any()) }
+            verify { ClipboardClearReceiver.schedule(mockContext, 12000L) }
+            assertTrue((vm.state.value.unlockState as UnlockState.Decrypted).otpCopied)
+            advanceTimeBy(1501)
+            runCurrent()
+            assertFalse((vm.state.value.unlockState as UnlockState.Decrypted).otpCopied)
+            advanceTimeBy(58500)
+            runCurrent()
+            assertTrue(vm.state.value.unlockState is UnlockState.Idle)
+            vm.copyOtp()
+            verify(exactly = 1) { clipboard.setPrimaryClip(any()) }
+        }
+
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()

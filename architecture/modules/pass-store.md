@@ -60,6 +60,6 @@ Card entries are detected at index time by the first exact lowercase `cards` or 
 ## Non-Goals (v1)
 
 - URL field parsing from decrypted file content
-- OTP / pass-otp entries
+- OTP detection at index time (TOTP is parsed only after decryption in entry details)
 - pass extensions beyond the currently supported Card Entry fields
 - Fuzzy automatic autofill suggestions

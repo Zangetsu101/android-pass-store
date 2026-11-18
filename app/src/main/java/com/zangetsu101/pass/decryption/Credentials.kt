@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.decryption
 
+import com.zangetsu101.pass.otp.Otp
+import com.zangetsu101.pass.otp.parseOtp
+
 /**
  * Decrypted credentials. Note: these secrets are NOT scrubbed from memory.
  * `notes` and the full decrypted plaintext exist as immutable Strings upstream
@@ -13,17 +16,46 @@ data class Credentials(
     val password: CharArray,
     val notes: String,
     val username: String,
+    val otp: Otp? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Credentials) return false
-        return password.contentEquals(other.password) && notes == other.notes && username == other.username
+        return password.contentEquals(other.password) && notes == other.notes && username == other.username && otp == other.otp
     }
 
     override fun hashCode(): Int {
         var result = password.contentHashCode()
         result = 31 * result + notes.hashCode()
         result = 31 * result + username.hashCode()
+        result = 31 * result + (otp?.hashCode() ?: 0)
         return result
     }
 }
+
+/** Keep the original first-line password position; never promote a note into a password. */
+internal fun parseCredentials(
+    plaintext: String,
+    username: String,
+): Credentials {
+    val lines = plaintext.lines()
+    val otpLine = lines.firstOrNull(::isOtpLine)
+    return Credentials(
+        password =
+            lines
+                .firstOrNull()
+                ?.takeUnless(::isOtpLine)
+                .orEmpty()
+                .toCharArray(),
+        notes =
+            lines
+                .drop(1)
+                .filterNot(::isOtpLine)
+                .joinToString("\n")
+                .trimEnd(),
+        username = username,
+        otp = otpLine?.let(::parseOtp),
+    )
+}
+
+private fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")
