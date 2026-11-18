@@ -44,8 +44,15 @@ GPG passphrase: `testpass`
 | `alex`         | `travel/uber.com/alex`            |
 | `personal`     | `cards/visa/personal`             |
 | `travel`       | `cards/mastercard/travel`         |
+| `alex.morgan`  | `work/aws.amazon.com/alex.morgan` |
+| `alex.morgan`  | `otp/google.com/alex.morgan`      |
+| `alex.morgan`  | `work/okta.com/alex.morgan`       |
+| `alex.morgan`  | `finance/coinbase.com/alex.morgan`|
 
 Onboarding flow waits until `alex.dev` is visible — that's the readiness signal. Entry tap flow uses `testpass` as the session passphrase.
+
+The last four entries have `otpauth://` lines: password with TOTP, TOTP only, `hotp`,
+and a TOTP secret with a typo. The test store README describes them.
 
 ## Run locally or in CI
 
@@ -63,6 +70,7 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 ./gradlew e2e -Pflow=onboarding
 ./gradlew e2e -Pflow=onboarding_gpg_auth
 ./gradlew e2e -Pflow=entry_tap
+./gradlew e2e -Pflow=otp
 
 # Build, install, and push fixture keys only
 ./gradlew e2eInstall
@@ -80,6 +88,10 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
   fail explicitly rather than being treated as an empty enrollment.
 - `scripts/run.sh` prepares the device and runs the selected scenarios with the same
   reports and diagnostics locally and in CI. Analytics are disabled.
+- `scripts/accept-biometric-prompts.sh` runs during the scenarios, because Maestro cannot
+  touch the fingerprint sensor. When the app's biometric prompt stays open for 5 seconds,
+  it touches the emulator sensor. The delay lets `entry_tap` assert the prompt first.
+  Its log is `build/e2e/biometric-helper.log`.
 - `shared/setup_store.yaml` resets the app, imports the chosen GPG key, clones the
   test store, and waits for `alex.dev`. Scenarios call it explicitly.
 - `scenarios/` contains only independently runnable tests. Helpers are outside this
@@ -90,6 +102,7 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 | `onboarding` | GPG import without auth subkey, device SSH key, clone |
 | `onboarding_gpg_auth` | GPG import with auth subkey, extraction with passphrase, clone |
 | `entry_tap` | Fresh GPG-auth onboarding, entry tap, session passphrase, biometric prompt |
+| `otp` | OTP card for the four OTP entries: code, copy, caption, no password card, errors |
 
 Every scenario starts with fresh onboarding; suite order does not matter. Add future
 scenarios to `scenarios/` and call `shared/setup_store.yaml` with `KEY_FILE` and

@@ -1,0 +1,86 @@
+appId: com.zangetsu101.pass
+---
+# Needs scripts/run.sh: its fingerprint helper accepts the biometric prompts.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- launchApp:
+    stopApp: false
+
+# The search sorts the alex.morgan entries to the top and stays after Back.
+# The browser shows a tree, so each entry is the alex.morgan row below its folder.
+- tapOn: "> grep -r "
+- inputText: "alex.morgan"
+- hideKeyboard
+
+# Password, TOTP line and notes. The first entry also starts the session.
+- tapOn:
+    text: "alex\\.morgan"
+    below: "work/aws\\.amazon\\.com/"
+- tapOn:
+    text: "Allow"
+    optional: true
+- extendedWaitUntil:
+    visible: "start session"
+    timeout: 5000
+- tapOn: "enter passphrase"
+- inputText: "testpass"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "otp"
+    timeout: 60000
+- assertNotVisible: "(?s).*otpauth://.*"
+- assertNotVisible: "(?s).*FVDKKGZ5KNOOKJ2NTY57TU77ONZSNOFT.*"
+- assertVisible: "password"
+- assertVisible: "(?s).*url: https://console\\.aws\\.amazon\\.com.*"
+- assertVisible: "totp · 6 digits · 30s"
+- tapOn: ".*tap to copy.*"
+- assertVisible: ".*copied.*"
+- extendedWaitUntil:
+    visible: ".*tap to copy.*"
+    timeout: 5000
+- takeScreenshot: otp-password-and-totp
+- pressKey: Back
+
+# TOTP line only: no password card and no notes.
+- tapOn:
+    text: "alex\\.morgan"
+    below: "otp/google\\.com/"
+- extendedWaitUntil:
+    visible: "otp"
+    timeout: 60000
+- assertNotVisible: "(?s).*otpauth://.*"
+- assertNotVisible: "password"
+- assertVisible: "no notes"
+- assertVisible: "totp · 6 digits · 30s"
+- takeScreenshot: otp-only
+- pressKey: Back
+
+# hotp is not supported.
+- tapOn:
+    text: "alex\\.morgan"
+    below: "work/okta\\.com/"
+- extendedWaitUntil:
+    visible: "otp"
+    timeout: 60000
+- assertVisible: "password"
+- assertVisible: "error: hotp is not supported"
+- assertVisible: "no code available"
+- assertNotVisible: "(?s).*otpauth://.*"
+- takeScreenshot: otp-hotp
+- pressKey: Back
+
+# The secret has a typo, so the parser cannot read the line.
+- tapOn:
+    text: "alex\\.morgan"
+    below: "finance/coinbase\\.com/"
+- extendedWaitUntil:
+    visible: "otp"
+    timeout: 60000
+- assertVisible: "password"
+- assertVisible: "error: invalid otpauth URI"
+- assertVisible: "no code available"
+- assertNotVisible: "(?s).*otpauth://.*"
+- takeScreenshot: otp-invalid
