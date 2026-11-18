@@ -14,10 +14,11 @@ enum class CardField { Number, SecurityCode, ExpiryMonth, ExpiryYear, ExpiryDate
  *   Chrome predicts these types when the page has no `autocomplete` attribute.
  */
 fun classifyCardField(
-    autofillHints: Array<String>?,
+    // Some apps put null entries in the hints array.
+    autofillHints: Array<out String?>?,
     htmlAttributes: List<Pair<String, String>>?,
 ): CardField? {
-    autofillHints?.firstNotNullOfOrNull { HINTS[it.lowercase()] }?.let { return it }
+    autofillHints?.firstNotNullOfOrNull { hint -> hint?.let { HINTS[it.lowercase()] } }?.let { return it }
     val attrs = htmlAttributes ?: return null
     return CHROME_TYPE_ATTRIBUTES.firstNotNullOfOrNull { name ->
         attrs.firstOrNull { it.first == name }?.second?.let { CHROME_TYPES[it] }
