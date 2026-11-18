@@ -143,7 +143,7 @@ gh secret set RELEASE_KEY_PASSWORD
 
 ## Future work
 
-- **OTP / `pass-otp` support:** I plan to move my own 2FA secrets into `pass` and add TOTP autofill support.
+- **TOTP autofill:** `pass-otp` TOTP codes are available in entry details. OTP in autofill and Credential Manager, HOTP, and secret creation remain deferred.
 - **Considering:** write support (create/edit entries), HTTPS git authentication.
 
 ## Scope

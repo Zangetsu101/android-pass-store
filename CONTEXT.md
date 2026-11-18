@@ -4,8 +4,16 @@
 
 Entries are GPG-encrypted files in the standard `pass` format:
 
-- Line 1: the secret (password, card number, etc.)
+- Line 1: the secret (password, card number, etc.), except for OTP-only entries
 - Lines 2+: key-value pairs (`key: value`)
+
+## OTP Entries
+
+**Password + OTP Entry**: A pass entry with a password on line 1 and an `otpauth://` line below it.
+
+**OTP-only Entry**: A pass entry whose only content is an `otpauth://` line. It has no password.
+
+**OTP Line**: A line starting with `otpauth://`. The first OTP Line wins; every OTP Line is excluded from passwords and notes, including invalid and unsupported lines. TOTP codes are read-only; HOTP and OTP on External Credential Surfaces are deferred.
 
 ## Entry Path Convention
 

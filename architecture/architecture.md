@@ -38,7 +38,7 @@ Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md)
 | Secret source | First line of decrypted pass file; remaining lines are notes/fields |
 | Card autofill | Supported for **Card Entries** |
 | Passkey support | Out of scope |
-| OTP | Out of scope (v1), future work |
+| OTP | Read-only pass-otp TOTP codes in entry details; external fill and HOTP deferred |
 | Write support | Read-only (v1) |
 | Offline | Full offline after first sync (local git clone, decrypt on demand) |
 | Session lock | Timed inactivity lock; app UI may use passphrase cache while session is active |
@@ -187,7 +187,7 @@ App ready
 
 ## Current Limitations / Future Work
 
-- OTP / `pass-otp` support and TOTP autofill
+- OTP in autofill and Credential Manager, HOTP, and OTP secret creation
 - Write support (create/edit/delete entries)
 - Passkeys / FIDO2
 - HTTPS git authentication

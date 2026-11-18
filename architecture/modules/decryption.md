@@ -38,6 +38,8 @@ line 2+ → notes for display
 username → path-derived PassEntry.username
 ```
 
+Every `otpauth://` line is removed from password/notes; the first is parsed as TOTP or a safe error. OTP-only entries have an empty password and are not returned by external credential surfaces. The OTP module uses RFC 6238 HMAC via `javax.crypto.Mac` (SHA1/SHA256/SHA512, 6–8 digits, positive period). Secrets remain in memory alongside the decrypted credentials and are released on the existing detail lock.
+
 For Card Entries:
 
 ```
@@ -56,6 +58,7 @@ data class Credentials(
     val password: CharArray,
     val notes: String,
     val username: String,
+    val otp: Otp? = null,
 )
 ```
 
@@ -73,6 +76,6 @@ Decrypted secrets are never written to disk by the app. They are held only in pr
 
 ## Non-Goals (v1)
 
-- OTP parsing
+- HOTP generation and OTP secret creation
 - Arbitrary custom field extraction beyond current Card Entry fields
 - Strong heap-scrubbing guarantees
