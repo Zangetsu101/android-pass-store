@@ -17,6 +17,12 @@ class CardFieldTest {
     }
 
     @Test
+    fun `null hints are skipped and the remaining hints still match`() {
+        assertEquals(CardField.Number, classifyCardField(arrayOf(null, "cc-number"), null))
+        assertNull(classifyCardField(arrayOf(null), null))
+    }
+
+    @Test
     fun `html autocomplete tokens from a browser map to card fields`() {
         assertEquals(CardField.Number, classifyCardField(arrayOf("cc-number"), null))
         assertEquals(CardField.SecurityCode, classifyCardField(arrayOf("cc-csc"), null))
