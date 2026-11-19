@@ -20,3 +20,6 @@ keystore.properties
 # Release artifacts staged at the repo root for upload
 /*.apk
 /*.apk.sha256
+
+# Claude Code worktrees
+/.claude/worktrees/
