@@ -101,17 +101,19 @@ class PassAndroidAutofillService : AutofillService() {
 
         if (usernameNode == null && passwordNode == null) return null
 
+        val loginTarget = if (webDomain != null) "web:$webDomain" else "app:$packageName"
         val candidates =
-            autofillHistory.rank(
+            autofillHistory.suggestLogins(
+                loginTarget,
                 fillTarget,
-                (if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName))
-                    .filter { !it.isCard },
+                if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName),
+                passStore.index.value,
             )
 
         val datasets =
             candidates.mapIndexed { i, entry ->
                 val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
-                buildLockedDataset(fillTarget, entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
+                buildLockedDataset(loginTarget, entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
             }
 
         val searchSpec = inlineSpecs.getOrNull(candidates.size) ?: inlineSpecs.lastOrNull()
@@ -121,6 +123,7 @@ class PassAndroidAutofillService : AutofillService() {
                 passwordNode?.autofillId,
                 candidates.size,
                 searchSpec,
+                loginTarget,
                 fillTarget,
             )
 
@@ -206,12 +209,14 @@ class PassAndroidAutofillService : AutofillService() {
         requestCode: Int,
         inlineSpec: InlinePresentationSpec?,
         fillTarget: String,
+        initialQuery: String,
     ): android.service.autofill.Dataset {
         val searchIntent =
             Intent(this, AutofillSearchActivity::class.java).apply {
                 usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
                 passwordId?.let { putExtra(AutofillSearchActivity.EXTRA_PASSWORD_ID, it) }
-                putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, fillTarget)
+                putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, initialQuery)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

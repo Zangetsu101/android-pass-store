@@ -46,7 +46,7 @@ finance/cards/my-card.gpg             → domain=null         username=my-card
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | Login entry              | Autofill matching (DNS subdomain + package name reversal) AND display label                                               |
 | Card entry               | Display label only — cards match all card forms regardless of domain                                                      |
-| Any entry, `domain=null` | Never auto-suggested for autofill (`resolve`/`resolveByPackage` skip them); reachable only via explicit search or browser |
+| Login entry, `domain=null` | Skipped by domain and package matching. Reachable through search, the entry browser, or Autofill History |
 
 The `domain` field is expected to be a DNS domain name for login entries. Non-DNS parent directories (e.g. `personal/`, `work/`) must not be the immediate parent of a login entry or they will be treated as the domain.
 
@@ -107,7 +107,9 @@ The record on the device of the entry that the user filled last on each **Fill T
 
 Relationships:
 
-- The **Autofill History** only sorts the suggestions. It never adds a suggestion and never removes the biometric confirmation.
+- For a login form, the last login filled on that Fill Target is suggested first if it still exists in the index, even if domain or package matching misses it.
+- For a card form, **Autofill History** only sorts the suggestions.
+- Every fill still requires biometric confirmation.
 
 ## Card Entry
 

@@ -72,7 +72,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                             passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
                         }.build()
 
-                recordFill(entry)
+                if (!entry.isCard) recordFill(entry)
                 val replyIntent =
                     Intent().apply {
                         putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset)
