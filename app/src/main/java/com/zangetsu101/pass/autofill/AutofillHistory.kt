@@ -44,15 +44,23 @@ class AutofillHistory
             }
         }
 
-        suspend fun rankLogins(
+        suspend fun suggestLogins(
             fillTarget: String,
+            legacyFillTarget: String,
             matches: List<PassEntry>,
             indexedEntries: List<PassEntry>,
         ): List<PassEntry> {
             val candidates = matches.filterNot { it.isCard }
-            val rememberedPath = read()?.get(targetKey(fillTarget, isCard = false)) ?: return candidates
-            val remembered = indexedEntries.firstOrNull { it.path == rememberedPath && !it.isCard } ?: return candidates
-            return listOf(remembered) + candidates.filterNot { it.path == rememberedPath }
+            val history = read() ?: return candidates
+            val path = history[targetKey(fillTarget, isCard = false)]
+            val remembered =
+                if (path != null) {
+                    indexedEntries.firstOrNull { it.path == path && !it.isCard }
+                } else {
+                    val legacyPath = history[targetKey(legacyFillTarget, isCard = false)]
+                    candidates.firstOrNull { it.path == legacyPath }
+                } ?: return candidates
+            return listOf(remembered) + candidates.filterNot { it.path == remembered.path }
         }
 
         /**

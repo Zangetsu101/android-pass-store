@@ -82,10 +82,22 @@ class AutofillHistoryTest {
     fun `a remembered login is suggested even when the target has no matches`() =
         testScope.runTest {
             val login = entry("example.net/alice")
-            history.record("example.com", login)
+            history.record("web:com.example", login)
 
-            assertEquals(listOf(login), history.rankLogins("example.com", emptyList(), listOf(login)))
-            assertEquals(emptyList<PassEntry>(), history.rankLogins("other.example.com", emptyList(), listOf(login)))
+            assertEquals(listOf(login), history.suggestLogins("web:com.example", "com.example", emptyList(), listOf(login)))
+            assertEquals(emptyList<PassEntry>(), history.suggestLogins("app:com.example", "com.example", emptyList(), listOf(login)))
+        }
+
+    @Test
+    fun `older history can reorder matches for a target but cannot add suggestions`() =
+        testScope.runTest {
+            val alice = entry("example.com/alice")
+            val bob = entry("example.com/bob")
+            val entries = listOf(alice, bob)
+            history.record("example.com", bob)
+
+            assertEquals(listOf(bob, alice), history.suggestLogins("web:example.com", "example.com", entries, entries))
+            assertEquals(emptyList<PassEntry>(), history.suggestLogins("web:example.com", "example.com", emptyList(), entries))
         }
 
     @Test
@@ -94,18 +106,18 @@ class AutofillHistoryTest {
             val alice = entry("example.com/alice")
             val bob = entry("example.com/bob")
             val matches = listOf(alice, bob)
-            history.record("example.com", bob)
+            history.record("web:example.com", bob)
 
-            assertEquals(listOf(bob, alice), history.rankLogins("example.com", matches, matches))
+            assertEquals(listOf(bob, alice), history.suggestLogins("web:example.com", "example.com", matches, matches))
         }
 
     @Test
     fun `a removed login leaves the ordinary matches in place`() =
         testScope.runTest {
             val matches = listOf(entry("example.com/alice"))
-            history.record("example.com", entry("example.net/bob"))
+            history.record("web:example.com", entry("example.net/bob"))
 
-            assertEquals(matches, history.rankLogins("example.com", matches, matches))
+            assertEquals(matches, history.suggestLogins("web:example.com", "example.com", matches, matches))
         }
 
     @Test
