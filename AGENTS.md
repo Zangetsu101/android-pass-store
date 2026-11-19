@@ -22,4 +22,8 @@ User knows web/React well, Android ecosystem poorly. When explaining Android con
 
 ### Domain docs
 
-Single-context repo: read root `CONTEXT.md` and relevant ADRs under `docs/adr/`. See `docs/agents/domain.md`.
+Single-context repo: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Scratch folder
+
+`.scratch/` holds local notes, specs and temporary scripts. Git ignores it, but `rg` searches it.
