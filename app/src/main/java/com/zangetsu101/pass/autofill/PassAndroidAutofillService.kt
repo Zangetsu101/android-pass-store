@@ -102,10 +102,10 @@ class PassAndroidAutofillService : AutofillService() {
         if (usernameNode == null && passwordNode == null) return null
 
         val candidates =
-            autofillHistory.rank(
+            autofillHistory.rankLogins(
                 fillTarget,
-                (if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName))
-                    .filter { !it.isCard },
+                if (webDomain != null) passStore.resolve(webDomain) else passStore.resolveByPackage(packageName),
+                passStore.index.value,
             )
 
         val datasets =
@@ -212,6 +212,7 @@ class PassAndroidAutofillService : AutofillService() {
                 usernameId?.let { putExtra(AutofillSearchActivity.EXTRA_USERNAME_ID, it) }
                 passwordId?.let { putExtra(AutofillSearchActivity.EXTRA_PASSWORD_ID, it) }
                 putExtra(AutofillSearchActivity.EXTRA_INITIAL_QUERY, fillTarget)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

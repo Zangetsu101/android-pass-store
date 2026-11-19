@@ -79,6 +79,36 @@ class AutofillHistoryTest {
         }
 
     @Test
+    fun `a remembered login is suggested even when the target has no matches`() =
+        testScope.runTest {
+            val login = entry("example.net/alice")
+            history.record("example.com", login)
+
+            assertEquals(listOf(login), history.rankLogins("example.com", emptyList(), listOf(login)))
+            assertEquals(emptyList<PassEntry>(), history.rankLogins("other.example.com", emptyList(), listOf(login)))
+        }
+
+    @Test
+    fun `a remembered login that also matches appears once at the top`() =
+        testScope.runTest {
+            val alice = entry("example.com/alice")
+            val bob = entry("example.com/bob")
+            val matches = listOf(alice, bob)
+            history.record("example.com", bob)
+
+            assertEquals(listOf(bob, alice), history.rankLogins("example.com", matches, matches))
+        }
+
+    @Test
+    fun `a removed login leaves the ordinary matches in place`() =
+        testScope.runTest {
+            val matches = listOf(entry("example.com/alice"))
+            history.record("example.com", entry("example.net/bob"))
+
+            assertEquals(matches, history.rankLogins("example.com", matches, matches))
+        }
+
+    @Test
     fun `a login and a card on the same target are remembered separately`() =
         testScope.runTest {
             val alice = entry("amazon.com/alice")

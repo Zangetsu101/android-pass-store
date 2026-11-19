@@ -21,8 +21,7 @@ annotation class AutofillHistoryStore
  * Remembers the entry that the user filled last on each fill target.
  * A fill target is the web domain of a browser form, or the package name of a native app.
  *
- * The history holds entry paths only. It changes the order of suggestions and never adds one.
- * A fill must work without the history, so [record] and [rank] ignore an error of the store.
+ * The history holds entry paths only. A fill must work even if the store fails.
  */
 @Singleton
 class AutofillHistory
@@ -45,6 +44,17 @@ class AutofillHistory
             }
         }
 
+        suspend fun rankLogins(
+            fillTarget: String,
+            matches: List<PassEntry>,
+            indexedEntries: List<PassEntry>,
+        ): List<PassEntry> {
+            val candidates = matches.filterNot { it.isCard }
+            val rememberedPath = read()?.get(targetKey(fillTarget, isCard = false)) ?: return candidates
+            val remembered = indexedEntries.firstOrNull { it.path == rememberedPath && !it.isCard } ?: return candidates
+            return listOf(remembered) + candidates.filterNot { it.path == rememberedPath }
+        }
+
         /**
          * Sorts [candidates] for [fillTarget]. The entry that was filled last on the target comes first.
          * The card that was filled last on any target comes second. The other entries keep their order.
@@ -53,14 +63,7 @@ class AutofillHistory
             fillTarget: String,
             candidates: List<PassEntry>,
         ): List<PassEntry> {
-            val history =
-                try {
-                    withTimeoutOrNull(READ_TIMEOUT_MS) { store.data.first() }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    null
-                } ?: return candidates
+            val history = read() ?: return candidates
             val lastCard = history[KEY_LAST_CARD]
             return candidates.sortedBy {
                 when (it.path) {
@@ -70,6 +73,15 @@ class AutofillHistory
                 }
             }
         }
+
+        private suspend fun read(): Preferences? =
+            try {
+                withTimeoutOrNull(READ_TIMEOUT_MS) { store.data.first() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
 
         suspend fun clear() {
             store.edit { it.clear() }
