@@ -33,12 +33,17 @@ class LoginEntryWriterTest {
     @Test
     fun `a push failure reports that the committed edit is still saved`() =
         runTest {
-            val ring = PGPainless.getInstance().generateKey()
-                .modernKeyRing("Alice Example <alice@example.com>").pgpSecretKeyRing
-            val key = PublicKeySource(
-                PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
-                ring.map { it.publicKey.keyID }.toSet(),
-            )
+            val ring =
+                PGPainless
+                    .getInstance()
+                    .generateKey()
+                    .modernKeyRing("Alice Example <alice@example.com>")
+                    .pgpSecretKeyRing
+            val key =
+                PublicKeySource(
+                    PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
+                    ring.map { it.publicKey.keyID }.toSet(),
+                )
             val keyStore = mockk<GpgKeyStore>()
             every { keyStore.publicKeySource() } returns key
             File(root, ".gpg-id").writeText("alice@example.com")

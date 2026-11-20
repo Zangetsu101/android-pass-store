@@ -25,11 +25,12 @@ class DecryptionImpl(
     ): Credentials {
         val secretKeyRing = gpgKeyProvider.getGpgKey(activity)
         return withContext(Dispatchers.IO) {
-            val ciphertext = try {
-                entry.encryptedFile.readBytes()
-            } catch (error: IOException) {
-                throw DecryptionError("Couldn't read this entry.", error)
-            }
+            val ciphertext =
+                try {
+                    entry.encryptedFile.readBytes()
+                } catch (error: IOException) {
+                    throw DecryptionError("Couldn't read this entry.", error)
+                }
             val plaintext = decryptFile(ciphertext, secretKeyRing)
             val source = if (entry.isCard) null else LoginEditSource(EditableLogin(plaintext), ciphertext.ciphertextDigest())
             parseCredentials(plaintext, entry.username, source)

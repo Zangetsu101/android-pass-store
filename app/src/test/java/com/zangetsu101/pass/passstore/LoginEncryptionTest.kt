@@ -18,12 +18,13 @@ class LoginEncryptionTest {
     private val pgp = PGPainless.getInstance()
     private val key = pgp.generateKey().modernKeyRing("Alice Example <alice@example.com>")
     private val ring = key.pgpSecretKeyRing
-    private val encryption = LoginEncryption(
-        PublicKeySource(
-            PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
-            ring.map { it.publicKey.keyID }.toSet(),
-        ),
-    )
+    private val encryption =
+        LoginEncryption(
+            PublicKeySource(
+                PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
+                ring.map { it.publicKey.keyID }.toSet(),
+            ),
+        )
     private val path = "team/example.com/alice.gpg"
 
     @Test
@@ -93,12 +94,18 @@ class LoginEncryptionTest {
     private fun assertRoundTrip() {
         val plaintext = "secret\r\nnotes  \r\n"
         val ciphertext = encryption.encrypt(root, path, plaintext)
-        val input = pgp.processMessage().onInputStream(ciphertext.inputStream())
-            .withOptions(ConsumerOptions.get().addDecryptionKey(key))
+        val input =
+            pgp
+                .processMessage()
+                .onInputStream(ciphertext.inputStream())
+                .withOptions(ConsumerOptions.get().addDecryptionKey(key))
         assertEquals(plaintext, input.use { it.readBytes().decodeToString() })
     }
 
-    private fun recipients(folder: String, contents: String) {
+    private fun recipients(
+        folder: String,
+        contents: String,
+    ) {
         File(root, folder).mkdirs()
         File(File(root, folder), ".gpg-id").writeText(contents)
     }

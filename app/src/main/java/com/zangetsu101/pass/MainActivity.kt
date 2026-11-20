@@ -16,8 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
-import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.navigation.PassAndroidNavHost
+import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.ui.theme.PassTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,6 +26,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     @Inject lateinit var appPreferences: AppPreferences
+
     @Inject lateinit var loginWriter: LoginEntryWriter
 
     override fun onCreate(savedInstanceState: Bundle?) {

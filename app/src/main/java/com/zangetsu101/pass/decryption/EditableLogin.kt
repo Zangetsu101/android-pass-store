@@ -13,12 +13,21 @@ class LoginEditSource internal constructor(
 
 internal fun ByteArray.ciphertextDigest(): ByteArray = MessageDigest.getInstance("SHA-256").digest(this)
 
-internal class EditableLogin(plaintext: String) {
-    private class Line(val text: String, val ending: String)
+internal class EditableLogin(
+    plaintext: String,
+) {
+    private class Line(
+        val text: String,
+        val ending: String,
+    )
 
-    private val lines = linePattern.findAll(plaintext).filter { it.value.isNotEmpty() }.map {
-        Line(it.groupValues[1], it.groupValues[2])
-    }.toList()
+    private val lines =
+        linePattern
+            .findAll(plaintext)
+            .filter { it.value.isNotEmpty() }
+            .map {
+                Line(it.groupValues[1], it.groupValues[2])
+            }.toList()
     private val defaultEnding = lines.firstOrNull { it.ending.isNotEmpty() }?.ending ?: "\n"
     private val firstIsOtp = lines.firstOrNull()?.let { isOtpLine(it.text) } == true
     private val finalEnding = lines.lastOrNull()?.ending.orEmpty()
@@ -27,22 +36,26 @@ internal class EditableLogin(plaintext: String) {
     val notes = noteLines.joinToString("\n") { it.text }
     val hasOtp = lines.any { isOtpLine(it.text) }
 
-    fun render(password: String, notes: String): String {
+    fun render(
+        password: String,
+        notes: String,
+    ): String {
         val noteEdits = if (notes == this.notes) null else editNotes(notes)
-        val result = buildList {
-            if (!firstIsOtp || password.isNotEmpty()) {
-                add(Line(password, if (firstIsOtp) defaultEnding else lines.firstOrNull()?.ending.orEmpty()))
-            }
-            var noteIndex = 0
-            for (line in lines.drop(if (firstIsOtp) 0 else 1)) {
-                if (isOtpLine(line.text) || noteEdits == null) {
-                    add(line)
-                } else {
-                    addAll(noteEdits[noteIndex++])
+        val result =
+            buildList {
+                if (!firstIsOtp || password.isNotEmpty()) {
+                    add(Line(password, if (firstIsOtp) defaultEnding else lines.firstOrNull()?.ending.orEmpty()))
                 }
+                var noteIndex = 0
+                for (line in lines.drop(if (firstIsOtp) 0 else 1)) {
+                    if (isOtpLine(line.text) || noteEdits == null) {
+                        add(line)
+                    } else {
+                        addAll(noteEdits[noteIndex++])
+                    }
+                }
+                if (noteEdits != null) addAll(noteEdits.last())
             }
-            if (noteEdits != null) addAll(noteEdits.last())
-        }
         return buildString {
             result.forEachIndexed { index, line ->
                 append(line.text)
@@ -53,15 +66,17 @@ internal class EditableLogin(plaintext: String) {
 
     private fun editNotes(notes: String): List<List<Line>> {
         val updated = if (notes.isEmpty()) emptyList() else notes.lines()
+
         fun asRawText(lines: List<String>): RawText {
             val text = if (lines.isEmpty()) "" else lines.joinToString("\n", postfix = "\n")
             return RawText(text.toByteArray(Charsets.UTF_8))
         }
-        val edits = HistogramDiff().diff(
-            RawTextComparator.DEFAULT,
-            asRawText(noteLines.map { it.text }),
-            asRawText(updated),
-        )
+        val edits =
+            HistogramDiff().diff(
+                RawTextComparator.DEFAULT,
+                asRawText(noteLines.map { it.text }),
+                asRawText(updated),
+            )
 
         // Assign replacements to their original note slots. Insertions next to surviving
         // notes follow those anchors, so an OTP line keeps its position between them.

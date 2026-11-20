@@ -144,7 +144,11 @@ class EntryDetailViewModelTest {
             vm.updateEditorPassword("new password\t")
             session.value = SessionState.Inactive(EndReason.TIMEOUT)
             runCurrent()
-            assertEquals("newpassword", vm.state.value.editor?.password)
+            assertEquals(
+                "newpassword",
+                vm.state.value.editor
+                    ?.password,
+            )
 
             vm.saveEditor()
             runCurrent()
@@ -165,12 +169,19 @@ class EntryDetailViewModelTest {
             vm.authenticate(mockActivity)
             runCurrent()
             vm.startEditing()
-            assertFalse(vm.state.value.editor!!.changed)
+            assertFalse(
+                vm.state.value.editor!!
+                    .changed,
+            )
 
             vm.updateEditorPassword("  \t")
             vm.saveEditor()
 
-            assertEquals("password cannot be empty", vm.state.value.editor?.error)
+            assertEquals(
+                "password cannot be empty",
+                vm.state.value.editor
+                    ?.error,
+            )
             coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any()) }
             vm.discardEditor()
             assertEquals(null, vm.state.value.editor)

@@ -231,7 +231,10 @@ class EntryDetailViewModel
         }
 
         fun copyEditorPassword() {
-            val password = _state.value.editor?.password.orEmpty()
+            val password =
+                _state.value.editor
+                    ?.password
+                    .orEmpty()
             if (password.isNotEmpty()) copySecret("password", password)
         }
 
@@ -239,7 +242,10 @@ class EntryDetailViewModel
             val editor = _state.value.editor ?: return
             if (editor.saving || !editor.changed) return
             val password = editor.password
-            if (password.isEmpty() && editor.source.login.password.isNotEmpty()) {
+            if (password.isEmpty() &&
+                editor.source.login.password
+                    .isNotEmpty()
+            ) {
                 updateEditor { it.copy(error = "password cannot be empty") }
                 return
             }
@@ -251,10 +257,11 @@ class EntryDetailViewModel
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
-                    val message = when (error) {
-                        is LoginSaveError, is SyncError.EditRejected -> error.message
-                        else -> "couldn't save entry"
-                    }
+                    val message =
+                        when (error) {
+                            is LoginSaveError, is SyncError.EditRejected -> error.message
+                            else -> "couldn't save entry"
+                        }
                     _state.update { it.copy(editor = editor.copy(error = message)) }
                 }
             }
@@ -281,10 +288,11 @@ class EntryDetailViewModel
                     showingSavedLogin = savedAfterTimeout,
                 )
             }
-            autoLockJob = viewModelScope.launch {
-                delay(60_000L)
-                refreshLock()
-            }
+            autoLockJob =
+                viewModelScope.launch {
+                    delay(60_000L)
+                    refreshLock()
+                }
         }
 
         fun toggleReveal() {

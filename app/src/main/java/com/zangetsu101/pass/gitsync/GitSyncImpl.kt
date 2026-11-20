@@ -12,9 +12,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.apache.sshd.common.config.keys.KeyUtils
 import org.apache.sshd.common.digest.BuiltinDigests
@@ -232,31 +232,33 @@ class GitSyncImpl
                     val edit = prepare(root, original)
                     withContext(NonCancellable) {
                         replaceFile(file, edit.ciphertext)
-                        val commit = try {
-                            // setOnly stages this path and leaves other staged files out of the commit.
-                            git.commit()
-                                .setOnly(path)
-                                .setAuthor(edit.author)
-                                .setCommitter(edit.author)
-                                .setSign(false)
-                                .setMessage("Edit password for ${path.removeSuffix(".gpg")} using editor.")
-                                .call()
-                        } catch (failure: Exception) {
-                            val after = git.repository.resolve(Constants.HEAD)
-                            val editedBlob = ObjectInserter.Formatter().use { it.idFor(Constants.OBJ_BLOB, edit.ciphertext) }
-                            if (after != before && git.repository.resolve("HEAD:$path") == editedBlob) {
-                                // A post-commit error can occur after HEAD has already advanced.
-                                git.repository.parseCommit(after)
-                            } else {
-                                try {
-                                    replaceFile(file, original)
-                                    restoreIndexEntry(git.repository, indexEntry)
-                                } catch (rollbackFailure: Exception) {
-                                    failure.addSuppressed(rollbackFailure)
+                        val commit =
+                            try {
+                                // setOnly stages this path and leaves other staged files out of the commit.
+                                git
+                                    .commit()
+                                    .setOnly(path)
+                                    .setAuthor(edit.author)
+                                    .setCommitter(edit.author)
+                                    .setSign(false)
+                                    .setMessage("Edit password for ${path.removeSuffix(".gpg")} using editor.")
+                                    .call()
+                            } catch (failure: Exception) {
+                                val after = git.repository.resolve(Constants.HEAD)
+                                val editedBlob = ObjectInserter.Formatter().use { it.idFor(Constants.OBJ_BLOB, edit.ciphertext) }
+                                if (after != before && git.repository.resolve("HEAD:$path") == editedBlob) {
+                                    // A post-commit error can occur after HEAD has already advanced.
+                                    git.repository.parseCommit(after)
+                                } else {
+                                    try {
+                                        replaceFile(file, original)
+                                        restoreIndexEntry(git.repository, indexEntry)
+                                    } catch (rollbackFailure: Exception) {
+                                        failure.addSuppressed(rollbackFailure)
+                                    }
+                                    throw failure
                                 }
-                                throw failure
                             }
-                        }
                         FileCommitInfo(commit.name.take(7), Instant.ofEpochSecond(commit.commitTime.toLong()))
                     }
                 }
@@ -271,15 +273,20 @@ class GitSyncImpl
                     val config = git.repository.config
                     val remote = config.getString("branch", branchName, "remote") ?: "origin"
                     val destination = config.getString("branch", branchName, "merge") ?: branch
-                    val command = git.push()
-                        .setRemote(remote)
-                        .setRefSpecs(RefSpec("$branch:$destination"))
-                        .setTimeout(30)
+                    val command =
+                        git
+                            .push()
+                            .setRemote(remote)
+                            .setRefSpecs(RefSpec("$branch:$destination"))
+                            .setTimeout(30)
                     remoteSshKey()?.let { command.setTransportConfigCallback(makeSshCallback(it)) }
                     val updates = command.call().flatMap { it.remoteUpdates }
-                    check(updates.isNotEmpty() && updates.all {
-                        it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE
-                    }) { "push rejected" }
+                    check(
+                        updates.isNotEmpty() &&
+                            updates.all {
+                                it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE
+                            },
+                    ) { "push rejected" }
                 }
             }
         }
@@ -293,7 +300,10 @@ class GitSyncImpl
         private suspend fun <T> withRepositoryLock(block: suspend () -> T): T =
             withContext(Dispatchers.IO) { operations.withLock { block() } }
 
-        private fun restoreIndexEntry(repository: Repository, original: DirCacheEntry) {
+        private fun restoreIndexEntry(
+            repository: Repository,
+            original: DirCacheEntry,
+        ) {
             val index = repository.lockDirCache()
             try {
                 val position = index.findEntry(original.pathString)
@@ -309,7 +319,10 @@ class GitSyncImpl
             }
         }
 
-        private fun replaceFile(file: File, content: ByteArray) {
+        private fun replaceFile(
+            file: File,
+            content: ByteArray,
+        ) {
             val temporary = Files.createTempFile(file.parentFile!!.toPath(), ".pass-", ".tmp")
             try {
                 Files.write(temporary, content)

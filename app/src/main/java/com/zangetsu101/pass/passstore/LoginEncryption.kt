@@ -13,45 +13,69 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 
-internal class LoginEncryption(private val key: PublicKeySource) {
+internal class LoginEncryption(
+    private val key: PublicKeySource,
+) {
     private val certificate = OpenPGPCertificate(key.certificate)
     private val uidPattern = Regex("^(.*?)\\s*<([^<>\\s]+@[^<>\\s]+)>$")
 
     fun author(): PersonIdent {
-        val uid = key.certificate.publicKey.userIDs.asSequence().firstOrNull().orEmpty()
+        val uid =
+            key.certificate.publicKey.userIDs
+                .asSequence()
+                .firstOrNull()
+                .orEmpty()
         val identity = uidPattern.matchEntire(uid)
-        val name = identity?.groupValues?.get(1)?.trim().orEmpty()
+        val name =
+            identity
+                ?.groupValues
+                ?.get(1)
+                ?.trim()
+                .orEmpty()
         if (name.isEmpty() || identity == null) throw LoginSaveError("first GPG user ID needs a name and email")
         return PersonIdent(name, identity.groupValues[2])
     }
 
-    fun encrypt(root: File, path: String, plaintext: String): ByteArray {
+    fun encrypt(
+        root: File,
+        path: String,
+        plaintext: String,
+    ): ByteArray {
         val pgp = PGPainless.getInstance()
         val info = pgp.inspect(certificate)
-        val keys = (
-            info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_COMMS) + info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_STORAGE)
-        ).map { it.pgpPublicKey } + key.certificate.publicKey
+        val keys =
+            (
+                info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_COMMS) + info.getKeysWithKeyFlag(KeyFlag.ENCRYPT_STORAGE)
+            ).map { it.pgpPublicKey } + key.certificate.publicKey
         val keyIds = keys.map { "%016X".format(it.keyID) }
         val fingerprints = keys.map { publicKey -> publicKey.fingerprint.joinToString("") { "%02X".format(it) } }
-        val emails = info.validUserIds.asSequence()
-            .map { uidPattern.matchEntire(it)?.groupValues?.get(2) ?: it }
-            .filter { '@' in it && it.none(Char::isWhitespace) }
-            .toList()
-        val recipientFile = generateSequence(File(root, path).parentFile) {
-            if (it == root) null else it.parentFile
-        }.map { File(it, ".gpg-id") }.firstOrNull { Files.exists(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
-            ?: throw LoginSaveError("missing .gpg-id · cannot encrypt")
+        val emails =
+            info.validUserIds
+                .asSequence()
+                .map { uidPattern.matchEntire(it)?.groupValues?.get(2) ?: it }
+                .filter { '@' in it && it.none(Char::isWhitespace) }
+                .toList()
+        val recipientFile =
+            generateSequence(File(root, path).parentFile) {
+                if (it == root) null else it.parentFile
+            }.map { File(it, ".gpg-id") }.firstOrNull { Files.exists(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
+                ?: throw LoginSaveError("missing .gpg-id · cannot encrypt")
         if (!recipientFile.isFile || recipientFile != recipientFile.canonicalFile) {
             throw LoginSaveError("cannot read .gpg-id")
         }
-        val recipients = recipientFile.readLines().map(String::trim)
-            .filter { it.isNotEmpty() && !it.startsWith("#") }.distinct()
+        val recipients =
+            recipientFile
+                .readLines()
+                .map(String::trim)
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .distinct()
         if (recipients.isEmpty()) throw LoginSaveError("empty .gpg-id · cannot encrypt")
-        val unknown = recipients.count { recipient ->
-            val hex = recipient.replaceFirst(Regex("^0x", RegexOption.IGNORE_CASE), "")
-            (keyIds + fingerprints).none { it.equals(hex, ignoreCase = true) } &&
-                emails.none { it.equals(recipient.removeSurrounding("<", ">"), ignoreCase = true) }
-        }
+        val unknown =
+            recipients.count { recipient ->
+                val hex = recipient.replaceFirst(Regex("^0x", RegexOption.IGNORE_CASE), "")
+                (keyIds + fingerprints).none { it.equals(hex, ignoreCase = true) } &&
+                    emails.none { it.equals(recipient.removeSurrounding("<", ">"), ignoreCase = true) }
+            }
         if (unknown > 0) {
             val folder = recipientFile.parentFile!!.relativeTo(root).invariantSeparatorsPath
             val label = if (folder.isEmpty()) "store" else "$folder/"
@@ -59,11 +83,14 @@ internal class LoginEncryption(private val key: PublicKeySource) {
             throw LoginSaveError("$label is shared with $count · can't encrypt for them yet")
         }
 
-        val options = EncryptionOptions.get().addRecipient(certificate) { candidates ->
-            candidates.filter { it.pgpPublicKey.keyID in key.availableKeyIds }
-        }
+        val options =
+            EncryptionOptions.get().addRecipient(certificate) { candidates ->
+                candidates.filter { it.pgpPublicKey.keyID in key.availableKeyIds }
+            }
         val output = ByteArrayOutputStream()
-        pgp.generateMessage().onOutputStream(output)
+        pgp
+            .generateMessage()
+            .onOutputStream(output)
             .withOptions(ProducerOptions.encrypt(options).setAsciiArmor(false))
             .use { it.write(plaintext.toByteArray(Charsets.UTF_8)) }
         return output.toByteArray()

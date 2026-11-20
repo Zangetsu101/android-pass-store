@@ -5,10 +5,10 @@ import android.content.Context
 import com.zangetsu101.pass.gitsync.repositoryDirectory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import org.apache.commons.text.similarity.LevenshteinDistance
 import java.io.File
 import javax.inject.Inject
@@ -25,19 +25,20 @@ class PassStoreImpl
 
         private val levenshtein = LevenshteinDistance.getDefaultInstance()
 
-        override suspend fun buildIndex(): List<PassEntry> = withContext(Dispatchers.IO) {
-            val repoDir = context.repositoryDirectory()
-            val entries =
-                repoDir
-                    .walkTopDown()
-                    .filter { it.isFile && it.name.endsWith(".gpg") }
-                    .map { file ->
-                        val relativePath = file.relativeTo(repoDir).path.replace(File.separatorChar, '/')
-                        parseEntry(relativePath, file)
-                    }.toList()
-            _index.value = entries
-            entries
-        }
+        override suspend fun buildIndex(): List<PassEntry> =
+            withContext(Dispatchers.IO) {
+                val repoDir = context.repositoryDirectory()
+                val entries =
+                    repoDir
+                        .walkTopDown()
+                        .filter { it.isFile && it.name.endsWith(".gpg") }
+                        .map { file ->
+                            val relativePath = file.relativeTo(repoDir).path.replace(File.separatorChar, '/')
+                            parseEntry(relativePath, file)
+                        }.toList()
+                _index.value = entries
+                entries
+            }
 
         override fun search(query: String): List<PassEntry> {
             val q = query.lowercase()

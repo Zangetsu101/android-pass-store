@@ -19,7 +19,6 @@ data class Credentials(
     val otp: Otp? = null,
     internal val editSource: LoginEditSource? = null,
 ) {
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Credentials) return false
