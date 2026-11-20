@@ -9,7 +9,11 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.zangetsu101.pass.keymanagement.SshKeyPair
 import com.zangetsu101.pass.keymanagement.ssh.SshKeyStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.apache.sshd.common.config.keys.KeyUtils
@@ -20,14 +24,23 @@ import org.eclipse.jgit.api.MergeCommand.FastForwardMode
 import org.eclipse.jgit.api.TransportConfigCallback
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
+import org.eclipse.jgit.dircache.DirCacheEntry
+import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
+import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.ProgressMonitor
+import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.lib.RepositoryState
+import org.eclipse.jgit.transport.RefSpec
+import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.SshTransport
 import org.eclipse.jgit.transport.sshd.ServerKeyDatabase
 import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.security.Security
 import java.time.Instant
 import javax.inject.Inject
@@ -40,10 +53,15 @@ private val GITHUB_HOST_FINGERPRINTS =
         "SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s", // rsa
     )
 
-private val Context.gitSyncDataStore by preferencesDataStore("git_sync")
+internal val Context.gitSyncDataStore by preferencesDataStore("git_sync")
 private val KEY_LAST_SYNC = longPreferencesKey("last_sync_epoch_ms")
 private val KEY_REMOTE_URL = stringPreferencesKey("remote_url")
 private val KEY_REPO_PATH = stringPreferencesKey("repo_path")
+
+internal suspend fun Context.repositoryDirectory(): File {
+    val path = gitSyncDataStore.data.first()[KEY_REPO_PATH]
+    return if (path != null) File(path) else File(filesDir, "repo")
+}
 
 @Singleton
 class GitSyncImpl
@@ -52,6 +70,8 @@ class GitSyncImpl
         @ApplicationContext private val context: Context,
         private val sshKeyStore: SshKeyStore,
     ) : GitSync {
+        private val operations = Mutex()
+
         init {
             // MINA SSHD's PathUtils rejects Android's empty "user.home". Set a valid path.
             System.setProperty("user.home", context.filesDir.absolutePath)
@@ -67,7 +87,7 @@ class GitSyncImpl
             sshKeyPair: SshKeyPair?,
             progressMonitor: ProgressMonitor?,
         ) {
-            withContext(Dispatchers.IO) {
+            withRepositoryLock {
                 try {
                     val cmd =
                         Git
@@ -92,6 +112,8 @@ class GitSyncImpl
                         msg.contains("Auth fail") || msg.contains("authentication") -> throw SyncError.AuthFailure()
                         else -> throw SyncError.CloneFailure(e)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     throw SyncError.CloneFailure(e)
                 }
@@ -99,12 +121,10 @@ class GitSyncImpl
         }
 
         override suspend fun pull(): SyncResult =
-            withContext(Dispatchers.IO) {
-                val remoteUrl = context.gitSyncDataStore.data.first()[KEY_REMOTE_URL]
-                val isSsh = remoteUrl?.startsWith("git@") == true || remoteUrl?.startsWith("ssh://") == true
-                val keyPair = if (isSsh && sshKeyStore.exists()) sshKeyStore.getSshKey() else null
+            withRepositoryLock {
+                val keyPair = remoteSshKey()
 
-                val git = openRepo(repoDir())
+                val git = openRepo(context.repositoryDirectory())
                 val beforeHead: ObjectId =
                     git.repository.resolve("HEAD")
                         ?: error("Repository has no HEAD")
@@ -159,7 +179,7 @@ class GitSyncImpl
                 val prefs = context.gitSyncDataStore.data.first()
                 val lastSyncMs = prefs[KEY_LAST_SYNC]
                 val remoteUrl = prefs[KEY_REMOTE_URL]
-                val currentRepoDir = repoDir()
+                val currentRepoDir = context.repositoryDirectory()
 
                 val localCommit: String? =
                     if (currentRepoDir.exists()) {
@@ -189,9 +209,114 @@ class GitSyncImpl
                 )
             }
 
-        private suspend fun repoDir(): File {
-            val path = context.gitSyncDataStore.data.first()[KEY_REPO_PATH]
-            return if (path != null) File(path) else File(context.filesDir, "repo")
+        override suspend fun commitEdit(
+            path: String,
+            prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
+        ): FileCommitInfo =
+            withRepositoryLock {
+                val root = context.repositoryDirectory().canonicalFile
+                val file = File(root, path)
+                if (!path.endsWith(".gpg") || file != file.canonicalFile || !file.toPath().startsWith(root.toPath())) {
+                    throw SyncError.EditRejected("invalid entry path")
+                }
+                openRepo(root).use { git ->
+                    if (git.repository.repositoryState != RepositoryState.SAFE) {
+                        throw SyncError.EditRejected("repository is busy")
+                    }
+                    val indexEntry = git.repository.readDirCache().getEntry(path)
+                    if (indexEntry == null || !file.isFile) {
+                        throw SyncError.EditRejected("entry no longer exists")
+                    }
+                    val before = git.repository.resolve(Constants.HEAD)
+                    val original = file.readBytes()
+                    val edit = prepare(root, original)
+                    withContext(NonCancellable) {
+                        replaceFile(file, edit.ciphertext)
+                        val commit = try {
+                            // setOnly stages this path and leaves other staged files out of the commit.
+                            git.commit()
+                                .setOnly(path)
+                                .setAuthor(edit.author)
+                                .setCommitter(edit.author)
+                                .setSign(false)
+                                .setMessage("Edit password for ${path.removeSuffix(".gpg")} using editor.")
+                                .call()
+                        } catch (failure: Exception) {
+                            val after = git.repository.resolve(Constants.HEAD)
+                            val editedBlob = ObjectInserter.Formatter().use { it.idFor(Constants.OBJ_BLOB, edit.ciphertext) }
+                            if (after != before && git.repository.resolve("HEAD:$path") == editedBlob) {
+                                // A post-commit error can occur after HEAD has already advanced.
+                                git.repository.parseCommit(after)
+                            } else {
+                                try {
+                                    replaceFile(file, original)
+                                    restoreIndexEntry(git.repository, indexEntry)
+                                } catch (rollbackFailure: Exception) {
+                                    failure.addSuppressed(rollbackFailure)
+                                }
+                                throw failure
+                            }
+                        }
+                        FileCommitInfo(commit.name.take(7), Instant.ofEpochSecond(commit.commitTime.toLong()))
+                    }
+                }
+            }
+
+        override suspend fun push() {
+            withRepositoryLock {
+                openRepo(context.repositoryDirectory()).use { git ->
+                    val branch = git.repository.fullBranch
+                    check(branch.startsWith("refs/heads/")) { "repository has no checked-out branch" }
+                    val branchName = branch.removePrefix("refs/heads/")
+                    val config = git.repository.config
+                    val remote = config.getString("branch", branchName, "remote") ?: "origin"
+                    val destination = config.getString("branch", branchName, "merge") ?: branch
+                    val command = git.push()
+                        .setRemote(remote)
+                        .setRefSpecs(RefSpec("$branch:$destination"))
+                        .setTimeout(30)
+                    remoteSshKey()?.let { command.setTransportConfigCallback(makeSshCallback(it)) }
+                    val updates = command.call().flatMap { it.remoteUpdates }
+                    check(updates.isNotEmpty() && updates.all {
+                        it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE
+                    }) { "push rejected" }
+                }
+            }
+        }
+
+        private suspend fun remoteSshKey(): SshKeyPair? {
+            val url = context.gitSyncDataStore.data.first()[KEY_REMOTE_URL]
+            val isSsh = url?.startsWith("git@") == true || url?.startsWith("ssh://") == true
+            return if (isSsh && sshKeyStore.exists()) sshKeyStore.getSshKey() else null
+        }
+
+        private suspend fun <T> withRepositoryLock(block: suspend () -> T): T =
+            withContext(Dispatchers.IO) { operations.withLock { block() } }
+
+        private fun restoreIndexEntry(repository: Repository, original: DirCacheEntry) {
+            val index = repository.lockDirCache()
+            try {
+                val position = index.findEntry(original.pathString)
+                check(position >= 0)
+                val builder = index.builder()
+                builder.keep(0, position)
+                builder.add(original)
+                val remaining = index.entryCount - position - 1
+                if (remaining > 0) builder.keep(position + 1, remaining)
+                check(builder.commit()) { "could not restore index entry" }
+            } finally {
+                index.unlock()
+            }
+        }
+
+        private fun replaceFile(file: File, content: ByteArray) {
+            val temporary = Files.createTempFile(file.parentFile!!.toPath(), ".pass-", ".tmp")
+            try {
+                Files.write(temporary, content)
+                Files.move(temporary, file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } finally {
+                Files.deleteIfExists(temporary)
+            }
         }
 
         private fun makeSshCallback(keyPair: SshKeyPair): TransportConfigCallback {
@@ -236,7 +361,7 @@ class GitSyncImpl
 
         override suspend fun lastCommitForFile(repoRelativePath: String): FileCommitInfo? =
             withContext(Dispatchers.IO) {
-                val dir = repoDir()
+                val dir = context.repositoryDirectory()
                 if (!dir.exists()) return@withContext null
                 runCatching {
                     openRepo(dir).use { git ->

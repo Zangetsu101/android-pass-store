@@ -1,0 +1,37 @@
+appId: com.zangetsu101.pass
+---
+# The GPG auth subkey is read-only on the shared fixture repo.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- tapOn: "alex\\.dev"
+- tapOn:
+    text: "Allow"
+    optional: true
+- extendedWaitUntil:
+    visible: "start session"
+    timeout: 5000
+- tapOn: "enter passphrase"
+- inputText: "testpass"
+- pressKey: Enter
+- scrollUntilVisible:
+    element: "edit"
+    direction: DOWN
+    timeout: 60000
+- tapOn: "edit"
+- assertVisible: "edit entry"
+- tapOn: "edit password"
+- eraseText: 128
+- inputText: "edited-password-23"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "> pass insert -m -f dev/github\\.com/alex\\.dev"
+    direction: DOWN
+- tapOn: "> pass insert -m -f dev/github\\.com/alex\\.dev"
+- extendedWaitUntil:
+    visible: "saved locally · push failed"
+    timeout: 30000
+- tapOn: "reveal"
+- assertVisible: "edited-password-23"

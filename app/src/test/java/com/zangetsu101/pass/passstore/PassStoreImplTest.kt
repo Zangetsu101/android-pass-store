@@ -2,7 +2,10 @@
 package com.zangetsu101.pass.passstore
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
+import com.zangetsu101.pass.gitsync.gitSyncDataStore
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -21,6 +24,7 @@ class PassStoreImplTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        runBlocking { context.gitSyncDataStore.edit { it.clear() } }
         store = PassStoreImpl(context)
         repoDir = File(context.filesDir, "repo")
         repoDir.deleteRecursively()
@@ -34,7 +38,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex parses two-level path correctly`() {
+    fun `buildIndex parses two-level path correctly`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         val entries = store.buildIndex()
 
@@ -45,7 +49,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex recognizes a Card Entry beneath organizational directories`() {
+    fun `buildIndex recognizes a Card Entry beneath organizational directories`() = runBlocking {
         createGpgFile("finance/cards/visa/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -56,7 +60,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex recognizes credit-cards marker beneath organizational directories`() {
+    fun `buildIndex recognizes credit-cards marker beneath organizational directories`() = runBlocking {
         createGpgFile("finance/credit-cards/mastercard/travel.gpg")
 
         val entry = store.buildIndex().single()
@@ -67,7 +71,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex treats card markers as case-sensitive`() {
+    fun `buildIndex treats card markers as case-sensitive`() = runBlocking {
         createGpgFile("finance/Cards/visa/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -78,7 +82,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex discards organization after a nested card marker`() {
+    fun `buildIndex discards organization after a nested card marker`() = runBlocking {
         createGpgFile("finance/cards/personal/visa/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -89,7 +93,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex continues to recognize root card marker`() {
+    fun `buildIndex continues to recognize root card marker`() = runBlocking {
         createGpgFile("cards/visa/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -100,7 +104,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex uses the first card marker`() {
+    fun `buildIndex uses the first card marker`() = runBlocking {
         createGpgFile("cards/personal/credit-cards/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -110,7 +114,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex reserves card marker names at every depth`() {
+    fun `buildIndex reserves card marker names at every depth`() = runBlocking {
         createGpgFile("clients/cards/alice.gpg")
 
         val entry = store.buildIndex().single()
@@ -120,7 +124,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex requires an exact card marker segment`() {
+    fun `buildIndex requires an exact card marker segment`() = runBlocking {
         createGpgFile("finance/giftcards/visa/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -129,7 +133,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex preserves null domain for card directly beneath root marker`() {
+    fun `buildIndex preserves null domain for card directly beneath root marker`() = runBlocking {
         createGpgFile("cards/my-card.gpg")
 
         val entry = store.buildIndex().single()
@@ -140,7 +144,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex handles one-level path with null domain`() {
+    fun `buildIndex handles one-level path with null domain`() = runBlocking {
         createGpgFile("github.com.gpg")
         val entries = store.buildIndex()
 
@@ -149,7 +153,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `buildIndex ignores non-gpg files`() {
+    fun `buildIndex ignores non-gpg files`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         File(repoDir, "README.md").writeText("readme")
         val entries = store.buildIndex()
@@ -159,7 +163,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `resolve exact domain match returns that entry first`() {
+    fun `resolve exact domain match returns that entry first`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         createGpgFile("web/gitlab.com/alice.gpg")
         store.buildIndex()
@@ -170,7 +174,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `resolve subdomain match - github dot com resolves gist dot github dot com`() {
+    fun `resolve subdomain match - github dot com resolves gist dot github dot com`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         store.buildIndex()
 
@@ -181,7 +185,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `resolve returns empty list when no candidates`() {
+    fun `resolve returns empty list when no candidates`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         store.buildIndex()
 
@@ -191,7 +195,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `resolveByPackage maps com dot github dot android to github dot com`() {
+    fun `resolveByPackage maps com dot github dot android to github dot com`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         store.buildIndex()
 
@@ -202,7 +206,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `search is case-insensitive`() {
+    fun `search is case-insensitive`() = runBlocking {
         createGpgFile("web/GitHub.com/Alice.gpg")
         store.buildIndex()
 
@@ -212,7 +216,7 @@ class PassStoreImplTest {
     }
 
     @Test
-    fun `search ranks startsWith match above contains match`() {
+    fun `search ranks startsWith match above contains match`() = runBlocking {
         createGpgFile("web/github.com/alice.gpg")
         createGpgFile("web/mygithub.com/alice.gpg")
         store.buildIndex()

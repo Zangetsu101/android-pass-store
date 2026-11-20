@@ -2,7 +2,10 @@
 package com.zangetsu101.pass.passstore
 
 import android.content.Context
+import com.zangetsu101.pass.gitsync.repositoryDirectory
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,10 +23,10 @@ class PassStoreImpl
         private val _index = MutableStateFlow<List<PassEntry>>(emptyList())
         override val index: StateFlow<List<PassEntry>> = _index.asStateFlow()
 
-        private val repoDir get() = File(context.filesDir, "repo")
         private val levenshtein = LevenshteinDistance.getDefaultInstance()
 
-        override fun buildIndex(): List<PassEntry> {
+        override suspend fun buildIndex(): List<PassEntry> = withContext(Dispatchers.IO) {
+            val repoDir = context.repositoryDirectory()
             val entries =
                 repoDir
                     .walkTopDown()
@@ -33,7 +36,7 @@ class PassStoreImpl
                         parseEntry(relativePath, file)
                     }.toList()
             _index.value = entries
-            return entries
+            entries
         }
 
         override fun search(query: String): List<PassEntry> {
