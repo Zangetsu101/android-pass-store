@@ -7,6 +7,7 @@ import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import org.bouncycastle.bcpg.EdSecretBCPGKey
 import org.bouncycastle.openpgp.PGPException
+import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSecretKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.api.OpenPGPKey
@@ -70,6 +71,14 @@ class GpgKeyStoreImpl(
         } catch (e: PGPException) {
             throw SessionError.WrongPassphrase()
         }
+    }
+
+    override fun publicKeySource(): PublicKeySource {
+        val ring = storedKeyRing()
+        return PublicKeySource(
+            PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
+            ring.filterNot { it.isPrivateKeyEmpty }.map { it.publicKey.keyID }.toSet(),
+        )
     }
 
     override fun getGpgKeyInfo(): Pair<String, String>? {

@@ -11,12 +11,18 @@ import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.decryption.Credentials
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
+import com.zangetsu101.pass.decryption.LoginEditSource
+import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
+import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.otp.Otp
+import com.zangetsu101.pass.passstore.LoginEntryWriter
+import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.util.markSensitive
@@ -59,7 +65,7 @@ sealed class GitStatus {
     data object Untracked : GitStatus()
 
     data class Tracked(
-        val commitInfo: com.zangetsu101.pass.gitsync.FileCommitInfo,
+        val commitInfo: FileCommitInfo,
     ) : GitStatus()
 }
 
@@ -68,7 +74,23 @@ data class EntryDetailUiState(
     val unlockState: UnlockState = UnlockState.Idle,
     val gitStatus: GitStatus = GitStatus.Loading,
     val clipboardTimeoutSeconds: Int = 45,
+    val editor: LoginEditorState? = null,
+    val showingSavedLogin: Boolean = false,
 )
+
+@ConsistentCopyVisibility
+data class LoginEditorState internal constructor(
+    internal val source: LoginEditSource,
+    val password: String,
+    val notes: String,
+    val saving: Boolean = false,
+    val error: String? = null,
+) {
+    val changed: Boolean get() = password != source.login.password || notes != source.login.notes
+    val hasOtp: Boolean get() = source.login.hasOtp
+
+    override fun toString(): String = "LoginEditorState"
+}
 
 @HiltViewModel(assistedFactory = EntryDetailViewModel.Factory::class)
 class EntryDetailViewModel
@@ -80,6 +102,7 @@ class EntryDetailViewModel
         private val sessionOperations: SessionOperations,
         private val gitSync: GitSync,
         private val appPreferences: AppPreferences,
+        private val loginWriter: LoginEntryWriter,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
@@ -115,7 +138,7 @@ class EntryDetailViewModel
             otpHintJob?.cancel()
             autoLockJob?.cancel()
             lockDeadline = null
-            _state.update { it.copy(unlockState = UnlockState.Idle) }
+            _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
         }
 
         // Read-only guard for collected snapshots; never refresh or extend the deadline here.
@@ -143,7 +166,10 @@ class EntryDetailViewModel
             }
             viewModelScope.launch {
                 sessionOperations.sessionState.collect { sessionState ->
-                    if (sessionState is SessionState.Inactive && _state.value.unlockState is UnlockState.Decrypted) {
+                    if (sessionState is SessionState.Inactive &&
+                        _state.value.unlockState is UnlockState.Decrypted &&
+                        !(_state.value.showingSavedLogin && sessionState.reason == EndReason.TIMEOUT)
+                    ) {
                         lock()
                         _state.update {
                             it.copy(unlockState = UnlockState.Failed("Session ended — unlock again"))
@@ -162,17 +188,11 @@ class EntryDetailViewModel
                     try {
                         val creds = decryption.decrypt(entry, activity)
                         coroutineContext.ensureActive()
-                        lockDeadline = SystemClock.elapsedRealtime() + 60_000L
-                        _state.update { it.copy(unlockState = UnlockState.Decrypted(creds)) }
-                        autoLockJob =
-                            viewModelScope.launch {
-                                delay(60_000L)
-                                refreshLock()
-                            }
+                        showCredentials(creds)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: BiometricAuthException) {
-                        _state.update { it.copy(unlockState = UnlockState.Idle) }
+                        _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
                     } catch (e: SessionError.NoActiveSession) {
                         _state.update { it.copy(unlockState = UnlockState.Failed("Session expired — return to home and unlock")) }
                     } catch (e: DecryptionError) {
@@ -180,6 +200,98 @@ class EntryDetailViewModel
                     } catch (e: Exception) {
                         _state.update { it.copy(unlockState = UnlockState.Failed(e.message ?: "Decryption failed")) }
                     }
+                }
+        }
+
+        fun startEditing() {
+            refreshLock()
+            val current = _state.value
+            if (current.entry.isCard || current.editor != null || sessionOperations.sessionState.value !is SessionState.Active) return
+            val source = (current.unlockState as? UnlockState.Decrypted)?.credentials?.editSource ?: return
+            _state.update { it.copy(editor = LoginEditorState(source, source.login.password, source.login.notes)) }
+        }
+
+        fun updateEditorPassword(password: String) {
+            updateEditor { it.copy(password = password.filterNot(Char::isWhitespace), error = null) }
+        }
+
+        fun updateEditorNotes(notes: String) {
+            updateEditor { it.copy(notes = notes, error = null) }
+        }
+
+        private fun updateEditor(update: (LoginEditorState) -> LoginEditorState) {
+            _state.update { state ->
+                val editor = state.editor ?: return@update state
+                if (editor.saving) state else state.copy(editor = update(editor))
+            }
+        }
+
+        fun discardEditor() {
+            _state.update { if (it.editor?.saving == false) it.copy(editor = null) else it }
+        }
+
+        fun copyEditorPassword() {
+            val password =
+                _state.value.editor
+                    ?.password
+                    .orEmpty()
+            if (password.isNotEmpty()) copySecret("password", password)
+        }
+
+        fun saveEditor() {
+            val editor = _state.value.editor ?: return
+            if (editor.saving || !editor.changed) return
+            val password = editor.password
+            if (password.isEmpty() &&
+                editor.source.login.password
+                    .isNotEmpty()
+            ) {
+                updateEditor { it.copy(error = "password cannot be empty") }
+                return
+            }
+            updateEditor { it.copy(saving = true, error = null) }
+            viewModelScope.launch {
+                try {
+                    val saved = loginWriter.save(entry, editor.source, password, editor.notes)
+                    showCredentials(saved.credentials, saved = saved.commit)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    val message =
+                        when (error) {
+                            is LoginSaveError, is SyncError.EditRejected -> error.message
+                            else -> "couldn't save entry"
+                        }
+                    _state.update { it.copy(editor = editor.copy(error = message)) }
+                }
+            }
+        }
+
+        private fun showCredentials(
+            credentials: Credentials,
+            saved: FileCommitInfo? = null,
+        ) {
+            val session = sessionOperations.sessionState.value
+            val savedAfterTimeout = saved != null && session is SessionState.Inactive && session.reason == EndReason.TIMEOUT
+            if (saved != null && session is SessionState.Inactive && !savedAfterTimeout) {
+                lock()
+                _state.update { it.copy(editor = null, gitStatus = GitStatus.Tracked(saved)) }
+                return
+            }
+            autoLockJob?.cancel()
+            lockDeadline = SystemClock.elapsedRealtime() + 60_000L
+            _state.update {
+                it.copy(
+                    unlockState = UnlockState.Decrypted(credentials),
+                    gitStatus = saved?.let(GitStatus::Tracked) ?: it.gitStatus,
+                    editor = if (saved != null) null else it.editor,
+                    showingSavedLogin = savedAfterTimeout,
+                )
+            }
+            autoLockJob =
+                viewModelScope.launch {
+                    delay(60_000L)
+                    refreshLock()
                 }
         }
 

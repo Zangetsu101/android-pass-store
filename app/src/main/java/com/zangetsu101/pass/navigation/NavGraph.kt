@@ -168,13 +168,6 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                     val navVm: NavViewModel = hiltViewModel()
                     val context = LocalContext.current
                     val sessionState by navVm.sessionState.collectAsState()
-                    if (sessionState !is SessionState.Active) {
-                        LaunchedEffect(it.entryPath, sessionState) {
-                            backStack.removeLastOrNull()
-                            backStack.add(SessionStart(returnEntryPath = it.entryPath))
-                        }
-                        return@entry
-                    }
                     val maybeEntry = remember(it.entryPath) { navVm.findEntry(it.entryPath) }
                     if (maybeEntry == null) {
                         LaunchedEffect(Unit) {
@@ -190,6 +183,13 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                     EntryDetailScreen(
                         viewModel = vm,
                         onBack = { backStack.removeLastOrNull() },
+                        sessionActive = sessionState is SessionState.Active,
+                        onSessionRequired = {
+                            if (backStack.lastOrNull() == it) {
+                                backStack.removeLastOrNull()
+                                backStack.add(SessionStart(returnEntryPath = it.entryPath))
+                            }
+                        },
                     )
                 }
 

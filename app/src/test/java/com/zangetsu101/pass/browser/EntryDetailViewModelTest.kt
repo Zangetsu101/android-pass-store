@@ -9,13 +9,18 @@ import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.decryption.Credentials
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
+import com.zangetsu101.pass.decryption.EditableLogin
+import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
+import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
+import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.SavedLogin
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -57,6 +62,7 @@ class EntryDetailViewModelTest {
     private val mockDecryption = mockk<Decryption>()
     private val mockGitSync = mockk<GitSync>()
     private val mockSessionOperations = mockk<SessionOperations>()
+    private val mockWriter = mockk<LoginEntryWriter>()
     private val mockAppPreferences = mockk<AppPreferences>()
     private val mockContext = mockk<Context>(relaxed = true)
     private val mockActivity = mockk<FragmentActivity>(relaxed = true)
@@ -119,6 +125,94 @@ class EntryDetailViewModelTest {
             verify(exactly = 1) { clipboard.setPrimaryClip(any()) }
         }
 
+    @Test
+    fun `an open draft can be saved after the session expires`() =
+        runTest {
+            val session = MutableStateFlow<SessionState>(SessionState.Active)
+            every { mockSessionOperations.sessionState } returns session
+            val source = LoginEditSource(EditableLogin("old password\nnotes"), byteArrayOf())
+            val original = fakeCredentials.copy(editSource = source)
+            coEvery { mockDecryption.decrypt(any(), any()) } returns original
+            val saved = fakeCredentials.copy(password = "newpassword".toCharArray(), notes = "notes")
+            val commit = FileCommitInfo("abc1234", Instant.EPOCH)
+            coEvery { mockWriter.save(fakeEntry, source, "newpassword", "notes") } returns SavedLogin(saved, commit)
+            val vm = createViewModel()
+
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+            vm.updateEditorPassword("new password\t")
+            session.value = SessionState.Inactive(EndReason.TIMEOUT)
+            runCurrent()
+            assertEquals(
+                "newpassword",
+                vm.state.value.editor
+                    ?.password,
+            )
+
+            vm.saveEditor()
+            runCurrent()
+
+            assertEquals(null, vm.state.value.editor)
+            assertEquals(saved, (vm.state.value.unlockState as UnlockState.Decrypted).credentials)
+            assertEquals(GitStatus.Tracked(commit), vm.state.value.gitStatus)
+            vm.startEditing()
+            assertEquals(null, vm.state.value.editor)
+        }
+
+    @Test
+    fun `the editor requires a password when the original login has one`() =
+        runTest {
+            val source = LoginEditSource(EditableLogin("password"), byteArrayOf())
+            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials.copy(editSource = source)
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+            assertFalse(
+                vm.state.value.editor!!
+                    .changed,
+            )
+
+            vm.updateEditorPassword("  \t")
+            vm.saveEditor()
+
+            assertEquals(
+                "password cannot be empty",
+                vm.state.value.editor
+                    ?.error,
+            )
+            coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any()) }
+            vm.discardEditor()
+            assertEquals(null, vm.state.value.editor)
+        }
+
+    @Test
+    fun `OTP only drafts can save notes with an empty password and still lock on later expiry`() =
+        runTest {
+            val session = MutableStateFlow<SessionState>(SessionState.Active)
+            every { mockSessionOperations.sessionState } returns session
+            val source = LoginEditSource(EditableLogin("otpauth://invalid"), byteArrayOf())
+            val original = fakeCredentials.copy(password = charArrayOf(), notes = "", editSource = source)
+            coEvery { mockDecryption.decrypt(any(), any()) } returns original
+            val saved = original.copy(notes = "new notes")
+            coEvery { mockWriter.save(fakeEntry, source, "", "new notes") } returns
+                SavedLogin(saved, FileCommitInfo("abc1234", Instant.EPOCH))
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+            vm.updateEditorNotes("new notes")
+            vm.saveEditor()
+            runCurrent()
+            assertEquals(saved, (vm.state.value.unlockState as UnlockState.Decrypted).credentials)
+
+            session.value = SessionState.Inactive(EndReason.TIMEOUT)
+            runCurrent()
+
+            assertTrue(vm.state.value.unlockState is UnlockState.Failed)
+        }
+
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
@@ -135,6 +229,7 @@ class EntryDetailViewModelTest {
             sessionOperations = mockSessionOperations,
             gitSync = mockGitSync,
             appPreferences = mockAppPreferences,
+            loginWriter = mockWriter,
         )
 
     @Test

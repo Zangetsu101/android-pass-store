@@ -17,6 +17,7 @@ data class Credentials(
     val notes: String,
     val username: String,
     val otp: Otp? = null,
+    internal val editSource: LoginEditSource? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -37,6 +38,7 @@ data class Credentials(
 internal fun parseCredentials(
     plaintext: String,
     username: String,
+    editSource: LoginEditSource? = null,
 ): Credentials {
     val lines = plaintext.lines()
     val otpLine = lines.firstOrNull(::isOtpLine)
@@ -55,7 +57,8 @@ internal fun parseCredentials(
                 .trimEnd(),
         username = username,
         otp = otpLine?.let(::parseOtp),
+        editSource = editSource,
     )
 }
 
-private fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")
+internal fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")

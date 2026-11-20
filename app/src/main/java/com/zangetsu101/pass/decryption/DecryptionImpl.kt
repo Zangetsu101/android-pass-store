@@ -14,6 +14,7 @@ import org.pgpainless.exception.MissingDecryptionMethodException
 import org.pgpainless.exception.WrongPassphraseException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 class DecryptionImpl(
     private val gpgKeyProvider: GpgKeyProvider,
@@ -23,16 +24,24 @@ class DecryptionImpl(
         activity: FragmentActivity,
     ): Credentials {
         val secretKeyRing = gpgKeyProvider.getGpgKey(activity)
-        val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
-        return parseCredentials(plaintext, entry.username)
+        return withContext(Dispatchers.IO) {
+            val ciphertext =
+                try {
+                    entry.encryptedFile.readBytes()
+                } catch (error: IOException) {
+                    throw DecryptionError("Couldn't read this entry.", error)
+                }
+            val plaintext = decryptFile(ciphertext, secretKeyRing)
+            val source = if (entry.isCard) null else LoginEditSource(EditableLogin(plaintext), ciphertext.ciphertextDigest())
+            parseCredentials(plaintext, entry.username, source)
+        }
     }
 
     private fun decryptFile(
-        entry: PassEntry,
+        ciphertext: ByteArray,
         secretKeyRing: GpgPrivateKey,
     ): String =
         try {
-            val ciphertext = entry.encryptedFile.readBytes()
             val output = ByteArrayOutputStream()
             val stream =
                 PGPainless

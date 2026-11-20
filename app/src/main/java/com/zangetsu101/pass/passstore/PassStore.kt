@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 interface PassStore {
     val index: StateFlow<List<PassEntry>>
 
-    fun buildIndex(): List<PassEntry>
+    suspend fun buildIndex(): List<PassEntry>
 
     fun search(query: String): List<PassEntry>
 

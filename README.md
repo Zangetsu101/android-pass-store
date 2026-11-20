@@ -1,6 +1,6 @@
 # pass.android
 
-> Modern Android autofill for your [`pass`](https://www.passwordstore.org/) password store — biometric-gated, read-only, syncs over SSH.
+> Modern Android autofill for your [`pass`](https://www.passwordstore.org/) password store — biometric-gated, syncs over SSH.
 
 ## Motivation
 
@@ -19,7 +19,8 @@ It's a personal-use project first. But if you're a `pass` user looking for a mai
 What the app does:
 
 - **Onboard** — generate an on-device SSH keypair for git auth, import your existing GPG key, and optionally reuse an authentication `[A]` subkey if one is available.
-- **Sync** — clone and pull your `pass` repo from a git remote over SSH. Conflict resolution is intentionally out of scope because the app is read-only.
+- **Sync** — clone and fast-forward pull your `pass` repo over SSH.
+- **Edit logins** — change passwords and notes, then encrypt, commit, and push to GitHub. The nearest `.gpg-id` must list only the imported key.
 - **Browse & search** — list all entries with directory structure preserved; fuzzy, case-insensitive search.
 - **Decrypt & view** — GPG-decrypt an entry behind a biometric prompt, show password and notes.
 - **Autofill** — surface credentials to the system via `AutofillService` (Android 8+), inline suggestions (Android 11+) and Credential Manager (Android 14+).
@@ -144,8 +145,8 @@ gh secret set RELEASE_KEY_PASSWORD
 ## Future work
 
 - **TOTP autofill:** `pass-otp` TOTP codes are available in entry details. OTP in autofill and Credential Manager, HOTP, and secret creation remain deferred.
-- **Considering:** write support (create/edit entries), HTTPS git authentication.
+- **Considering:** creating entries and HTTPS git authentication.
 
 ## Scope
 
-This is read-only (v1) and intentionally narrow. See [`architecture/architecture.md`](architecture/architecture.md) for the full architecture and out-of-scope list.
+See [`architecture/architecture.md`](architecture/architecture.md) for the full architecture and out-of-scope list.
