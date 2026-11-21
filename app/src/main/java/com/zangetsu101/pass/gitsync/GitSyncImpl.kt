@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.gitsync
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -46,6 +47,7 @@ import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.eclipse.jgit.treewalk.TreeWalk
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -116,7 +118,8 @@ class GitSyncImpl
                         it[KEY_REPO_PATH] = localPath.toAbsolutePath().toString()
                         it[KEY_LAST_SYNC] = System.currentTimeMillis()
                     }
-                    openRepo(localPath.toFile()).use { state.value = SyncState(readStatus(it)) }
+                    state.value = SyncState(status = SyncStatus(lastSyncTime = Instant.now()))
+                    openRepo(localPath.toFile()).use { publishStatus(it) }
                 } catch (e: TransportException) {
                     val msg = e.message ?: ""
                     when {
@@ -139,10 +142,7 @@ class GitSyncImpl
                         try {
                             syncRepository(git)
                         } finally {
-                            withContext(NonCancellable) {
-                                val status = readStatus(git)
-                                state.update { it.copy(status = status) }
-                            }
+                            withContext(NonCancellable) { publishStatus(git) }
                         }
                     }
                 } catch (cancelled: CancellationException) {
@@ -233,8 +233,12 @@ class GitSyncImpl
                             .setMode(ResetType.HARD)
                             .setRef(current.upstreamCommit)
                             .call()
-                        recordSyncTime()
-                        state.value = SyncState(status = readStatus(git), completed = true)
+                        val lastSync = recordSyncTime()
+                        state.value =
+                            SyncState(
+                                status = SyncStatus(lastSync, current.upstreamCommit, current.upstreamCommit),
+                                completed = true,
+                            )
                     }
                 }
             }
@@ -287,14 +291,12 @@ class GitSyncImpl
                 is TransportException -> {
                     val message = failure.message.orEmpty()
                     when {
-                        message.contains("auth", ignoreCase = true) || message.contains("publickey", ignoreCase = true) -> {
-                            SyncError.AuthFailure()
+                        message.contains("write access", ignoreCase = true) || message.contains("read only", ignoreCase = true) -> {
+                            SyncError.RecoveryFailure("Push was rejected. Check that your SSH key has write access and try again.")
                         }
 
-                        command.startsWith("git push") && (
-                            message.contains("write access", ignoreCase = true) || message.contains("read only", ignoreCase = true)
-                        ) -> {
-                            SyncError.RecoveryFailure("Push was rejected. Check that your SSH key has write access and try again.")
+                        message.contains("auth", ignoreCase = true) || message.contains("publickey", ignoreCase = true) -> {
+                            SyncError.AuthFailure()
                         }
 
                         else -> {
@@ -309,9 +311,25 @@ class GitSyncImpl
             }
 
         private suspend fun recordSyncTime(): Instant {
-            val now = Instant.now()
-            context.gitSyncDataStore.edit { it[KEY_LAST_SYNC] = now.toEpochMilli() }
+            val now = Instant.ofEpochMilli(System.currentTimeMillis())
+            try {
+                context.gitSyncDataStore.edit { it[KEY_LAST_SYNC] = now.toEpochMilli() }
+            } catch (failure: IOException) {
+                Log.w("GitSync", "Couldn't persist the sync timestamp", failure)
+            }
+            state.update { it.copy(status = it.status.copy(lastSyncTime = now)) }
             return now
+        }
+
+        private suspend fun publishStatus(git: Git) {
+            try {
+                val status = readStatus(git)
+                state.update { it.copy(status = status) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w("GitSync", "Couldn't refresh the repository status", failure)
+            }
         }
 
         private suspend fun readStatus(git: Git): SyncStatus {
@@ -319,9 +337,10 @@ class GitSyncImpl
             val head = repo.resolve(Constants.HEAD)
             val upstream = repo.resolve(remoteBranch(git).trackingRef)
             val lastSync =
-                context.gitSyncDataStore.data
-                    .first()[KEY_LAST_SYNC]
-                    ?.let(Instant::ofEpochMilli)
+                state.value.status.lastSyncTime
+                    ?: context.gitSyncDataStore.data
+                        .first()[KEY_LAST_SYNC]
+                        ?.let(Instant::ofEpochMilli)
             if (head == null || upstream == null) return SyncStatus(lastSync, head?.name)
             val unpushed = commitChanges(git, upstream, head)
             val base = if (unpushed.isEmpty()) null else mergeBase(repo, head, upstream)
@@ -443,8 +462,10 @@ class GitSyncImpl
                                     throw failure
                                 }
                             }
-                        val status = readStatus(git)
-                        state.update { it.copy(status = status, completed = false) }
+                        state.update {
+                            it.copy(error = if (it.conflict) it.error else null, completed = false)
+                        }
+                        publishStatus(git)
                         FileCommitInfo(commit.name.take(7), Instant.ofEpochSecond(commit.commitTime.toLong()))
                     }
                 }
@@ -453,15 +474,18 @@ class GitSyncImpl
         override suspend fun push() {
             withRepositoryLock {
                 openRepo(context.repositoryDirectory()).use { git ->
+                    val remote = remoteBranch(git)
+                    if (git.repository.resolve(remote.trackingRef) == git.repository.resolve(Constants.HEAD)) return@use
+
+                    state.update { it.copy(command = "git push ${remote.name}") }
                     try {
-                        val remote = remoteBranch(git)
-                        if (git.repository.resolve(remote.trackingRef) != git.repository.resolve(Constants.HEAD)) {
-                            pushBranch(git, remote, remoteSshKey()?.let(::makeSshCallback))
-                            recordSyncTime()
-                        }
+                        pushBranch(git, remote, remoteSshKey()?.let(::makeSshCallback))
+                        recordSyncTime()
+                        state.update { it.copy(error = null, conflict = false) }
                     } finally {
                         withContext(NonCancellable) {
-                            state.value = SyncState(status = readStatus(git))
+                            publishStatus(git)
+                            state.update { it.copy(command = null) }
                         }
                     }
                 }

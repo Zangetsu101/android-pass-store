@@ -2,9 +2,11 @@
 package com.zangetsu101.pass.browser
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -42,7 +44,15 @@ class EntryBrowserViewModel
         val syncState = gitSync.syncState
 
         init {
-            viewModelScope.launch { gitSync.syncStatus() }
+            viewModelScope.launch {
+                try {
+                    gitSync.syncStatus()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    Log.w("EntryBrowser", "Couldn't load the sync status", failure)
+                }
+            }
             viewModelScope.launch {
                 appPreferences.defaultViewTree.collect { tree ->
                     _state.update { it.copy(treeView = tree) }
@@ -85,17 +95,17 @@ class EntryBrowserViewModel
             _state.update { it.copy(syncing = true) }
             viewModelScope.launch {
                 try {
-                    gitSync.pull()
+                    try {
+                        gitSync.pull()
+                    } catch (_: SyncError) {
+                    }
+                    passStore.buildIndex()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (_: Exception) {
-                    // GitSync publishes the failure for Home and the recovery panel.
+                } catch (failure: Exception) {
+                    Log.w("EntryBrowser", "Couldn't refresh the entries after sync", failure)
                 } finally {
-                    try {
-                        passStore.buildIndex()
-                    } finally {
-                        _state.update { it.copy(syncing = false) }
-                    }
+                    _state.update { it.copy(syncing = false) }
                 }
             }
         }

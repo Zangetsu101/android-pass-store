@@ -3,6 +3,7 @@ package com.zangetsu101.pass.browser
 
 import android.content.Context
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.SyncResult
 import com.zangetsu101.pass.gitsync.SyncState
 import com.zangetsu101.pass.gitsync.SyncStatus
@@ -155,7 +156,7 @@ class EntryBrowserViewModelTest {
     @Test
     fun `a failed sync clears the busy state and refreshes the index`() =
         runTest(testDispatcher) {
-            coEvery { gitSync.pull() } throws RuntimeException("network error")
+            coEvery { gitSync.pull() } throws SyncError.RemoteUnreachable()
 
             val vm = createViewModel()
             advanceUntilIdle()
@@ -164,5 +165,6 @@ class EntryBrowserViewModelTest {
             advanceUntilIdle()
 
             assertFalse(vm.state.value.syncing)
+            coVerify(exactly = 2) { passStore.buildIndex() }
         }
 }

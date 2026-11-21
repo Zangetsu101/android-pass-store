@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.syncpanel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
@@ -37,7 +38,13 @@ class SyncPanelViewModel
             viewModelScope.launch {
                 try {
                     gitSync.discardUnpushed(expected)
-                    passStore.buildIndex()
+                    try {
+                        passStore.buildIndex()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        Log.w("SyncPanel", "Couldn't refresh entries after discard", failure)
+                    }
                     discard.value = DiscardState(done = true)
                 } catch (cancelled: CancellationException) {
                     throw cancelled

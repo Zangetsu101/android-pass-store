@@ -343,6 +343,9 @@ class GitSyncImplTest {
             assertEquals(local.commitHash, snapshot.localCommit?.take(7))
             assertEquals(listOf(EntryChange("web/github.com/alice", "edited")), snapshot.discardPaths)
             assertEquals(listOf("web/github.com/alice"), snapshot.unpushed.single().paths)
+            assertTrue(runCatching { gitSync.push() }.isFailure)
+            assertEquals(error?.message, gitSync.syncState.value.error)
+            assertTrue(gitSync.syncState.value.conflict)
             assertEquals("local edit", File(repoDir, path).readText())
             Git.open(repoDir).use { assertTrue(it.status().call().isClean) }
 

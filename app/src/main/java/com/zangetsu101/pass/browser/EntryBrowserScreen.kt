@@ -63,6 +63,7 @@ fun EntryBrowserScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val sync by viewModel.syncState.collectAsState()
+    val chipBusy = state.syncing || sync.command != null
     val lastSync = sync.status.lastSyncTime
     val now by produceState(Instant.now(), lastSync) {
         while (true) {
@@ -80,7 +81,7 @@ fun EntryBrowserScreen(
     val synced = sync.status.localCommit != null && sync.status.localCommit == sync.status.upstreamCommit
     val syncLabel =
         when {
-            state.syncing -> "syncing…"
+            chipBusy -> if (state.syncing) "syncing…" else "pushing…"
             sync.error != null -> "error"
             sync.status.unpushed.isNotEmpty() -> "↑${sync.status.unpushed.size} unpushed"
             synced && lastSync != null -> "synced · ${syncAge(lastSync, now)}"
@@ -89,12 +90,13 @@ fun EntryBrowserScreen(
         }
     val chipColor =
         when {
+            chipBusy -> PassColorsDark.Accent
             sync.error != null -> PassColorsDark.Danger
-            state.syncing || synced -> PassColorsDark.Accent
+            synced -> PassColorsDark.Accent
             else -> PassColorsDark.TextDim
         }
 
-    val syncRotation by if (state.syncing) {
+    val syncRotation by if (chipBusy) {
         rememberInfiniteTransition(label = "sync").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
@@ -135,7 +137,7 @@ fun EntryBrowserScreen(
                             Modifier
                                 .background(PassColorsDark.Surface, PassShapes.small)
                                 .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-                                .clickable(enabled = !state.syncing, onClick = viewModel::pull)
+                                .clickable(enabled = !chipBusy, onClick = viewModel::pull)
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
