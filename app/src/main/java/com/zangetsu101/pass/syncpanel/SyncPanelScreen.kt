@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.syncpanel
 
-import androidx.compose.foundation.border
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassType
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,19 +38,22 @@ fun SyncPanelScreen(
     viewModel: SyncPanelViewModel,
     onBack: () -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    val sync by viewModel.syncState.collectAsState()
+    val discard by viewModel.discardState.collectAsState()
+    var confirmation by remember { mutableStateOf<SyncStatus?>(null) }
+
+    BackHandler(enabled = discard.running) {}
+    LaunchedEffect(discard.done) {
+        if (discard.done) onBack()
+    }
 
     PassScaffold(
         topBar = {
             TopAppBar(
-                title = { Text("sync", style = PassType.Title) },
+                title = { Text("sync recovery", style = PassType.Title) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = PassColorsDark.TextDim,
-                        )
+                    IconButton(onClick = onBack, enabled = !discard.running) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors =
@@ -63,88 +64,60 @@ fun SyncPanelScreen(
             )
         },
     ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .padding(16.dp),
+        LazyColumn(
+            modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("LAST SYNC", style = PassType.Label)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = state.lastSyncTime?.format() ?: "never",
-                style = PassType.Body,
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("REMOTE  ", style = PassType.Label)
-                Text(
-                    text =
-                        when (state.remoteReachable) {
-                            true -> "reachable"
-                            false -> "unreachable"
-                            null -> "unknown"
-                        },
-                    style =
-                        PassType.Body.copy(
-                            color =
-                                when (state.remoteReachable) {
-                                    true -> PassColorsDark.Accent
-                                    false -> PassColorsDark.Danger
-                                    null -> PassColorsDark.TextDim
-                                },
-                        ),
-                )
+            item {
+                sync.error?.let { Text(it, style = PassType.Body, color = PassColorsDark.Danger) }
             }
-
-            Spacer(Modifier.height(24.dp))
-
-            state.pullError?.let { err ->
-                Text("error: $err", color = PassColorsDark.Danger, style = PassType.Caption)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            if (state.pullSuccess) {
-                Text("sync complete.", color = PassColorsDark.Accent, style = PassType.Caption)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            Button(
-                onClick = viewModel::pull,
-                enabled = !state.pulling,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = PassColorsDark.AccentDim,
-                        contentColor = PassColorsDark.Accent,
-                        disabledContainerColor = PassColorsDark.Border,
-                        disabledContentColor = PassColorsDark.TextFaint,
-                    ),
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .border(1.dp, PassColorsDark.Accent, MaterialTheme.shapes.small),
-            ) {
-                if (state.pulling) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(end = 8.dp).height(18.dp),
-                        strokeWidth = 2.dp,
-                        color = PassColorsDark.Accent,
-                    )
+            item { Text("UNPUSHED COMMITS (${sync.status.unpushed.size})", style = PassType.Label) }
+            items(sync.status.unpushed) { commit ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(commit.message, style = PassType.Body)
+                    for (path in commit.paths) {
+                        Text(path, style = PassType.Caption, color = PassColorsDark.TextDim)
+                    }
                 }
-                Text(
-                    if (state.pulling) "pulling…" else "$ pull now",
-                    style = PassType.Body.copy(color = PassColorsDark.Accent),
-                )
+            }
+            item {
+                discard.error?.let { Text(it, style = PassType.Body, color = PassColorsDark.Danger) }
+                if (sync.conflict && sync.status.unpushed.isNotEmpty()) {
+                    TextButton(onClick = { confirmation = sync.status }, enabled = !discard.running) {
+                        Text(
+                            if (discard.running) "discarding…" else "discard my unpushed changes",
+                            color = PassColorsDark.Danger,
+                        )
+                    }
+                }
             }
         }
     }
+
+    confirmation?.let { expected ->
+        AlertDialog(
+            onDismissRequest = { confirmation = null },
+            title = { Text("Discard unpushed changes?") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 280.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item { Text("The remote versions will replace your local changes. You’ll need to make your edits again.") }
+                    items(expected.discardPaths) { change ->
+                        Text("${change.path} · ${change.action}", style = PassType.Body)
+                    }
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmation = null }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmation = null
+                    viewModel.discardUnpushed(expected)
+                }) {
+                    Text("Discard changes", color = PassColorsDark.Danger)
+                }
+            },
+        )
+    }
 }
-
-private val formatter =
-    DateTimeFormatter
-        .ofPattern("yyyy-MM-dd HH:mm:ss")
-        .withZone(ZoneId.systemDefault())
-
-private fun Instant.format(): String = formatter.format(this)

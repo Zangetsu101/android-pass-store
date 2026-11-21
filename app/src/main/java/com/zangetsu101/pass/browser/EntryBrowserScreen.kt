@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,14 +50,49 @@ import com.zangetsu101.pass.ui.components.PassTextField
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
+import kotlinx.coroutines.delay
+import java.time.Duration
+import java.time.Instant
 
 @Composable
 fun EntryBrowserScreen(
     viewModel: EntryBrowserViewModel,
     onNavigateToEntryDetail: (PassEntry) -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToSyncPanel: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
+    val sync by viewModel.syncState.collectAsState()
+    val lastSync = sync.status.lastSyncTime
+    val now by produceState(Instant.now(), lastSync) {
+        while (true) {
+            value = Instant.now()
+            delay(15_000)
+        }
+    }
+    val showSuccess by produceState(false, sync.completed, lastSync) {
+        value = sync.completed && lastSync != null && Duration.between(lastSync, Instant.now()).seconds < 4
+        if (value) {
+            delay(4_000)
+            value = false
+        }
+    }
+    val synced = sync.status.localCommit != null && sync.status.localCommit == sync.status.upstreamCommit
+    val syncLabel =
+        when {
+            state.syncing -> "syncing…"
+            sync.error != null -> "error"
+            sync.status.unpushed.isNotEmpty() -> "↑${sync.status.unpushed.size} unpushed"
+            synced && lastSync != null -> "synced · ${syncAge(lastSync, now)}"
+            synced -> "synced"
+            else -> "sync"
+        }
+    val chipColor =
+        when {
+            sync.error != null -> PassColorsDark.Danger
+            state.syncing || synced -> PassColorsDark.Accent
+            else -> PassColorsDark.TextDim
+        }
 
     val syncRotation by if (state.syncing) {
         rememberInfiniteTransition(label = "sync").animateFloat(
@@ -99,7 +135,7 @@ fun EntryBrowserScreen(
                             Modifier
                                 .background(PassColorsDark.Surface, PassShapes.small)
                                 .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-                                .clickable { viewModel.pull() }
+                                .clickable(enabled = !state.syncing, onClick = viewModel::pull)
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -107,10 +143,10 @@ fun EntryBrowserScreen(
                         Icon(
                             Icons.Default.Sync,
                             contentDescription = "sync",
-                            tint = if (state.syncing) PassColorsDark.Accent else PassColorsDark.TextDim,
+                            tint = chipColor,
                             modifier = Modifier.size(11.dp).rotate(syncRotation),
                         )
-                        Text("sync", style = PassType.Caption, color = PassColorsDark.TextDim)
+                        Text(syncLabel, style = PassType.Caption, color = chipColor, maxLines = 1)
                     }
                     IconButton(onClick = { viewModel.toggleView() }) {
                         Icon(
@@ -132,7 +168,6 @@ fun EntryBrowserScreen(
             }
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
-            // Search bar / sync status banner (mutually exclusive, same slot)
             if (state.syncing) {
                 Row(
                     modifier =
@@ -152,12 +187,35 @@ fun EntryBrowserScreen(
                         modifier = Modifier.size(10.dp).rotate(syncRotation),
                     )
                     Text(
-                        "git pull --rebase origin main",
+                        sync.command ?: "syncing…",
                         style = PassType.Body,
                         color = PassColorsDark.Accent,
                     )
                 }
             } else {
+                val error = sync.error
+                if (error != null) {
+                    Text(
+                        "$error · view details ›",
+                        style = PassType.Body,
+                        color = PassColorsDark.Danger,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .background(PassColorsDark.Surface, PassShapes.small)
+                                .border(1.dp, PassColorsDark.Danger, PassShapes.small)
+                                .clickable(onClick = onNavigateToSyncPanel)
+                                .padding(12.dp),
+                    )
+                } else if (showSuccess) {
+                    Text(
+                        "✓ sync complete",
+                        style = PassType.Body,
+                        color = PassColorsDark.Accent,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
                 PassTextField(
                     value = state.searchQuery,
                     onValueChange = viewModel::setSearchQuery,
@@ -199,6 +257,19 @@ fun EntryBrowserScreen(
                 }
             }
         }
+    }
+}
+
+private fun syncAge(
+    lastSync: Instant,
+    now: Instant,
+): String {
+    val minutes = Duration.between(lastSync, now).toMinutes()
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        minutes < 1440 -> "${minutes / 60}h ago"
+        else -> "${minutes / 1440}d ago"
     }
 }
 

@@ -104,7 +104,7 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 | `onboarding_gpg_auth` | GPG import with auth subkey, extraction with passphrase, clone |
 | `entry_tap` | Fresh GPG-auth onboarding, entry tap, session passphrase, biometric prompt |
 | `otp` | OTP card for the four OTP entries: code, copy, caption, no password card, errors |
-| `edit_login` | Edit a decrypted login, verify the saved value and the push failure snackbar |
+| `edit_login` | Edit a decrypted login, verify the saved value, and capture synced, unpushed, and sync recovery states |
 
 Every scenario starts with fresh onboarding; suite order does not matter. Add future
 scenarios to `scenarios/` and call `shared/setup_store.yaml` with `KEY_FILE` and

@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.gitsync
 
 import com.zangetsu101.pass.keymanagement.SshKeyPair
+import kotlinx.coroutines.flow.StateFlow
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
@@ -13,6 +14,8 @@ class EncryptedEdit(
 )
 
 interface GitSync {
+    val syncState: StateFlow<SyncState>
+
     suspend fun clone(
         remoteUrl: String,
         localPath: Path,
@@ -30,6 +33,8 @@ interface GitSync {
     suspend fun push()
 
     suspend fun syncStatus(): SyncStatus
+
+    suspend fun discardUnpushed(expected: SyncStatus)
 
     suspend fun lastCommitForFile(repoRelativePath: String): FileCommitInfo?
 }

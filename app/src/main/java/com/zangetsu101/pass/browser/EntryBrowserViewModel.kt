@@ -10,6 +10,7 @@ import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,10 @@ class EntryBrowserViewModel
         private val _state = MutableStateFlow(EntryBrowserUiState())
         val state: StateFlow<EntryBrowserUiState> = _state.asStateFlow()
 
+        val syncState = gitSync.syncState
+
         init {
+            viewModelScope.launch { gitSync.syncStatus() }
             viewModelScope.launch {
                 appPreferences.defaultViewTree.collect { tree ->
                     _state.update { it.copy(treeView = tree) }
@@ -82,10 +86,16 @@ class EntryBrowserViewModel
             viewModelScope.launch {
                 try {
                     gitSync.pull()
-                    passStore.buildIndex()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
+                    // GitSync publishes the failure for Home and the recovery panel.
                 } finally {
-                    _state.update { it.copy(syncing = false) }
+                    try {
+                        passStore.buildIndex()
+                    } finally {
+                        _state.update { it.copy(syncing = false) }
+                    }
                 }
             }
         }

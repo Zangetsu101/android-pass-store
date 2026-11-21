@@ -4,7 +4,7 @@ The Android client writes a login edit as an encrypted file, commits the
 selected path with the imported key's first UID, and pushes from the app's
 background scope. The local commit is the save boundary. The entry detail can
 show the saved content immediately, and a failed push leaves the commit
-available for the recovery flow in issue #24. A pending commit exists only
+available for the manual sync recovery flow. A pending commit exists only
 in the clone until GitHub accepts it. The backup policy in
 [ADR 0002](0002-threat-model.md) still applies.
 
@@ -16,6 +16,13 @@ whose private material is present locally, so saving an already open draft
 works after the decryption session ends. The draft stays in memory, and the
 working copy and Git history receive only ciphertext.
 
-Clone, pull, commit, and push share a lock. The write checks the current
+Clone, sync, commit, push, and discard share a lock. The write checks the current
 ciphertext against the form's original version while holding the lock so a
 pull cannot cause the form to overwrite a newer version silently.
+
+Manual sync fetches the tracked branch, rebases unpushed commits if the remote
+advanced, then pushes. This keeps local edits when the two histories changed
+different entries. When both histories touched an encrypted entry, its
+ciphertexts cannot be combined safely. Sync preserves the local commits and
+reports the conflict. The recovery panel shows exactly which entry changes
+would be lost before the user confirms a reset to the fetched remote branch.

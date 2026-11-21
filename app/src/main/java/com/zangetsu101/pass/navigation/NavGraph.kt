@@ -161,6 +161,7 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                             }
                         },
                         onNavigateToSettings = { backStack.add(Settings) },
+                        onNavigateToSyncPanel = { backStack.add(SyncPanel) },
                     )
                 }
 

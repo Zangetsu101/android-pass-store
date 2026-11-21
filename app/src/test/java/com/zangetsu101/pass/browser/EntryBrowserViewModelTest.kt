@@ -4,6 +4,8 @@ package com.zangetsu101.pass.browser
 import android.content.Context
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncResult
+import com.zangetsu101.pass.gitsync.SyncState
+import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -54,6 +56,8 @@ class EntryBrowserViewModelTest {
         every { passStore.index } returns MutableStateFlow(emptyList())
         coEvery { passStore.buildIndex() } returns emptyList()
         every { passStore.search(any()) } returns emptyList()
+        every { gitSync.syncState } returns MutableStateFlow(SyncState())
+        coEvery { gitSync.syncStatus() } returns SyncStatus()
         coEvery { gitSync.pull() } returns SyncResult(emptyList(), emptyList(), Instant.now())
     }
 
@@ -149,7 +153,7 @@ class EntryBrowserViewModelTest {
         }
 
     @Test
-    fun `pull exception is swallowed and syncing resets to false`() =
+    fun `a failed sync clears the busy state and refreshes the index`() =
         runTest(testDispatcher) {
             coEvery { gitSync.pull() } throws RuntimeException("network error")
 

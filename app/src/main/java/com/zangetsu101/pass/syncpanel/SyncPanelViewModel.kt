@@ -4,23 +4,20 @@ package com.zangetsu101.pass.syncpanel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.passstore.PassStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
 import javax.inject.Inject
 
-data class SyncPanelUiState(
-    val lastSyncTime: Instant? = null,
-    val remoteReachable: Boolean? = null,
-    val pulling: Boolean = false,
-    val pullError: String? = null,
-    val pullSuccess: Boolean = false,
+data class DiscardState(
+    val running: Boolean = false,
+    val error: String? = null,
+    val done: Boolean = false,
 )
 
 @HiltViewModel
@@ -30,38 +27,25 @@ class SyncPanelViewModel
         private val gitSync: GitSync,
         private val passStore: PassStore,
     ) : ViewModel() {
-        private val _state = MutableStateFlow(SyncPanelUiState())
-        val state: StateFlow<SyncPanelUiState> = _state.asStateFlow()
+        val syncState = gitSync.syncState
+        private val discard = MutableStateFlow(DiscardState())
+        val discardState = discard.asStateFlow()
 
-        init {
-            loadStatus()
-        }
-
-        fun loadStatus() {
-            viewModelScope.launch {
-                val status: SyncStatus =
-                    runCatching { gitSync.syncStatus() }.getOrElse {
-                        SyncStatus(lastSyncTime = null, localCommit = null, remoteReachable = false)
-                    }
-                _state.update {
-                    it.copy(
-                        lastSyncTime = status.lastSyncTime,
-                        remoteReachable = status.remoteReachable,
-                    )
-                }
-            }
-        }
-
-        fun pull() {
-            _state.update { it.copy(pulling = true, pullError = null, pullSuccess = false) }
+        fun discardUnpushed(expected: SyncStatus) {
+            if (discard.value.running) return
+            discard.value = DiscardState(running = true)
             viewModelScope.launch {
                 try {
-                    val result = gitSync.pull()
+                    gitSync.discardUnpushed(expected)
                     passStore.buildIndex()
-                    _state.update { it.copy(pulling = false, pullSuccess = true, lastSyncTime = result.lastSyncTime) }
-                } catch (e: Exception) {
-                    _state.update { it.copy(pulling = false, pullError = e.message ?: "Pull failed") }
-                    loadStatus()
+                    discard.value = DiscardState(done = true)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    discard.value =
+                        DiscardState(
+                            error = (error as? SyncError)?.message ?: "Couldn't finish discarding. Return home and check sync.",
+                        )
                 }
             }
         }

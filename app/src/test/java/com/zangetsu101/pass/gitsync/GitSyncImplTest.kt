@@ -9,9 +9,12 @@ import com.zangetsu101.pass.passstore.PassStoreImpl
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.events.RefsChangedListener
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.storage.file.FileBasedConfig
 import org.eclipse.jgit.util.FS
@@ -27,6 +30,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 class GitSyncImplTest {
@@ -113,7 +118,12 @@ class GitSyncImplTest {
                     assertEquals("dummy encrypted content", original.decodeToString())
                     EncryptedEdit("new ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                 }
+            assertEquals(1, gitSync.syncState.value.status.unpushed.size)
             gitSync.push()
+            assertTrue(
+                gitSync.syncState.value.status.unpushed
+                    .isEmpty(),
+            )
 
             Git.open(bareRepo).use { git ->
                 val head =
@@ -183,7 +193,10 @@ class GitSyncImplTest {
                 }
             }
 
+            assertEquals(1, gitSync.syncState.value.status.unpushed.size)
             assertTrue(runCatching { gitSync.push() }.isFailure)
+            assertEquals(1, gitSync.syncState.value.status.unpushed.size)
+            assertEquals(null, gitSync.syncState.value.error)
 
             Git.open(repoDir).use {
                 assertEquals(
@@ -251,7 +264,7 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `pull rejects divergence even when rebase is configured`() =
+    fun `sync rebases split history and pushes both changes`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 
@@ -290,14 +303,15 @@ class GitSyncImplTest {
             pushGit.close()
             tempWork.deleteRecursively()
 
-            var threw: SyncError.NotFastForward? = null
-            try {
-                gitSync.pull()
-            } catch (e: SyncError.NotFastForward) {
-                threw = e
+            gitSync.pull()
+
+            val status = gitSync.syncStatus()
+            assertTrue(localHead != status.localCommit)
+            assertEquals(status.upstreamCommit, status.localCommit)
+            assertTrue(status.unpushed.isEmpty())
+            Git.open(bareRepo).use { remote ->
+                assertEquals(listOf("local diverge", "remote diverge", "initial"), remote.log().call().map { it.shortMessage })
             }
-            assertNotNull("Expected NotFastForward", threw)
-            assertEquals(localHead, gitSync.syncStatus().localCommit)
         }
 
     @Test
@@ -312,10 +326,103 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `syncStatus returns remoteReachable=false for invalid path`() =
+    fun `a conflicting encrypted entry preserves the local commit until confirmed discard`() =
         runTest {
-            val status = gitSync.syncStatus()
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            val path = "web/github.com/alice.gpg"
+            val local =
+                gitSync.commitEdit(path) { _, _ ->
+                    EncryptedEdit("local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+                }
+            publishRemoteEdit(path)
 
-            assertFalse(status.remoteReachable)
+            val error = runCatching { gitSync.pull() }.exceptionOrNull()
+            assertEquals(SyncError.Conflict(listOf("web/github.com/alice")), error)
+            val snapshot = gitSync.syncState.value.status
+            assertTrue(gitSync.syncState.value.conflict)
+            assertEquals(local.commitHash, snapshot.localCommit?.take(7))
+            assertEquals(listOf(EntryChange("web/github.com/alice", "edited")), snapshot.discardPaths)
+            assertEquals(listOf("web/github.com/alice"), snapshot.unpushed.single().paths)
+            assertEquals("local edit", File(repoDir, path).readText())
+            Git.open(repoDir).use { assertTrue(it.status().call().isClean) }
+
+            gitSync.commitEdit(path) { _, _ ->
+                EncryptedEdit("another local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+            }
+            assertTrue(runCatching { gitSync.discardUnpushed(snapshot) }.exceptionOrNull() is SyncError.RecoveryFailure)
+            assertEquals("another local edit", File(repoDir, path).readText())
+
+            gitSync.discardUnpushed(gitSync.syncState.value.status)
+            val final = gitSync.syncState.value
+            assertEquals(final.status.upstreamCommit, final.status.localCommit)
+            assertTrue(final.status.unpushed.isEmpty())
+            assertEquals(null, final.error)
+            assertEquals("remote edit", File(repoDir, path).readText())
         }
+
+    @Test
+    fun `a save waits until a running sync releases the repository`() =
+        runTest {
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            publishRemoteEdit("other.gpg")
+            val fetchChangedRef = CompletableDeferred<Unit>()
+            val releaseFetch = CountDownLatch(1)
+            val listener =
+                org.eclipse.jgit.lib.Repository.getGlobalListenerList().addRefsChangedListener(
+                    RefsChangedListener { event ->
+                        if (event.repository.directory == File(repoDir, ".git") && fetchChangedRef.complete(Unit)) {
+                            check(releaseFetch.await(10, TimeUnit.SECONDS))
+                        }
+                    },
+                )
+            val path = "web/github.com/alice.gpg"
+            val savePrepared = CompletableDeferred<Boolean>()
+            try {
+                val sync = async { gitSync.pull() }
+                fetchChangedRef.await()
+                val save =
+                    async {
+                        gitSync.commitEdit(path) { root, _ ->
+                            savePrepared.complete(File(root, "other.gpg").isFile)
+                            EncryptedEdit("local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+                        }
+                    }
+                testScheduler.runCurrent()
+                assertFalse(savePrepared.isCompleted)
+                releaseFetch.countDown()
+                sync.await()
+                save.await()
+                assertTrue(savePrepared.await())
+                assertEquals(1, gitSync.syncState.value.status.unpushed.size)
+            } finally {
+                releaseFetch.countDown()
+                listener.remove()
+            }
+        }
+
+    @Test
+    fun `status without a clone is empty`() =
+        runTest {
+            assertEquals(SyncStatus(), gitSync.syncStatus())
+        }
+
+    private fun publishRemoteEdit(path: String) {
+        val work = Files.createTempDirectory("remote_edit").toFile()
+        try {
+            Git.cloneRepository().setURI(bareRepo.toURI().toString()).setDirectory(work).call().use { git ->
+                val entry = File(work, path)
+                entry.parentFile?.mkdirs()
+                entry.writeText("remote edit")
+                git.add().addFilepattern(path).call()
+                git
+                    .commit()
+                    .setMessage("remote edit")
+                    .setAuthor("test", "test@test.com")
+                    .call()
+                git.push().call()
+            }
+        } finally {
+            work.deleteRecursively()
+        }
+    }
 }

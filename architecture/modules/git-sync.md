@@ -17,11 +17,11 @@ Manage the pass store working copy and synchronize it with GitHub over SSH. Git 
 ## Sync Model
 
 - **First run:** `git clone <remote> <local-path>` via SSH.
-- **Subsequent syncs:** `git pull --ff-only`.
-- **Trigger:** manual sync and app flows that call the sync layer.
+- **Subsequent syncs:** Fetch the tracked branch, rebase local commits if the remote advanced, then push unpushed commits.
+- **Trigger:** the Home sync chip and the background push after a save.
 - **Login edit:** Commit only the selected encrypted entry. The unsigned commit uses the first GPG UID for its identity and the `pass edit` message.
-- **Push:** After a successful commit, push the current branch from the application scope. A rejected or failed push leaves the commit local and displays a snackbar.
-- **Serialization:** Clone, pull, commit, and push share one repository lock.
+- **Push:** After a successful commit, push the current branch from the application scope. A rejected or failed push leaves the commit local, updates the Home chip, and displays a snackbar.
+- **Serialization:** Clone, sync, commit, push, and discard share one repository lock.
 
 ## SSH Auth
 
@@ -40,18 +40,20 @@ After onboarding, sync is source-agnostic: it reads the stored SSH keypair from 
 
 ## Error States
 
-- Remote unreachable → surface last-sync timestamp and continue with local copy where possible.
+- Remote unreachable → show an error with a retry hint and keep the working copy available.
 - SSH auth failure → surface an actionable error.
-- Non-fast-forward/diverged history → fail with `NotFastForward`; no merge or rebase is attempted.
+- Conflict → preserve local commits and list affected paths. The recovery panel can reset to the fetched remote branch after confirming the paths that will lose changes.
 - Unsupported host → host verification fails unless the host key matches GitHub's pinned fingerprints.
 
 ## Interfaces
 
 - `clone(remoteUrl: String, localPath: Path, sshKeyPair: SshKeyPair?, progressMonitor: ProgressMonitor?)` — initial clone.
-- `pull(): SyncResult` — fast-forward pull, returning changed `.gpg` paths and last sync time.
+- `pull(): SyncResult` — fetch, rebase, and push, returning changed `.gpg` paths and last sync time.
 - `commitEdit(path, prepare)` — validate and prepare an encrypted edit under the repository lock, then commit that file.
 - `push()` — push the current branch and verify the remote accepted the update.
-- `syncStatus(): SyncStatus` — last sync time, local commit, remote reachability.
+- `syncStatus(): SyncStatus` — local snapshot of the tracked branch, unpushed commits, affected paths, and last sync time.
+- `syncState` — observable repository snapshot, command progress, and sync error.
+- `discardUnpushed(expected)` — reset to the fetched branch after validating the confirmed snapshot.
 - `lastCommitForFile(repoRelativePath: String): FileCommitInfo?` — metadata for entry detail UI.
 
 ## Non-Goals (v1)
@@ -61,4 +63,4 @@ After onboarding, sync is source-agnostic: it reads the stored SSH keypair from 
 - Custom known_hosts / trust-on-first-use host enrollment
 - Multiple remotes
 - Branch selection UI (assumes the cloned default branch / current repo branch)
-- Manual push retry and divergence recovery (issue #24)
+- Automatic sync and resolving individual conflicting versions
