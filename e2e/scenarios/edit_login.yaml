@@ -26,10 +26,7 @@ appId: com.zangetsu101.pass
 - eraseText: 128
 - inputText: "edited-password-23"
 - hideKeyboard
-- scrollUntilVisible:
-    element: "> pass insert -m -f dev/github\\.com/alex\\.dev"
-    direction: DOWN
-- tapOn: "> pass insert -m -f dev/github\\.com/alex\\.dev"
+- tapOn: "save entry"
 - extendedWaitUntil:
     visible: "saved locally · push failed"
     timeout: 30000

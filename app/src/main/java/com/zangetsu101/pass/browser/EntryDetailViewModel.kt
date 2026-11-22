@@ -86,7 +86,8 @@ data class LoginEditorState internal constructor(
     val saving: Boolean = false,
     val error: String? = null,
 ) {
-    val changed: Boolean get() = password != source.login.password || notes != source.login.notes
+    val passwordChanged: Boolean get() = password != source.login.password
+    val changed: Boolean get() = passwordChanged || notes != source.login.notes
     val hasOtp: Boolean get() = source.login.hasOtp
 
     override fun toString(): String = "LoginEditorState"
