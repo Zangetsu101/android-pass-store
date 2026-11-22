@@ -6,7 +6,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -19,6 +21,7 @@ import com.zangetsu101.pass.browser.EntryBrowserScreen
 import com.zangetsu101.pass.browser.EntryBrowserViewModel
 import com.zangetsu101.pass.browser.EntryDetailScreen
 import com.zangetsu101.pass.browser.EntryDetailViewModel
+import com.zangetsu101.pass.browser.LoginEditorScreen
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.onboarding.CloneProgressScreen
 import com.zangetsu101.pass.onboarding.CloneProgressViewModel
@@ -64,6 +67,8 @@ import kotlin.time.Duration.Companion.milliseconds
     val entryPath: String,
 ) : NavKey
 
+@Serializable data object EditLogin : NavKey
+
 @Serializable data object SyncPanel : NavKey
 
 @Serializable data object Settings : NavKey
@@ -71,10 +76,45 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun PassAndroidNavHost(appPreferences: AppPreferences) {
     val backStack = rememberNavBackStack(Splash)
+    val navVm: NavViewModel = hiltViewModel()
+    var confirmDiscard by remember { mutableStateOf(false) }
+
+    fun closeEditor() {
+        if (backStack.lastOrNull() != EditLogin) return
+        confirmDiscard = false
+        navVm.editorOwner = null
+        backStack.removeLastOrNull()
+    }
+
+    fun requestEditorBack() {
+        if (backStack.lastOrNull() != EditLogin) return
+        val vm = navVm.editorOwner
+        val draft = vm?.state?.value?.editor
+        when {
+            draft == null -> {
+                closeEditor()
+            }
+
+            draft.saving -> {
+                Unit
+            }
+
+            draft.changed -> {
+                confirmDiscard = true
+            }
+
+            else -> {
+                vm.discardEditor()
+                closeEditor()
+            }
+        }
+    }
 
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = {
+            if (backStack.lastOrNull() == EditLogin) requestEditorBack() else backStack.removeLastOrNull()
+        },
         entryDecorators =
             listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
@@ -149,7 +189,6 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                 }
 
                 entry<EntryBrowser> {
-                    val navVm: NavViewModel = hiltViewModel()
                     val vm: EntryBrowserViewModel = hiltViewModel()
                     EntryBrowserScreen(
                         viewModel = vm,
@@ -165,7 +204,6 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                 }
 
                 entry<EntryDetail> {
-                    val navVm: NavViewModel = hiltViewModel()
                     val context = LocalContext.current
                     val sessionState by navVm.sessionState.collectAsState()
                     val maybeEntry = remember(it.entryPath) { navVm.findEntry(it.entryPath) }
@@ -182,7 +220,20 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                         )
                     EntryDetailScreen(
                         viewModel = vm,
-                        onBack = { backStack.removeLastOrNull() },
+                        onBack = {
+                            if (backStack.lastOrNull() == it) backStack.removeLastOrNull()
+                        },
+                        isCurrentEntry = backStack.lastOrNull() == it,
+                        shouldLockOnDispose = { it !in backStack },
+                        onEdit = {
+                            if (backStack.lastOrNull() == it) {
+                                vm.startEditing()
+                                if (vm.state.value.editor != null) {
+                                    navVm.editorOwner = vm
+                                    backStack.add(EditLogin)
+                                }
+                            }
+                        },
                         sessionActive = sessionState is SessionState.Active,
                         onSessionRequired = {
                             if (backStack.lastOrNull() == it) {
@@ -191,6 +242,28 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                             }
                         },
                     )
+                }
+
+                entry<EditLogin> {
+                    val vm = navVm.editorOwner
+                    val state = vm?.state?.collectAsState()?.value
+                    val editor = state?.editor
+                    if (vm == null || state == null || editor == null) {
+                        LaunchedEffect(Unit) { closeEditor() }
+                    } else {
+                        LoginEditorScreen(
+                            entry = state.entry,
+                            editor = editor,
+                            viewModel = vm,
+                            onBack = ::requestEditorBack,
+                            confirmDiscard = confirmDiscard,
+                            onKeepEditing = { confirmDiscard = false },
+                            onDiscard = {
+                                vm.discardEditor()
+                                closeEditor()
+                            },
+                        )
+                    }
                 }
 
                 entry<SyncPanel> {

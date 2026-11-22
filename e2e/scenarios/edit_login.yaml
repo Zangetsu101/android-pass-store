@@ -22,10 +22,16 @@ appId: com.zangetsu101.pass
     timeout: 60000
 - tapOn: "edit"
 - assertVisible: "edit entry"
+- pressKey: Back
+- assertVisible: "edit"
+- tapOn: "edit"
 - tapOn: "edit password"
 - eraseText: 128
 - inputText: "edited-password-23"
 - hideKeyboard
+- pressKey: Back
+- assertVisible: "keep editing"
+- tapOn: "keep editing"
 - tapOn: "save entry"
 - extendedWaitUntil:
     visible: "saved locally · push failed"
