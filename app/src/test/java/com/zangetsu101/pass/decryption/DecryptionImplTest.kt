@@ -86,9 +86,9 @@ class DecryptionImplTest {
             val decrypted = decryption.decryptForEntryDetail(entry, activity)
 
             assertEquals("notes", decrypted.credentials.notes)
-            val rawLogin = requireNotNull(decrypted.rawLoginEntry)
-            assertEquals(plaintext, rawLogin.plaintext)
-            assertArrayEquals(hash, rawLogin.ciphertextDigest)
+            val rawEntry = requireNotNull(decrypted.rawEntry)
+            assertEquals(plaintext, rawEntry.plaintext)
+            assertArrayEquals(hash, rawEntry.ciphertextDigest)
         }
 
     @Test

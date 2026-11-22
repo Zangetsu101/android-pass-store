@@ -29,8 +29,8 @@ class DecryptionImpl(
         activity: FragmentActivity,
     ): DecryptedEntry =
         readEntry(entry, activity) { plaintext, ciphertext ->
-            val rawLogin = if (entry.isCard) null else RawLoginEntry(plaintext, ciphertext.ciphertextDigest())
-            DecryptedEntry(parseCredentials(plaintext, entry.username), rawLogin)
+            val rawEntry = if (entry.isCard) null else RawEntry(plaintext, ciphertext.ciphertextDigest())
+            DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry)
         }
 
     private suspend fun <T> readEntry(

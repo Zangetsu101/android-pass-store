@@ -4,7 +4,7 @@ package com.zangetsu101.pass.passstore
 import android.util.Log
 import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.LoginEditSource
-import com.zangetsu101.pass.decryption.RawLoginEntry
+import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.decryption.ciphertextDigest
 import com.zangetsu101.pass.decryption.parseCredentials
 import com.zangetsu101.pass.di.AppBackgroundScope
@@ -41,7 +41,7 @@ class LoginEntryWriter
         ) = scope
             .async {
                 val plaintext = source.login.render(password, notes)
-                lateinit var rawLogin: RawLoginEntry
+                lateinit var rawEntry: RawEntry
                 val commit =
                     gitSync.commitEdit(entry.path) { root, original ->
                         if (!source.ciphertextDigest.contentEquals(original.ciphertextDigest())) {
@@ -49,7 +49,7 @@ class LoginEntryWriter
                         }
                         val encryption = LoginEncryption(keyStore.publicKeySource())
                         val ciphertext = encryption.encrypt(root, entry.path, plaintext)
-                        rawLogin = RawLoginEntry(plaintext, ciphertext.ciphertextDigest())
+                        rawEntry = RawEntry(plaintext, ciphertext.ciphertextDigest())
                         EncryptedEdit(ciphertext, encryption.author())
                     }
                 scope.launch {
@@ -70,7 +70,7 @@ class LoginEntryWriter
                         Log.w("LoginEntryWriter", "Couldn't refresh the entry index after saving", error)
                     }
                 }
-                SavedLogin(DecryptedEntry(parseCredentials(plaintext, entry.username), rawLogin), commit)
+                SavedLogin(DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry), commit)
             }.await()
     }
 
