@@ -5,11 +5,17 @@ import com.zangetsu101.pass.keymanagement.AuthSubkeyInfo
 import com.zangetsu101.pass.keymanagement.GpgPrivateKey
 import com.zangetsu101.pass.keymanagement.crypto.PlainCryptoStore
 import com.zangetsu101.pass.keymanagement.session.SessionError
+import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 
 data class GpgImportCandidate(
     val armoredKey: String,
     val secretKeyRing: PGPSecretKeyRing,
+)
+
+class PublicKeySource(
+    val certificate: PGPPublicKeyRing,
+    val availableKeyIds: Set<Long>,
 )
 
 interface GpgKeyStore : PlainCryptoStore {
@@ -19,6 +25,8 @@ interface GpgKeyStore : PlainCryptoStore {
     fun validatePassphrase(passphrase: String)
 
     fun loadAndUnlock(passphrase: String): GpgPrivateKey
+
+    fun publicKeySource(): PublicKeySource
 
     fun getGpgKeyInfo(): Pair<String, String>?
 

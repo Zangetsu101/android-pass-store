@@ -58,4 +58,4 @@ internal fun parseCredentials(
     )
 }
 
-private fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")
+internal fun isOtpLine(line: String): Boolean = line.trimStart(' ', '\t').startsWith("otpauth://")

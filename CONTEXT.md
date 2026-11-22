@@ -7,11 +7,19 @@ Entries are GPG-encrypted files in the standard `pass` format:
 - Line 1: the secret (password, card number, etc.), except for OTP-only entries
 - Lines 2+: key-value pairs (`key: value`)
 
+**Recipient**: An identifier in the nearest `.gpg-id` for the entry. An
+identifier can be a long key ID, a fingerprint, or an email address. A
+folder inherits its parent's recipients when it has no `.gpg-id`.
+
+**Round-trip rule**: An edit preserves each hidden line, including every
+**OTP Line**, in its position among the surrounding lines. It also preserves
+the original line endings and final newline.
+
 ## OTP Entries
 
 **Password + OTP Entry**: A pass entry with a password on line 1 and an `otpauth://` line below it.
 
-**OTP-only Entry**: A pass entry whose only content is an `otpauth://` line. It has no password.
+**OTP-only Entry**: A pass entry with an **OTP Line** and no first-line password. It may also contain notes.
 
 **OTP Line**: A line starting with `otpauth://` after leading spaces and tabs are removed. The first OTP Line wins; every OTP Line is excluded from passwords and notes, including invalid and unsupported lines. TOTP codes are read-only; HOTP and OTP on External Credential Surfaces are deferred.
 

@@ -7,15 +7,20 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.decryption.Credentials
+import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
+import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
+import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
+import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.SavedLogin
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -57,6 +62,7 @@ class EntryDetailViewModelTest {
     private val mockDecryption = mockk<Decryption>()
     private val mockGitSync = mockk<GitSync>()
     private val mockSessionOperations = mockk<SessionOperations>()
+    private val mockWriter = mockk<LoginEntryWriter>()
     private val mockAppPreferences = mockk<AppPreferences>()
     private val mockContext = mockk<Context>(relaxed = true)
     private val mockActivity = mockk<FragmentActivity>(relaxed = true)
@@ -97,7 +103,7 @@ class EntryDetailViewModelTest {
             val otp =
                 com.zangetsu101.pass.otp
                     .parseOtp("otpauth://totp/test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials.copy(otp = otp)
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials.copy(otp = otp))
             every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(12)
             val clipboard = mockk<ClipboardManager>(relaxed = true)
             every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboard
@@ -119,6 +125,106 @@ class EntryDetailViewModelTest {
             verify(exactly = 1) { clipboard.setPrimaryClip(any()) }
         }
 
+    @Test
+    fun `an open draft can be saved after the session expires`() =
+        runTest {
+            val session = MutableStateFlow<SessionState>(SessionState.Active)
+            every { mockSessionOperations.sessionState } returns session
+            val rawEntry = RawEntry("old password\nnotes", byteArrayOf(1, 2, 3))
+            val original = DecryptedEntry(fakeCredentials, rawEntry)
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns original
+            val saved = fakeCredentials.copy(password = "newpassword".toCharArray(), notes = "notes")
+            val commit = FileCommitInfo("abc1234", Instant.EPOCH)
+            coEvery {
+                mockWriter.save(fakeEntry, match { it.ciphertextDigest.contentEquals(rawEntry.ciphertextDigest) }, "newpassword", "notes")
+            } returns
+                SavedLogin(DecryptedEntry(saved, RawEntry("newpassword\nnotes", byteArrayOf(4))), commit)
+            val vm = createViewModel()
+
+            vm.authenticate(mockActivity)
+            runCurrent()
+            assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
+            vm.startEditing()
+            vm.updateEditorPassword("new password\t")
+            session.value = SessionState.Inactive(EndReason.TIMEOUT)
+            runCurrent()
+            assertEquals(
+                "newpassword",
+                (vm.state.value.mode as EntryDetailMode.EditEntry).draft.password,
+            )
+
+            vm.saveEditor()
+            runCurrent()
+
+            assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
+            assertEquals(saved, (vm.state.value.unlockState as UnlockState.Decrypted).credentials)
+            assertEquals(GitStatus.Tracked(commit), vm.state.value.gitStatus)
+            vm.startEditing()
+            assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
+        }
+
+    @Test
+    fun `the editor requires a password when the original login has one`() =
+        runTest {
+            val rawEntry = RawEntry("password", byteArrayOf())
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials, rawEntry)
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+            assertFalse(
+                (vm.state.value.mode as EntryDetailMode.EditEntry).draft.changed,
+            )
+
+            vm.updateEditorPassword("  \t")
+            vm.saveEditor()
+
+            assertEquals(
+                "password cannot be empty",
+                (vm.state.value.mode as EntryDetailMode.EditEntry).draft.error,
+            )
+            coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any()) }
+            vm.discardEditor()
+            assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
+        }
+
+    @Test
+    fun `OTP only drafts can save notes with an empty password and still lock on later expiry`() =
+        runTest {
+            val session = MutableStateFlow<SessionState>(SessionState.Active)
+            every { mockSessionOperations.sessionState } returns session
+            val rawEntry = RawEntry("otpauth://invalid", byteArrayOf())
+            val original = fakeCredentials.copy(password = charArrayOf(), notes = "")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(original, rawEntry)
+            val saved = original.copy(notes = "new notes")
+            coEvery { mockWriter.save(fakeEntry, any(), "", "new notes") } returns
+                SavedLogin(
+                    DecryptedEntry(saved, RawEntry("otpauth://invalid\nnew notes", byteArrayOf(4))),
+                    FileCommitInfo("abc1234", Instant.EPOCH),
+                )
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+            vm.updateEditorNotes("new notes")
+            vm.saveEditor()
+            runCurrent()
+            assertEquals(saved, (vm.state.value.unlockState as UnlockState.Decrypted).credentials)
+            assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
+
+            vm.startEditing()
+            val reopened = (vm.state.value.mode as EntryDetailMode.EditEntry).draft
+            assertEquals("new notes", reopened.notes)
+            assertTrue(reopened.hasOtp)
+            assertFalse(reopened.changed)
+            vm.discardEditor()
+
+            session.value = SessionState.Inactive(EndReason.TIMEOUT)
+            runCurrent()
+
+            assertTrue(vm.state.value.unlockState is UnlockState.Failed)
+        }
+
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
@@ -135,6 +241,7 @@ class EntryDetailViewModelTest {
             sessionOperations = mockSessionOperations,
             gitSync = mockGitSync,
             appPreferences = mockAppPreferences,
+            loginWriter = mockWriter,
         )
 
     @Test
@@ -142,7 +249,7 @@ class EntryDetailViewModelTest {
         runTest(testDispatcher) {
             var elapsed = 0L
             every { SystemClock.elapsedRealtime() } answers { elapsed }
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             assertFalse(viewModel.hasUnexpiredDetails())
             viewModel.authenticate(mockActivity)
@@ -170,7 +277,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `configuration recreation preserves details and original deadline`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
@@ -183,7 +290,7 @@ class EntryDetailViewModelTest {
             advanceTimeBy(10_000)
             runCurrent()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
-            coVerify(exactly = 1) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 1) { mockDecryption.decryptForEntryDetail(any(), any()) }
         }
 
     @Test
@@ -191,7 +298,7 @@ class EntryDetailViewModelTest {
         runTest(testDispatcher) {
             var elapsed = 0L
             every { SystemClock.elapsedRealtime() } answers { elapsed }
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
@@ -201,18 +308,18 @@ class EntryDetailViewModelTest {
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
-            coVerify(exactly = 1) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 1) { mockDecryption.decryptForEntryDetail(any(), any()) }
 
             viewModel.authenticate(mockActivity)
             runCurrent()
             assertTrue(viewModel.state.value.unlockState is UnlockState.Decrypted)
-            coVerify(exactly = 2) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 2) { mockDecryption.decryptForEntryDetail(any(), any()) }
         }
 
     @Test
     fun `navigation disposal still locks immediately without automatic reauthentication`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
@@ -221,15 +328,15 @@ class EntryDetailViewModelTest {
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
-            coVerify(exactly = 1) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 1) { mockDecryption.decryptForEntryDetail(any(), any()) }
         }
 
     @Test
     fun `recreation during decryption keeps the original operation`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } coAnswers {
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } coAnswers {
                 delay(1_000)
-                fakeCredentials
+                DecryptedEntry(fakeCredentials)
             }
             val viewModel = createViewModel()
             viewModel.onScreenEntered(mockActivity)
@@ -239,13 +346,13 @@ class EntryDetailViewModelTest {
             advanceTimeBy(1_000)
             runCurrent()
             assertTrue(viewModel.state.value.unlockState is UnlockState.Decrypted)
-            coVerify(exactly = 1) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 1) { mockDecryption.decryptForEntryDetail(any(), any()) }
         }
 
     @Test
     fun `entry locks sixty seconds after decryption without ending session`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
@@ -260,7 +367,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `reveal and copy never extend the original deadline`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns mockk<ClipboardManager>(relaxed = true)
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
@@ -278,7 +385,7 @@ class EntryDetailViewModelTest {
         runTest(testDispatcher) {
             var elapsed = 0L
             every { SystemClock.elapsedRealtime() } answers { elapsed }
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
@@ -293,7 +400,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `expired details cannot be revealed or copied before timer resumes`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
@@ -307,7 +414,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `navigation locks immediately and a subsequent decrypt gets a new deadline`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
             runCurrent()
@@ -327,10 +434,10 @@ class EntryDetailViewModelTest {
     @Test
     fun `navigation during decryption cannot repopulate details`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } coAnswers {
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } coAnswers {
                 withContext(NonCancellable) {
                     delay(1_000)
-                    fakeCredentials
+                    DecryptedEntry(fakeCredentials)
                 }
             }
             val viewModel = createViewModel()
@@ -345,9 +452,9 @@ class EntryDetailViewModelTest {
     @Test
     fun `deadline starts on successful decryption not authentication start`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } coAnswers {
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } coAnswers {
                 delay(10_000)
-                fakeCredentials
+                DecryptedEntry(fakeCredentials)
             }
             val viewModel = createViewModel()
             viewModel.authenticate(mockActivity)
@@ -401,7 +508,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `authenticate when unlockState is Decrypting is no-op`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             runCurrent()
 
@@ -413,13 +520,13 @@ class EntryDetailViewModelTest {
             viewModel.authenticate(mockActivity)
             runCurrent()
 
-            coVerify(exactly = 1) { mockDecryption.decrypt(any(), any()) }
+            coVerify(exactly = 1) { mockDecryption.decryptForEntryDetail(any(), any()) }
         }
 
     @Test
     fun `authenticate success sets unlockState to Decrypted`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             runCurrent()
 
@@ -432,7 +539,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `authenticate BiometricAuthException resets unlockState to Idle`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } throws BiometricAuthException("cancelled")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } throws BiometricAuthException("cancelled")
             val viewModel = createViewModel()
             runCurrent()
 
@@ -445,7 +552,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `authenticate SessionError NoActiveSession sets unlockState to Failed with session message`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } throws SessionError.NoActiveSession()
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } throws SessionError.NoActiveSession()
             val viewModel = createViewModel()
             runCurrent()
 
@@ -461,7 +568,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `authenticate DecryptionError sets unlockState to Failed with error message`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } throws DecryptionError("Bad key")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } throws DecryptionError("Bad key")
             val viewModel = createViewModel()
             runCurrent()
 
@@ -474,7 +581,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `toggleReveal when Decrypted toggles passwordRevealed`() =
         runTest(testDispatcher) {
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
             runCurrent()
             viewModel.authenticate(mockActivity)
@@ -496,7 +603,7 @@ class EntryDetailViewModelTest {
             every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(timeoutSeconds)
             val mockClipboard = mockk<ClipboardManager>(relaxed = true)
             every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns mockClipboard
-            coEvery { mockDecryption.decrypt(any(), any()) } returns fakeCredentials
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
 
             val viewModel = createViewModel()
             runCurrent()

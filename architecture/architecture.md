@@ -1,6 +1,6 @@
 # PassAndroid — Architecture
 
-> Current-state technical architecture for a read-only Android client for the `pass` password store.
+> Current-state technical architecture for an Android client for the `pass` password store.
 
 Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md). This document describes the implementation shape, module boundaries, and current security properties.
 
@@ -39,7 +39,7 @@ Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md)
 | Card autofill | Supported for **Card Entries** |
 | Passkey support | Out of scope |
 | OTP | Read-only pass-otp TOTP codes in entry details; external fill and HOTP deferred |
-| Write support | Read-only (v1) |
+| Write support | Edit login passwords and notes, encrypt to the imported key, commit locally, and push in the background |
 | Offline | Full offline after first sync (local git clone, decrypt on demand) |
 | Session lock | Timed inactivity lock; app UI may use passphrase cache while session is active |
 
@@ -96,11 +96,11 @@ See [`docs/adr/0002-threat-model.md`](../docs/adr/0002-threat-model.md) for the 
 | # | Module | Responsibility |
 |---|---|---|
 | 1 | [Key Management](modules/key-management.md) | GPG + SSH key import/generation, Keystore-backed storage, session passphrase, biometric unlock |
-| 2 | [Git Sync](modules/git-sync.md) | Clone and pull the pass repo from GitHub over SSH |
+| 2 | [Git Sync](modules/git-sync.md) | Clone, fast-forward pull, commit encrypted edits, and push to GitHub over SSH |
 | 3 | [Pass Store](modules/pass-store.md) | Index `.gpg` paths, resolve autofill queries, fuzzy user search |
 | 4 | [Decryption](modules/decryption.md) | GPG-decrypt entries, parse password/card fields from pass files |
 | 5 | [Autofill](modules/autofill.md) | `AutofillService` and Credential Manager provider integration |
-| 6 | [UI](modules/ui.md) | Onboarding, entry browser, sync panel, settings |
+| 6 | [UI](modules/ui.md) | Onboarding, entry browser, login editor, sync panel, settings |
 
 ---
 
@@ -135,6 +135,16 @@ Decryption.decrypt(entry)
     ▼
 Show password/card details and notes in app UI
 ```
+
+## Data Flow: Edit Login
+
+The editor opens from a decrypted login and holds its draft in memory. It
+preserves OTP lines and the file's line endings. During the serialized Git
+write, the app verifies the entry still matches the version the user opened,
+resolves the closest `.gpg-id`, and encrypts to the imported key's public
+certificate. An unsigned commit updates only the selected entry. The app
+refreshes the index and entry detail, and pushes from the application scope.
+A failed push leaves the commit in the local repository.
 
 ## Data Flow: First-Run Setup
 

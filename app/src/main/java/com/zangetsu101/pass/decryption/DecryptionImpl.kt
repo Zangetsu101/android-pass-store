@@ -14,6 +14,7 @@ import org.pgpainless.exception.MissingDecryptionMethodException
 import org.pgpainless.exception.WrongPassphraseException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 class DecryptionImpl(
     private val gpgKeyProvider: GpgKeyProvider,
@@ -21,18 +22,39 @@ class DecryptionImpl(
     override suspend fun decrypt(
         entry: PassEntry,
         activity: FragmentActivity,
-    ): Credentials {
+    ): Credentials = readEntry(entry, activity) { plaintext, _ -> parseCredentials(plaintext, entry.username) }
+
+    override suspend fun decryptForEntryDetail(
+        entry: PassEntry,
+        activity: FragmentActivity,
+    ): DecryptedEntry =
+        readEntry(entry, activity) { plaintext, ciphertext ->
+            val rawEntry = if (entry.isCard) null else RawEntry(plaintext, ciphertext.ciphertextDigest())
+            DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry)
+        }
+
+    private suspend fun <T> readEntry(
+        entry: PassEntry,
+        activity: FragmentActivity,
+        read: (plaintext: String, ciphertext: ByteArray) -> T,
+    ): T {
         val secretKeyRing = gpgKeyProvider.getGpgKey(activity)
-        val plaintext = withContext(Dispatchers.IO) { decryptFile(entry, secretKeyRing) }
-        return parseCredentials(plaintext, entry.username)
+        return withContext(Dispatchers.IO) {
+            val ciphertext =
+                try {
+                    entry.encryptedFile.readBytes()
+                } catch (error: IOException) {
+                    throw DecryptionError("Couldn't read this entry.", error)
+                }
+            read(decryptFile(ciphertext, secretKeyRing), ciphertext)
+        }
     }
 
     private fun decryptFile(
-        entry: PassEntry,
+        ciphertext: ByteArray,
         secretKeyRing: GpgPrivateKey,
     ): String =
         try {
-            val ciphertext = entry.encryptedFile.readBytes()
             val output = ByteArrayOutputStream()
             val stream =
                 PGPainless

@@ -61,6 +61,7 @@ import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
 import com.zangetsu101.pass.ui.components.PassScaffold
+import com.zangetsu101.pass.ui.components.PassSecondaryButton
 import com.zangetsu101.pass.ui.components.PassTag
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
@@ -75,6 +76,8 @@ private val DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(
 fun EntryDetailScreen(
     viewModel: EntryDetailViewModel,
     onBack: () -> Unit,
+    sessionActive: Boolean,
+    onSessionRequired: () -> Unit,
 ) {
     val state = viewModel.state.collectAsState().value
     val activity = LocalActivity.current as FragmentActivity
@@ -85,7 +88,6 @@ fun EntryDetailScreen(
         viewModel.lock()
         onBack()
     }
-    BackHandler(onBack = leaveEntry)
 
     DisposableEffect(viewModel, lifecycleOwner, activity) {
         val observer =
@@ -104,9 +106,20 @@ fun EntryDetailScreen(
         }
     }
 
-    LaunchedEffect(viewModel, activity) {
-        viewModel.onScreenEntered(activity)
+    val mode = state.mode
+    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedLogin) {
+        if (sessionActive) {
+            viewModel.onScreenEntered(activity)
+        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedLogin) {
+            onSessionRequired()
+        }
     }
+
+    if (mode is EntryDetailMode.EditEntry) {
+        LoginEditorScreen(state.entry, mode.draft, viewModel)
+        return
+    }
+    BackHandler(onBack = leaveEntry)
 
     // A collected decrypted snapshot may outlive the synchronous resume lock check.
     val unlockState =
@@ -162,6 +175,10 @@ fun EntryDetailScreen(
                         entry = state.entry,
                         gitStatus = state.gitStatus,
                     )
+                    if (sessionActive && unlockState is UnlockState.Decrypted && unlockState.canEdit) {
+                        Spacer(Modifier.height(16.dp))
+                        PassSecondaryButton(onClick = viewModel::startEditing, label = "edit")
+                    }
                 }
             }
 

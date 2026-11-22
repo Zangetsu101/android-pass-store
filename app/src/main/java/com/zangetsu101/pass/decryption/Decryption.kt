@@ -6,8 +6,24 @@ import com.zangetsu101.pass.passstore.PassEntry
 
 interface Decryption {
     @Throws(DecryptionError::class)
+    suspend fun decryptForEntryDetail(
+        entry: PassEntry,
+        activity: FragmentActivity,
+    ): DecryptedEntry
+
+    @Throws(DecryptionError::class)
     suspend fun decrypt(
         entry: PassEntry,
         activity: FragmentActivity,
     ): Credentials
 }
+
+class DecryptedEntry internal constructor(
+    val credentials: Credentials,
+    internal val rawEntry: RawEntry? = null,
+)
+
+internal class RawEntry(
+    val plaintext: String,
+    val ciphertextDigest: ByteArray,
+)

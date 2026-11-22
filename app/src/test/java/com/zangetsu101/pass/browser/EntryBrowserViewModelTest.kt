@@ -52,7 +52,7 @@ class EntryBrowserViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { appPreferences.defaultViewTree } returns flowOf(true)
         every { passStore.index } returns MutableStateFlow(emptyList())
-        every { passStore.buildIndex() } returns emptyList()
+        coEvery { passStore.buildIndex() } returns emptyList()
         every { passStore.search(any()) } returns emptyList()
         coEvery { gitSync.pull() } returns SyncResult(emptyList(), emptyList(), Instant.now())
     }

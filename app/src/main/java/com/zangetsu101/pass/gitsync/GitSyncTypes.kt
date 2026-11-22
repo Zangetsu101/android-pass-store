@@ -21,6 +21,10 @@ data class SyncStatus(
 )
 
 sealed class SyncError : Exception() {
+    data class EditRejected(
+        override val message: String,
+    ) : SyncError()
+
     data class NotFastForward(
         override val message: String = "Remote diverged; cannot fast-forward",
     ) : SyncError()
