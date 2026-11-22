@@ -65,7 +65,11 @@ class LoginEntryWriterTest {
             withTimeout(1_000) { writer.pushFailures.first() }
 
             assertEquals(commit, saved.commit)
-            assertEquals("newpassword", saved.credentials.password.concatToString())
+            assertEquals(
+                "newpassword",
+                saved.entry.credentials.password
+                    .concatToString(),
+            )
         }
 
     @Test

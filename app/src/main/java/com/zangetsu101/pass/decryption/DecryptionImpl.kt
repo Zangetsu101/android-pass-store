@@ -22,7 +22,22 @@ class DecryptionImpl(
     override suspend fun decrypt(
         entry: PassEntry,
         activity: FragmentActivity,
-    ): Credentials {
+    ): Credentials = readEntry(entry, activity) { plaintext, _ -> parseCredentials(plaintext, entry.username) }
+
+    override suspend fun decryptForEntryDetail(
+        entry: PassEntry,
+        activity: FragmentActivity,
+    ): DecryptedEntry =
+        readEntry(entry, activity) { plaintext, ciphertext ->
+            val snapshot = if (entry.isCard) null else LoginSnapshot(plaintext, ciphertext.ciphertextDigest())
+            DecryptedEntry(parseCredentials(plaintext, entry.username), snapshot)
+        }
+
+    private suspend fun <T> readEntry(
+        entry: PassEntry,
+        activity: FragmentActivity,
+        read: (plaintext: String, ciphertext: ByteArray) -> T,
+    ): T {
         val secretKeyRing = gpgKeyProvider.getGpgKey(activity)
         return withContext(Dispatchers.IO) {
             val ciphertext =
@@ -31,9 +46,7 @@ class DecryptionImpl(
                 } catch (error: IOException) {
                     throw DecryptionError("Couldn't read this entry.", error)
                 }
-            val plaintext = decryptFile(ciphertext, secretKeyRing)
-            val source = if (entry.isCard) null else LoginEditSource(EditableLogin(plaintext), ciphertext.ciphertextDigest())
-            parseCredentials(plaintext, entry.username, source)
+            read(decryptFile(ciphertext, secretKeyRing), ciphertext)
         }
     }
 

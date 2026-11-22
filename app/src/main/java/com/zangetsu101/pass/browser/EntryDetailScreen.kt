@@ -106,17 +106,17 @@ fun EntryDetailScreen(
         }
     }
 
-    val editor = state.editor
-    LaunchedEffect(viewModel, activity, sessionActive, editor == null, state.showingSavedLogin) {
+    val mode = state.mode
+    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedLogin) {
         if (sessionActive) {
             viewModel.onScreenEntered(activity)
-        } else if (editor == null && !state.showingSavedLogin) {
+        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedLogin) {
             onSessionRequired()
         }
     }
 
-    if (editor != null) {
-        LoginEditorScreen(state.entry, editor, viewModel)
+    if (mode is EntryDetailMode.EditEntry) {
+        LoginEditorScreen(state.entry, mode.draft, viewModel)
         return
     }
     BackHandler(onBack = leaveEntry)
@@ -175,9 +175,7 @@ fun EntryDetailScreen(
                         entry = state.entry,
                         gitStatus = state.gitStatus,
                     )
-                    if (sessionActive && !state.entry.isCard &&
-                        unlockState is UnlockState.Decrypted && unlockState.credentials.editSource != null
-                    ) {
+                    if (sessionActive && unlockState is UnlockState.Decrypted && unlockState.canEdit) {
                         Spacer(Modifier.height(16.dp))
                         PassSecondaryButton(onClick = viewModel::startEditing, label = "edit")
                     }

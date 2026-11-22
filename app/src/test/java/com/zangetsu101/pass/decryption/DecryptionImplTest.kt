@@ -22,6 +22,7 @@ import org.pgpainless.encryption_signing.ProducerOptions
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
+import java.security.MessageDigest
 
 @ExtendWith(MockKExtension::class)
 class DecryptionImplTest {
@@ -72,6 +73,23 @@ class DecryptionImplTest {
             encryptedFile = file,
         )
     }
+
+    @Test
+    fun `decryptForEntryDetail keeps the original text and hash apart from the display credentials`() =
+        runTest {
+            coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey
+            val plaintext = "password\r\nnotes  \r\notpauth://invalid\r\n"
+            val entry = makeEntry("alice.gpg", plaintext)
+            val hash = MessageDigest.getInstance("SHA-256").digest(entry.encryptedFile.readBytes())
+            val activity: FragmentActivity = mockk()
+
+            val decrypted = decryption.decryptForEntryDetail(entry, activity)
+
+            assertEquals("notes", decrypted.credentials.notes)
+            val snapshot = requireNotNull(decrypted.loginSnapshot)
+            assertEquals(plaintext, snapshot.plaintext)
+            assertArrayEquals(hash, snapshot.ciphertextDigest)
+        }
 
     @Test
     fun `decrypt returns password from line 1 of single-line file`() =

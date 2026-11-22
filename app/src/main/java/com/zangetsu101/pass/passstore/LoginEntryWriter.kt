@@ -2,9 +2,9 @@
 package com.zangetsu101.pass.passstore
 
 import android.util.Log
-import com.zangetsu101.pass.decryption.Credentials
-import com.zangetsu101.pass.decryption.EditableLogin
+import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.LoginEditSource
+import com.zangetsu101.pass.decryption.LoginSnapshot
 import com.zangetsu101.pass.decryption.ciphertextDigest
 import com.zangetsu101.pass.decryption.parseCredentials
 import com.zangetsu101.pass.di.AppBackgroundScope
@@ -41,7 +41,7 @@ class LoginEntryWriter
         ) = scope
             .async {
                 val plaintext = source.login.render(password, notes)
-                lateinit var newSource: LoginEditSource
+                lateinit var snapshot: LoginSnapshot
                 val commit =
                     gitSync.commitEdit(entry.path) { root, original ->
                         if (!source.ciphertextDigest.contentEquals(original.ciphertextDigest())) {
@@ -49,7 +49,7 @@ class LoginEntryWriter
                         }
                         val encryption = LoginEncryption(keyStore.publicKeySource())
                         val ciphertext = encryption.encrypt(root, entry.path, plaintext)
-                        newSource = LoginEditSource(EditableLogin(plaintext), ciphertext.ciphertextDigest())
+                        snapshot = LoginSnapshot(plaintext, ciphertext.ciphertextDigest())
                         EncryptedEdit(ciphertext, encryption.author())
                     }
                 scope.launch {
@@ -70,12 +70,12 @@ class LoginEntryWriter
                         Log.w("LoginEntryWriter", "Couldn't refresh the entry index after saving", error)
                     }
                 }
-                SavedLogin(parseCredentials(plaintext, entry.username, newSource), commit)
+                SavedLogin(DecryptedEntry(parseCredentials(plaintext, entry.username), snapshot), commit)
             }.await()
     }
 
 internal class SavedLogin(
-    val credentials: Credentials,
+    val entry: DecryptedEntry,
     val commit: FileCommitInfo,
 )
 

@@ -9,9 +9,12 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.decryption.Credentials
+import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
+import com.zangetsu101.pass.decryption.EditableLogin
 import com.zangetsu101.pass.decryption.LoginEditSource
+import com.zangetsu101.pass.decryption.LoginSnapshot
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncError
@@ -52,6 +55,7 @@ sealed class UnlockState {
         val passwordRevealed: Boolean = false,
         val clipboardCopied: Boolean = false,
         val otpCopied: Boolean = false,
+        val canEdit: Boolean = false,
     ) : UnlockState()
 
     data class Failed(
@@ -74,9 +78,17 @@ data class EntryDetailUiState(
     val unlockState: UnlockState = UnlockState.Idle,
     val gitStatus: GitStatus = GitStatus.Loading,
     val clipboardTimeoutSeconds: Int = 45,
-    val editor: LoginEditorState? = null,
+    val mode: EntryDetailMode = EntryDetailMode.ViewEntry,
     val showingSavedLogin: Boolean = false,
 )
+
+sealed interface EntryDetailMode {
+    data object ViewEntry : EntryDetailMode
+
+    data class EditEntry(
+        val draft: LoginEditorState,
+    ) : EntryDetailMode
+}
 
 @ConsistentCopyVisibility
 data class LoginEditorState internal constructor(
@@ -120,6 +132,7 @@ class EntryDetailViewModel
         private var otpHintJob: Job? = null
         private var autoLockJob: Job? = null
         private var decryptJob: Job? = null
+        private var loginSnapshot: LoginSnapshot? = null
         private var lockDeadline: Long? = null
         private var initialAuthenticationStarted = false
 
@@ -139,6 +152,7 @@ class EntryDetailViewModel
             otpHintJob?.cancel()
             autoLockJob?.cancel()
             lockDeadline = null
+            loginSnapshot = null
             _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
         }
 
@@ -187,9 +201,9 @@ class EntryDetailViewModel
             decryptJob =
                 viewModelScope.launch {
                     try {
-                        val creds = decryption.decrypt(entry, activity)
+                        val decrypted = decryption.decryptForEntryDetail(entry, activity)
                         coroutineContext.ensureActive()
-                        showCredentials(creds)
+                        showCredentials(decrypted)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: BiometricAuthException) {
@@ -207,9 +221,13 @@ class EntryDetailViewModel
         fun startEditing() {
             refreshLock()
             val current = _state.value
-            if (current.entry.isCard || current.editor != null || sessionOperations.sessionState.value !is SessionState.Active) return
-            val source = (current.unlockState as? UnlockState.Decrypted)?.credentials?.editSource ?: return
-            _state.update { it.copy(editor = LoginEditorState(source, source.login.password, source.login.notes)) }
+            if (current.mode != EntryDetailMode.ViewEntry || sessionOperations.sessionState.value !is SessionState.Active) return
+            if (current.unlockState !is UnlockState.Decrypted) return
+            val snapshot = loginSnapshot ?: return
+            val login = EditableLogin(snapshot.plaintext)
+            val source = LoginEditSource(login, snapshot.ciphertextDigest)
+            val draft = LoginEditorState(source, login.password, login.notes)
+            _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
         }
 
         fun updateEditorPassword(password: String) {
@@ -222,25 +240,29 @@ class EntryDetailViewModel
 
         private fun updateEditor(update: (LoginEditorState) -> LoginEditorState) {
             _state.update { state ->
-                val editor = state.editor ?: return@update state
-                if (editor.saving) state else state.copy(editor = update(editor))
+                val editor = (state.mode as? EntryDetailMode.EditEntry)?.draft ?: return@update state
+                if (editor.saving) state else state.copy(mode = EntryDetailMode.EditEntry(update(editor)))
             }
         }
 
         fun discardEditor() {
-            _state.update { if (it.editor?.saving == false) it.copy(editor = null) else it }
+            _state.update { state ->
+                val mode = state.mode
+                if (mode is EntryDetailMode.EditEntry && !mode.draft.saving) state.copy(mode = EntryDetailMode.ViewEntry) else state
+            }
         }
 
         fun copyEditorPassword() {
             val password =
-                _state.value.editor
+                (_state.value.mode as? EntryDetailMode.EditEntry)
+                    ?.draft
                     ?.password
                     .orEmpty()
             if (password.isNotEmpty()) copySecret("password", password)
         }
 
         fun saveEditor() {
-            val editor = _state.value.editor ?: return
+            val editor = (_state.value.mode as? EntryDetailMode.EditEntry)?.draft ?: return
             if (editor.saving || !editor.changed) return
             val password = editor.password
             if (password.isEmpty() &&
@@ -254,7 +276,7 @@ class EntryDetailViewModel
             viewModelScope.launch {
                 try {
                     val saved = loginWriter.save(entry, editor.source, password, editor.notes)
-                    showCredentials(saved.credentials, saved = saved.commit)
+                    showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -263,29 +285,30 @@ class EntryDetailViewModel
                             is LoginSaveError, is SyncError.EditRejected -> error.message
                             else -> "couldn't save entry"
                         }
-                    _state.update { it.copy(editor = editor.copy(error = message)) }
+                    _state.update { it.copy(mode = EntryDetailMode.EditEntry(editor.copy(error = message))) }
                 }
             }
         }
 
         private fun showCredentials(
-            credentials: Credentials,
+            decrypted: DecryptedEntry,
             saved: FileCommitInfo? = null,
         ) {
             val session = sessionOperations.sessionState.value
             val savedAfterTimeout = saved != null && session is SessionState.Inactive && session.reason == EndReason.TIMEOUT
             if (saved != null && session is SessionState.Inactive && !savedAfterTimeout) {
                 lock()
-                _state.update { it.copy(editor = null, gitStatus = GitStatus.Tracked(saved)) }
+                _state.update { it.copy(mode = EntryDetailMode.ViewEntry, gitStatus = GitStatus.Tracked(saved)) }
                 return
             }
             autoLockJob?.cancel()
+            loginSnapshot = if (savedAfterTimeout) null else decrypted.loginSnapshot
             lockDeadline = SystemClock.elapsedRealtime() + 60_000L
             _state.update {
                 it.copy(
-                    unlockState = UnlockState.Decrypted(credentials),
+                    unlockState = UnlockState.Decrypted(decrypted.credentials, canEdit = loginSnapshot != null),
                     gitStatus = saved?.let(GitStatus::Tracked) ?: it.gitStatus,
-                    editor = if (saved != null) null else it.editor,
+                    mode = if (saved != null) EntryDetailMode.ViewEntry else it.mode,
                     showingSavedLogin = savedAfterTimeout,
                 )
             }

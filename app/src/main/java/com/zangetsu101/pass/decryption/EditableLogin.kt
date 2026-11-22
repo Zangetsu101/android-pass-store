@@ -6,7 +6,7 @@ import org.eclipse.jgit.diff.RawText
 import org.eclipse.jgit.diff.RawTextComparator
 import java.security.MessageDigest
 
-class LoginEditSource internal constructor(
+internal class LoginEditSource(
     internal val login: EditableLogin,
     internal val ciphertextDigest: ByteArray,
 )
