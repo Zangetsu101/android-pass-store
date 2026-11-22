@@ -75,14 +75,16 @@ internal fun LoginEditorScreen(
     entry: PassEntry,
     editor: LoginEditorState,
     viewModel: EntryDetailViewModel,
-    onBack: () -> Unit,
-    confirmDiscard: Boolean,
-    onKeepEditing: () -> Unit,
-    onDiscard: () -> Unit,
 ) {
     val path = entry.path.removeSuffix(".gpg")
     var revealed by remember { mutableStateOf(false) }
-    BackHandler(onBack = onBack)
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val back = {
+        if (!editor.saving) {
+            if (editor.changed) confirmDiscard = true else viewModel.discardEditor()
+        }
+    }
+    BackHandler(onBack = back)
 
     // The safeDrawing insets include the IME, so the footer stays above the keyboard.
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
@@ -92,7 +94,7 @@ internal fun LoginEditorScreen(
                 .consumeWindowInsets(padding)
                 .fillMaxSize(),
         ) {
-            EditorTopBar(path = path, enabled = !editor.saving, onBack = onBack)
+            EditorTopBar(path = path, enabled = !editor.saving, onBack = back)
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
             Column(
                 modifier =
@@ -123,10 +125,10 @@ internal fun LoginEditorScreen(
 
     if (confirmDiscard) {
         AlertDialog(
-            onDismissRequest = onKeepEditing,
+            onDismissRequest = { confirmDiscard = false },
             title = { Text("discard changes to $path?") },
-            confirmButton = { TextButton(onClick = onDiscard) { Text("discard") } },
-            dismissButton = { TextButton(onClick = onKeepEditing) { Text("keep editing") } },
+            confirmButton = { TextButton(onClick = viewModel::discardEditor) { Text("discard") } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("keep editing") } },
         )
     }
 }

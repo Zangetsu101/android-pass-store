@@ -41,7 +41,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,9 +76,6 @@ private val DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(
 fun EntryDetailScreen(
     viewModel: EntryDetailViewModel,
     onBack: () -> Unit,
-    isCurrentEntry: Boolean,
-    shouldLockOnDispose: () -> Boolean,
-    onEdit: () -> Unit,
     sessionActive: Boolean,
     onSessionRequired: () -> Unit,
 ) {
@@ -93,7 +89,6 @@ fun EntryDetailScreen(
         onBack()
     }
 
-    val lockOnDispose by rememberUpdatedState(shouldLockOnDispose)
     DisposableEffect(viewModel, lifecycleOwner, activity) {
         val observer =
             LifecycleEventObserver { _, event ->
@@ -107,22 +102,24 @@ fun EntryDetailScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            if (lockOnDispose()) {
-                viewModel.onScreenDisposed(changingConfigurations = activity.isChangingConfigurations)
-            }
+            viewModel.onScreenDisposed(changingConfigurations = activity.isChangingConfigurations)
         }
     }
 
-    LaunchedEffect(viewModel, activity, isCurrentEntry, sessionActive, state.showingSavedLogin) {
-        if (isCurrentEntry) {
-            if (sessionActive) {
-                viewModel.onScreenEntered(activity)
-            } else if (!state.showingSavedLogin) {
-                onSessionRequired()
-            }
+    val editor = state.editor
+    LaunchedEffect(viewModel, activity, sessionActive, editor == null, state.showingSavedLogin) {
+        if (sessionActive) {
+            viewModel.onScreenEntered(activity)
+        } else if (editor == null && !state.showingSavedLogin) {
+            onSessionRequired()
         }
     }
-    BackHandler(enabled = isCurrentEntry, onBack = leaveEntry)
+
+    if (editor != null) {
+        LoginEditorScreen(state.entry, editor, viewModel)
+        return
+    }
+    BackHandler(onBack = leaveEntry)
 
     // A collected decrypted snapshot may outlive the synchronous resume lock check.
     val unlockState =
@@ -182,7 +179,7 @@ fun EntryDetailScreen(
                         unlockState is UnlockState.Decrypted && unlockState.credentials.editSource != null
                     ) {
                         Spacer(Modifier.height(16.dp))
-                        PassSecondaryButton(onClick = onEdit, label = "edit")
+                        PassSecondaryButton(onClick = viewModel::startEditing, label = "edit")
                     }
                 }
             }

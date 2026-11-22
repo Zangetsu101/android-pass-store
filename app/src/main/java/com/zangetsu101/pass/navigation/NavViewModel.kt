@@ -2,7 +2,6 @@
 package com.zangetsu101.pass.navigation
 
 import androidx.lifecycle.ViewModel
-import com.zangetsu101.pass.browser.EntryDetailViewModel
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.passstore.PassEntry
@@ -19,9 +18,6 @@ class NavViewModel
         private val passStore: PassStore,
     ) : ViewModel() {
         val sessionState: StateFlow<SessionState> = sessionOperations.sessionState
-
-        // The detail entry owns this ViewModel. Keep a reference while the editor is open.
-        internal var editorOwner: EntryDetailViewModel? = null
 
         fun requiresSessionStart(): Boolean = sessionOperations.sessionState.value !is SessionState.Active
 
