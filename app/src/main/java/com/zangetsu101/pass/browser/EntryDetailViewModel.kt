@@ -14,7 +14,7 @@ import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.EditableLogin
 import com.zangetsu101.pass.decryption.LoginEditSource
-import com.zangetsu101.pass.decryption.LoginSnapshot
+import com.zangetsu101.pass.decryption.RawLoginEntry
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncError
@@ -132,7 +132,7 @@ class EntryDetailViewModel
         private var otpHintJob: Job? = null
         private var autoLockJob: Job? = null
         private var decryptJob: Job? = null
-        private var loginSnapshot: LoginSnapshot? = null
+        private var rawLoginEntry: RawLoginEntry? = null
         private var lockDeadline: Long? = null
         private var initialAuthenticationStarted = false
 
@@ -152,7 +152,7 @@ class EntryDetailViewModel
             otpHintJob?.cancel()
             autoLockJob?.cancel()
             lockDeadline = null
-            loginSnapshot = null
+            rawLoginEntry = null
             _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
         }
 
@@ -223,9 +223,9 @@ class EntryDetailViewModel
             val current = _state.value
             if (current.mode != EntryDetailMode.ViewEntry || sessionOperations.sessionState.value !is SessionState.Active) return
             if (current.unlockState !is UnlockState.Decrypted) return
-            val snapshot = loginSnapshot ?: return
-            val login = EditableLogin(snapshot.plaintext)
-            val source = LoginEditSource(login, snapshot.ciphertextDigest)
+            val rawLogin = rawLoginEntry ?: return
+            val login = EditableLogin(rawLogin.plaintext)
+            val source = LoginEditSource(login, rawLogin.ciphertextDigest)
             val draft = LoginEditorState(source, login.password, login.notes)
             _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
         }
@@ -302,11 +302,11 @@ class EntryDetailViewModel
                 return
             }
             autoLockJob?.cancel()
-            loginSnapshot = if (savedAfterTimeout) null else decrypted.loginSnapshot
+            rawLoginEntry = if (savedAfterTimeout) null else decrypted.rawLoginEntry
             lockDeadline = SystemClock.elapsedRealtime() + 60_000L
             _state.update {
                 it.copy(
-                    unlockState = UnlockState.Decrypted(decrypted.credentials, canEdit = loginSnapshot != null),
+                    unlockState = UnlockState.Decrypted(decrypted.credentials, canEdit = rawLoginEntry != null),
                     gitStatus = saved?.let(GitStatus::Tracked) ?: it.gitStatus,
                     mode = if (saved != null) EntryDetailMode.ViewEntry else it.mode,
                     showingSavedLogin = savedAfterTimeout,

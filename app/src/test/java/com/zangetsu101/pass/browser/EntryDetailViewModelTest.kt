@@ -10,7 +10,7 @@ import com.zangetsu101.pass.decryption.Credentials
 import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
-import com.zangetsu101.pass.decryption.LoginSnapshot
+import com.zangetsu101.pass.decryption.RawLoginEntry
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
@@ -130,15 +130,15 @@ class EntryDetailViewModelTest {
         runTest {
             val session = MutableStateFlow<SessionState>(SessionState.Active)
             every { mockSessionOperations.sessionState } returns session
-            val snapshot = LoginSnapshot("old password\nnotes", byteArrayOf(1, 2, 3))
-            val original = DecryptedEntry(fakeCredentials, snapshot)
+            val rawLogin = RawLoginEntry("old password\nnotes", byteArrayOf(1, 2, 3))
+            val original = DecryptedEntry(fakeCredentials, rawLogin)
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns original
             val saved = fakeCredentials.copy(password = "newpassword".toCharArray(), notes = "notes")
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
             coEvery {
-                mockWriter.save(fakeEntry, match { it.ciphertextDigest.contentEquals(snapshot.ciphertextDigest) }, "newpassword", "notes")
+                mockWriter.save(fakeEntry, match { it.ciphertextDigest.contentEquals(rawLogin.ciphertextDigest) }, "newpassword", "notes")
             } returns
-                SavedLogin(DecryptedEntry(saved, LoginSnapshot("newpassword\nnotes", byteArrayOf(4))), commit)
+                SavedLogin(DecryptedEntry(saved, RawLoginEntry("newpassword\nnotes", byteArrayOf(4))), commit)
             val vm = createViewModel()
 
             vm.authenticate(mockActivity)
@@ -166,8 +166,8 @@ class EntryDetailViewModelTest {
     @Test
     fun `the editor requires a password when the original login has one`() =
         runTest {
-            val snapshot = LoginSnapshot("password", byteArrayOf())
-            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials, snapshot)
+            val rawLogin = RawLoginEntry("password", byteArrayOf())
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials, rawLogin)
             val vm = createViewModel()
             vm.authenticate(mockActivity)
             runCurrent()
@@ -193,13 +193,13 @@ class EntryDetailViewModelTest {
         runTest {
             val session = MutableStateFlow<SessionState>(SessionState.Active)
             every { mockSessionOperations.sessionState } returns session
-            val snapshot = LoginSnapshot("otpauth://invalid", byteArrayOf())
+            val rawLogin = RawLoginEntry("otpauth://invalid", byteArrayOf())
             val original = fakeCredentials.copy(password = charArrayOf(), notes = "")
-            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(original, snapshot)
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(original, rawLogin)
             val saved = original.copy(notes = "new notes")
             coEvery { mockWriter.save(fakeEntry, any(), "", "new notes") } returns
                 SavedLogin(
-                    DecryptedEntry(saved, LoginSnapshot("otpauth://invalid\nnew notes", byteArrayOf(4))),
+                    DecryptedEntry(saved, RawLoginEntry("otpauth://invalid\nnew notes", byteArrayOf(4))),
                     FileCommitInfo("abc1234", Instant.EPOCH),
                 )
             val vm = createViewModel()

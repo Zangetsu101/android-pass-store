@@ -20,10 +20,10 @@ interface Decryption {
 
 class DecryptedEntry internal constructor(
     val credentials: Credentials,
-    internal val loginSnapshot: LoginSnapshot? = null,
+    internal val rawLoginEntry: RawLoginEntry? = null,
 )
 
-internal class LoginSnapshot(
+internal class RawLoginEntry(
     val plaintext: String,
     val ciphertextDigest: ByteArray,
 )
