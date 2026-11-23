@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.browser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,15 +37,22 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
@@ -110,23 +119,25 @@ internal fun NewEntryScreen(
                     error = error,
                     exists = exists,
                     enabled = enabled,
+                    suggestions = suggestions,
+                    onPick = { suggestion ->
+                        if (suggestion.folder) {
+                            input = "${suggestion.path}/"
+                            viewModel.clearError()
+                        } else {
+                            leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
+                        }
+                    },
                     onChange = {
                         edited = true
                         input = it
                         viewModel.clearError()
                     },
                 )
-                PathSuggestions(suggestions, enabled) { suggestion ->
-                    if (suggestion.folder) {
-                        input = "${suggestion.path}/"
-                        viewModel.clearError()
-                    } else {
-                        leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
-                    }
-                }
                 Spacer(Modifier.height(20.dp))
                 PasswordEditor(
                     password = viewModel.password,
+                    newEntry = true,
                     enabled = enabled,
                     revealed = revealed,
                     onToggleReveal = { revealed = !revealed },
@@ -139,20 +150,22 @@ internal fun NewEntryScreen(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border)
                 Spacer(Modifier.height(12.dp))
+                NotesToggle(
+                    open = notesOpen,
+                    lineCount = noteLines,
+                    enabled = enabled,
+                    onToggle = { notesOpen = !notesOpen },
+                )
                 if (notesOpen) {
-                    NotesEditor(
+                    Spacer(Modifier.height(6.dp))
+                    NotesField(
                         notes = viewModel.notes,
-                        lineCount = noteLines,
                         enabled = enabled,
                         onNotesChange = {
                             edited = true
                             viewModel.updateNotes(it)
                         },
                     )
-                } else {
-                    TextButton(onClick = { notesOpen = true }, enabled = enabled) {
-                        Text("+ notes / username", style = PassType.Caption.copy(color = PassColorsDark.Accent))
-                    }
                 }
             }
             SaveFooter(
@@ -162,6 +175,7 @@ internal fun NewEntryScreen(
                 enabled = canSave,
                 saving = viewModel.saving,
                 error = viewModel.error,
+                showGlow = true,
                 onSave = {
                     val digest = check?.digest
                     if (digest != null) {
@@ -209,50 +223,107 @@ private class EntryReplacement(
 )
 
 @Composable
+private fun NotesToggle(
+    open: Boolean,
+    lineCount: Int,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    Text(
+        buildAnnotatedString {
+            append(if (open) "− " else "+ ")
+            append(if (open || lineCount > 0) "notes" else "notes / username")
+            if (lineCount > 0) {
+                withStyle(SpanStyle(color = PassColorsDark.Accent)) {
+                    append(" · $lineCount line")
+                    if (lineCount > 1) append("s")
+                }
+            }
+        },
+        style =
+            PassType.Caption.copy(
+                color = if (open || lineCount > 0) PassColorsDark.TextPrimary else PassColorsDark.TextDim,
+                fontSize = 10.sp,
+            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled, role = Role.Button, onClick = onToggle)
+                .padding(vertical = 8.dp),
+    )
+}
+
+@Composable
 private fun EntryPathField(
     input: String,
     hint: String,
     error: String?,
     exists: Boolean,
     enabled: Boolean,
+    suggestions: List<PathSuggestion>,
+    onPick: (PathSuggestion) -> Unit,
     onChange: (String) -> Unit,
 ) {
     val color =
         when {
             error != null -> PassColorsDark.Danger
             exists -> PassColorsDark.Warning
-            else -> PassColorsDark.Accent
+            else -> PassColorsDark.Border2
         }
-    Text("path", style = PassType.Label)
+    Text("STORE PATH", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
-    BasicTextField(
-        value = input,
-        onValueChange = onChange,
-        enabled = enabled,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
-        textStyle = PassType.Body,
-        cursorBrush = SolidColor(PassColorsDark.Accent),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.small)
-                .border(1.dp, color, PassShapes.small)
-                .padding(12.dp)
-                .semantics { contentDescription = "entry path" },
-        decorationBox = { field ->
-            Box {
-                if (input.isEmpty()) Text("folder/name", style = PassType.Body.copy(color = PassColorsDark.TextFaint))
-                field()
-            }
-        },
-    )
-    Spacer(Modifier.height(6.dp))
-    Text(
-        text = error ?: if (exists) "already exists · saving overwrites it (-f)" else hint,
-        style = PassType.Caption,
-        color = if (error != null || exists) color else PassColorsDark.TextDim,
-    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(PassShapes.small)
+            .border(1.dp, color, PassShapes.small),
+    ) {
+        BasicTextField(
+            value = input,
+            onValueChange = onChange,
+            enabled = enabled,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+            textStyle = PassType.Body.copy(fontSize = 11.sp),
+            cursorBrush = SolidColor(PassColorsDark.Accent),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(PassColorsDark.Surface)
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
+                    .semantics { contentDescription = "entry path" },
+            decorationBox = { field ->
+                Box {
+                    if (input.isEmpty()) {
+                        Text(
+                            "github.com  or  dev/github",
+                            style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
+                        )
+                    }
+                    field()
+                }
+            },
+        )
+        if (suggestions.isNotEmpty()) {
+            HorizontalDivider(color = color)
+            PathSuggestions(suggestions, enabled, onPick)
+        }
+    }
+    val message =
+        when {
+            error != null -> error
+            exists -> "already exists · saving overwrites it (-f)"
+            suggestions.isEmpty() -> hint
+            else -> null
+        }
+    if (message != null) {
+        Text(
+            text = message,
+            style = PassType.Caption.copy(fontSize = 9.sp),
+            color = if (error != null || exists) color else PassColorsDark.TextDim,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
 }
 
 @Composable
@@ -261,18 +332,16 @@ private fun PathSuggestions(
     enabled: Boolean,
     onPick: (PathSuggestion) -> Unit,
 ) {
-    if (suggestions.isEmpty()) return
-    Spacer(Modifier.height(8.dp))
-    Column(
-        Modifier.fillMaxWidth().border(1.dp, PassColorsDark.Border2, PassShapes.small),
-    ) {
-        suggestions.take(3).forEach { suggestion ->
+    Column(Modifier.fillMaxWidth().background(PassColorsDark.Raised)) {
+        suggestions.take(3).forEachIndexed { index, suggestion ->
+            if (index > 0) HorizontalDivider(color = PassColorsDark.Border)
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clickable(enabled = enabled, role = Role.Button, onClick = { onPick(suggestion) })
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 val end = suggestion.matchStart + suggestion.matchLength
                 Text(
@@ -284,18 +353,54 @@ private fun PathSuggestions(
                         append(suggestion.path.substring(end))
                         if (suggestion.folder) append("/")
                     },
-                    style = PassType.Body,
+                    style = PassType.Body.copy(fontSize = 10.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Text(if (suggestion.folder) "folder ↹" else "exists", style = PassType.Caption)
+                val caption = PassType.Caption.copy(fontSize = 9.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(if (suggestion.folder) "folder" else "exists", style = caption)
+                    if (suggestion.folder) FolderCompletionIcon()
+                }
             }
         }
         if (suggestions.size > 3) {
+            HorizontalDivider(color = PassColorsDark.Border)
             Text(
                 "+${suggestions.size - 3} more · keep typing",
-                style = PassType.Caption,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                style = PassType.Caption.copy(fontSize = 9.sp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun FolderCompletionIcon() {
+    Canvas(Modifier.size(width = 10.dp, height = 9.dp)) {
+        val width = size.width
+        val height = size.height
+        val color = PassColorsDark.TextDim
+        val stroke = 1.dp.toPx()
+        val arrow =
+            Path().apply {
+                moveTo(width * 0.2f, height * 0.3f)
+                lineTo(width * 0.7f, height * 0.3f)
+                moveTo(width * 0.5f, height * 0.1f)
+                lineTo(width * 0.7f, height * 0.3f)
+                lineTo(width * 0.5f, height * 0.5f)
+                moveTo(width * 0.8f, height * 0.7f)
+                lineTo(width * 0.3f, height * 0.7f)
+                moveTo(width * 0.5f, height * 0.5f)
+                lineTo(width * 0.3f, height * 0.7f)
+                lineTo(width * 0.5f, height * 0.9f)
+            }
+        drawPath(arrow, color, style = Stroke(stroke))
+        drawLine(color, Offset(width * 0.9f, 0f), Offset(width * 0.9f, height * 0.5f), stroke)
+        drawLine(color, Offset(width * 0.1f, height * 0.5f), Offset(width * 0.1f, height), stroke)
     }
 }

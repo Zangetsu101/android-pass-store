@@ -43,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -200,9 +202,10 @@ internal fun PasswordEditor(
     onPasswordChange: (String) -> Unit,
     onCopy: () -> Unit,
     passwordChanged: Boolean = false,
+    newEntry: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.Bottom) {
-        Text("password", style = PassType.Label, modifier = Modifier.weight(1f))
+        Text(if (newEntry) "PASSWORD" else "password", style = PassType.Label, modifier = Modifier.weight(1f))
         if (passwordChanged) {
             Text("edited by you", style = PassType.Caption.copy(color = PassColorsDark.Accent))
         }
@@ -212,7 +215,16 @@ internal fun PasswordEditor(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.small)
+                .then(
+                    if (newEntry) {
+                        Modifier.dropShadow(
+                            PassShapes.small,
+                            Shadow(radius = 20.dp, color = PassColorsDark.AccentDim),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ).background(PassColorsDark.Surface, PassShapes.small)
                 .border(1.dp, PassColorsDark.Accent.copy(alpha = 0.33f), PassShapes.small)
                 .clip(PassShapes.small),
     ) {
@@ -288,6 +300,15 @@ internal fun NotesEditor(
         }
     }
     Spacer(Modifier.height(6.dp))
+    NotesField(notes, enabled, onNotesChange)
+}
+
+@Composable
+internal fun NotesField(
+    notes: String,
+    enabled: Boolean,
+    onNotesChange: (String) -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -364,6 +385,7 @@ internal fun SaveFooter(
     saving: Boolean,
     error: String?,
     onSave: () -> Unit,
+    showGlow: Boolean = false,
 ) {
     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
     Column(modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp)) {
@@ -375,7 +397,15 @@ internal fun SaveFooter(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(if (enabled) PassColorsDark.AccentDim else PassColorsDark.Border, PassShapes.small)
+                    .then(
+                        if (enabled &&
+                            showGlow
+                        ) {
+                            Modifier.dropShadow(PassShapes.small, Shadow(radius = 12.dp, color = PassColorsDark.AccentDim))
+                        } else {
+                            Modifier
+                        },
+                    ).background(if (enabled) PassColorsDark.AccentDim else PassColorsDark.Border, PassShapes.small)
                     .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, PassShapes.small)
                     .clip(PassShapes.small)
                     .clickable(enabled = enabled, role = Role.Button, onClick = onSave)

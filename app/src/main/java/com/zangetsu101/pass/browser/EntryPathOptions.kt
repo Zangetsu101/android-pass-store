@@ -30,7 +30,7 @@ internal class EntryPathOptions(
         if (path.value.isEmpty()) return emptyList()
         val folderMatches =
             folders.sorted().filter { it.startsWith(path.value, ignoreCase = true) }.map {
-                PathSuggestion(it, folder = true, matchStart = 0, matchLength = path.value.length)
+                PathSuggestion(it, folder = true, matchStart = path.value.length - path.name.length, matchLength = path.name.length)
             }
         val entries =
             if (path.name.length < 2) {

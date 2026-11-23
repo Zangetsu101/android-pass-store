@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,8 +46,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -124,7 +128,11 @@ fun EntryBrowserScreen(
             if (!state.syncing) {
                 FloatingActionButton(
                     onClick = { onNewEntry(state.searchQuery) },
-                    modifier = Modifier.size(44.dp),
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .dropShadow(PassShapes.small, Shadow(radius = 20.dp, color = PassColorsDark.AccentMid))
+                            .border(1.dp, PassColorsDark.Accent, PassShapes.small),
                     shape = PassShapes.small,
                     containerColor = PassColorsDark.AccentDim,
                     contentColor = PassColorsDark.Accent,
@@ -139,7 +147,6 @@ fun EntryBrowserScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(padding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // Top bar
             Row(
@@ -195,6 +202,7 @@ fun EntryBrowserScreen(
                 }
             }
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+            Spacer(Modifier.height(8.dp))
 
             if (state.syncing) {
                 Row(
@@ -247,11 +255,12 @@ fun EntryBrowserScreen(
                 PassTextField(
                     value = state.searchQuery,
                     onValueChange = viewModel::setSearchQuery,
-                    prefix = "> grep -r ",
+                    prefix = "$ grep -r ",
+                    placeholder = "\"\"",
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                 )
             }
 

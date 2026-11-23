@@ -57,6 +57,14 @@ class NewEntryPathTest {
     }
 
     @Test
+    fun `a folder suggestion highlights only the typed name`() {
+        val options = EntryPathOptions(emptyList(), setOf("dev/github.com"))
+        val suggestion = options.suggestions(EntryPath("dev/git")).single()
+
+        assertEquals("git", suggestion.path.substring(suggestion.matchStart, suggestion.matchStart + suggestion.matchLength))
+    }
+
+    @Test
     fun `flat store matches entry names by substring`() {
         val index = EntryPathOptions(listOf("github.com", "gitlab.com", "bank"), emptySet())
         assertEquals("new entry · 3 in store", index.hint(EntryPath("mail")))
