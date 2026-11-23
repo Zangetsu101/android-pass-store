@@ -19,13 +19,15 @@ appId: com.zangetsu101.pass
     visible: "added new/example\\.com/new-login-26"
     timeout: 30000
 - assertVisible:
-    text: "new-login-26"
-    selected: true
+    checked: true
+    containsDescendants:
+      - text: "new-login-26"
 - assertNotVisible: "new entry"
 - extendedWaitUntil:
     visible: "↑1 unpushed"
     timeout: 30000
 - tapOn: "flat view"
 - assertVisible:
-    text: "new-login-26"
-    selected: true
+    checked: true
+    containsDescendants:
+      - text: "new-login-26"

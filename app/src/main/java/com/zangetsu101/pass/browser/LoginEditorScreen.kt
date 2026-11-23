@@ -76,6 +76,7 @@ internal fun LoginEditorScreen(
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
+    val noteLines = editor.notes.lines().count { it.isNotBlank() }
     var revealed by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     val back = {
@@ -114,7 +115,12 @@ internal fun LoginEditorScreen(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 Spacer(Modifier.height(12.dp))
-                NotesEditor(notes = editor.notes, enabled = !editor.saving, onNotesChange = viewModel::updateEditorNotes)
+                NotesEditor(
+                    notes = editor.notes,
+                    lineCount = noteLines,
+                    enabled = !editor.saving,
+                    onNotesChange = viewModel::updateEditorNotes,
+                )
                 if (editor.hasOtp) {
                     Spacer(Modifier.height(16.dp))
                     OtpKeptRow()
@@ -123,7 +129,7 @@ internal fun LoginEditorScreen(
             SaveFooter(
                 path = path,
                 flags = "-m -f ",
-                lineCount = editor.notes.lines().count { it.isNotBlank() },
+                lineCount = noteLines,
                 enabled = editor.changed && !editor.saving,
                 saving = editor.saving,
                 error = editor.error,
@@ -268,10 +274,10 @@ private fun RowScope.CardAction(
 @Composable
 internal fun NotesEditor(
     notes: String,
+    lineCount: Int,
     enabled: Boolean,
     onNotesChange: (String) -> Unit,
 ) {
-    val lineCount = notes.lines().count { it.isNotBlank() }
     Row(verticalAlignment = Alignment.Bottom) {
         Text("notes", style = PassType.Label)
         if (lineCount > 0) {

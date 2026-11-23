@@ -426,9 +426,8 @@ private fun TreeEntryRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(if (selected) PassColorsDark.AccentDim else Color.Transparent)
+                .entrySelection(selected)
                 .clickable(enabled = enabled, onClick = onClick)
-                .semantics { this.selected = selected }
                 .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -449,9 +448,8 @@ private fun FlatEntryRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(if (selected) PassColorsDark.AccentDim else Color.Transparent)
+                .entrySelection(selected)
                 .clickable(enabled = enabled, onClick = onClick)
-                .semantics { this.selected = selected }
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -465,3 +463,7 @@ private fun FlatEntryRow(
         Text("›", style = PassType.Caption.copy(color = PassColorsDark.TextFaint))
     }
 }
+
+private fun Modifier.entrySelection(isSelected: Boolean): Modifier =
+    background(if (isSelected) PassColorsDark.AccentDim else Color.Transparent)
+        .semantics { selected = isSelected }

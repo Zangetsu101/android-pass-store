@@ -59,12 +59,14 @@ internal fun NewEntryScreen(
     onSaved: (String) -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf(initialPath) }
+    var edited by rememberSaveable { mutableStateOf(false) }
     var notesOpen by rememberSaveable { mutableStateOf(false) }
     var revealed by remember { mutableStateOf(true) }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var replaceDigest by remember { mutableStateOf<ByteArray?>(null) }
+    var replacement by remember { mutableStateOf<EntryReplacement?>(null) }
     val entries by viewModel.entries.collectAsState()
-    val options = remember(entries) { EntryPathOptions(entries.map { it.path.removeSuffix(".gpg") }) }
+    val folders by viewModel.folders.collectAsState()
+    val options = remember(entries, folders) { EntryPathOptions(entries.map { it.path.removeSuffix(".gpg") }, folders) }
     val path = remember(input) { EntryPath(input) }
     val check =
         key(path.value, entries, viewModel.error) {
@@ -78,16 +80,20 @@ internal fun NewEntryScreen(
     val error = path.error?.takeIf { path.value.isNotEmpty() } ?: check?.error
     val enabled = !viewModel.saving && viewModel.savedPath == null
     val canSave = enabled && check != null && error == null && viewModel.password.isNotEmpty()
-    val noteLines = if (viewModel.notes.isEmpty()) 0 else viewModel.notes.lines().size
+    val noteLines = viewModel.notes.lines().count { it.isNotBlank() }
     val suggestions = remember(options, path) { options.suggestions(path) }
 
-    fun leave(action: () -> Unit) {
+    val changed = input != initialPath || viewModel.password.isNotEmpty() || viewModel.notes.isNotEmpty()
+
+    fun leave(
+        confirmDiscard: Boolean,
+        action: () -> Unit,
+    ) {
         if (!enabled) return
-        val changed = input != initialPath || viewModel.password.isNotEmpty() || noteLines > 0
-        if (changed) discardAction = action else action()
+        if (confirmDiscard) discardAction = action else action()
     }
 
-    val back = { leave(onBack) }
+    val back = { leave(changed, onBack) }
     BackHandler(onBack = back)
     LaunchedEffect(viewModel.savedPath) { viewModel.savedPath?.let(onSaved) }
 
@@ -100,11 +106,12 @@ internal fun NewEntryScreen(
             ) {
                 EntryPathField(
                     input = input,
-                    hint = options.hint(path, folderExists = check?.folderExists == true),
+                    hint = options.hint(path),
                     error = error,
                     exists = exists,
                     enabled = enabled,
                     onChange = {
+                        edited = true
                         input = it
                         viewModel.clearError()
                     },
@@ -114,7 +121,7 @@ internal fun NewEntryScreen(
                         input = "${suggestion.path}/"
                         viewModel.clearError()
                     } else {
-                        leave { onOpenEntry("${suggestion.path}.gpg") }
+                        leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -123,14 +130,25 @@ internal fun NewEntryScreen(
                     enabled = enabled,
                     revealed = revealed,
                     onToggleReveal = { revealed = !revealed },
-                    onPasswordChange = viewModel::updatePassword,
+                    onPasswordChange = {
+                        edited = true
+                        viewModel.updatePassword(it)
+                    },
                     onCopy = viewModel::copyPassword,
                 )
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border)
                 Spacer(Modifier.height(12.dp))
                 if (notesOpen) {
-                    NotesEditor(notes = viewModel.notes, enabled = enabled, onNotesChange = viewModel::updateNotes)
+                    NotesEditor(
+                        notes = viewModel.notes,
+                        lineCount = noteLines,
+                        enabled = enabled,
+                        onNotesChange = {
+                            edited = true
+                            viewModel.updateNotes(it)
+                        },
+                    )
                 } else {
                     TextButton(onClick = { notesOpen = true }, enabled = enabled) {
                         Text("+ notes / username", style = PassType.Caption.copy(color = PassColorsDark.Accent))
@@ -139,13 +157,18 @@ internal fun NewEntryScreen(
             }
             SaveFooter(
                 path = path.value,
-                flags = (if (noteLines > 0) "-m " else "") + (if (exists) "-f " else ""),
+                flags = (if (viewModel.notes.isNotEmpty()) "-m " else "") + (if (exists) "-f " else ""),
                 lineCount = noteLines,
                 enabled = canSave,
                 saving = viewModel.saving,
                 error = viewModel.error,
                 onSave = {
-                    if (exists) replaceDigest = check?.digest else viewModel.save(path, expectedDigest = null)
+                    val digest = check?.digest
+                    if (digest != null) {
+                        replacement = EntryReplacement(path, digest)
+                    } else {
+                        viewModel.save(path, expectedDigest = null)
+                    }
                 },
             )
         }
@@ -161,24 +184,29 @@ internal fun NewEntryScreen(
             onKeepEditing = { discardAction = null },
         )
     }
-    replaceDigest?.let { expectedDigest ->
+    replacement?.let { request ->
         AlertDialog(
-            onDismissRequest = { replaceDigest = null },
-            title = { Text("replace ${path.value}?") },
+            onDismissRequest = { replacement = null },
+            title = { Text("replace ${request.path.value}?") },
             text = { Text("its notes and otp lines will be lost") },
             confirmButton = {
                 TextButton(
                     enabled = canSave,
                     onClick = {
-                        replaceDigest = null
-                        viewModel.save(path, expectedDigest)
+                        replacement = null
+                        viewModel.save(request.path, request.digest)
                     },
                 ) { Text("replace") }
             },
-            dismissButton = { TextButton(onClick = { replaceDigest = null }) { Text("cancel") } },
+            dismissButton = { TextButton(onClick = { replacement = null }) { Text("cancel") } },
         )
     }
 }
+
+private class EntryReplacement(
+    val path: EntryPath,
+    val digest: ByteArray,
+)
 
 @Composable
 private fun EntryPathField(

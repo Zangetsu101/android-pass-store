@@ -5,6 +5,7 @@ import com.zangetsu101.pass.passstore.EntryPath
 
 internal class EntryPathOptions(
     private val paths: List<String>,
+    private val folders: Set<String>,
 ) {
     private val folderCounts =
         paths
@@ -15,23 +16,20 @@ internal class EntryPathOptions(
             }.groupingBy { it }
             .eachCount()
 
-    fun hint(
-        path: EntryPath,
-        folderExists: Boolean = false,
-    ): String {
+    fun hint(path: EntryPath): String {
         val count = folderCounts[path.folder]
         return when {
             path.value.isEmpty() -> "name it like your store · ${paths.size} entries"
             path.folder.isEmpty() -> "new entry · ${paths.size} in store"
-            count != null || folderExists -> "new in ${path.folder}/ · ${count ?: 0} entries there"
+            path.folder in folders -> "new in ${path.folder}/ · ${count ?: 0} entries there"
             else -> "new · creates folder ${path.folder}/"
         }
     }
 
     fun suggestions(path: EntryPath): List<PathSuggestion> {
         if (path.value.isEmpty()) return emptyList()
-        val folders =
-            folderCounts.keys.sorted().filter { it.startsWith(path.value, ignoreCase = true) }.map {
+        val folderMatches =
+            folders.sorted().filter { it.startsWith(path.value, ignoreCase = true) }.map {
                 PathSuggestion(it, folder = true, matchStart = 0, matchLength = path.value.length)
             }
         val entries =
@@ -44,7 +42,7 @@ internal class EntryPathOptions(
                     if (match < 0) null else PathSuggestion(candidate, false, candidate.length - name.length + match, path.name.length)
                 }
             }
-        return folders + entries
+        return folderMatches + entries
     }
 }
 

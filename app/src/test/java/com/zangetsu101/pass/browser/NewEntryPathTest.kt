@@ -30,6 +30,11 @@ class NewEntryPathTest {
                 "email/.hidden",
                 "email.gpg",
                 "cards/alice",
+                "NUL",
+                "work/com1.txt",
+                "work/LPT¹",
+                "dev./alice",
+                "dev /alice",
             )
         for (path in invalid + "\\:*?\"<>|".map { "email${it}gmail" }) {
             assertNotNull(path, EntryPath(path).error)
@@ -38,16 +43,22 @@ class NewEntryPathTest {
 
     @Test
     fun `grouped store reports folder hints and matches folder prefixes`() {
-        val index = EntryPathOptions(listOf("dev/github.com/alex", "dev/github.com/ann", "work/morgan"))
+        val index =
+            EntryPathOptions(
+                listOf("dev/github.com/alex", "dev/github.com/ann", "work/morgan"),
+                setOf("dev", "dev/github.com", "work", "empty"),
+            )
         assertEquals("name it like your store · 3 entries", index.hint(EntryPath("")))
         assertEquals("new in dev/github.com/ · 2 entries there", index.hint(EntryPath("dev/github.com/sam")))
         assertEquals("new · creates folder dev/gitlab.com/", index.hint(EntryPath("dev/gitlab.com/sam")))
         assertEquals(listOf("dev/github.com"), index.suggestions(EntryPath("dev/git")).map { it.path })
+        assertEquals("new in empty/ · 0 entries there", index.hint(EntryPath("empty/sam")))
+        assertEquals(listOf("empty"), index.suggestions(EntryPath("em")).map { it.path })
     }
 
     @Test
     fun `flat store matches entry names by substring`() {
-        val index = EntryPathOptions(listOf("github.com", "gitlab.com", "bank"))
+        val index = EntryPathOptions(listOf("github.com", "gitlab.com", "bank"), emptySet())
         assertEquals("new entry · 3 in store", index.hint(EntryPath("mail")))
         assertEquals(listOf("github.com", "gitlab.com"), index.suggestions(EntryPath("IT")).map { it.path })
         assertEquals(emptyList<PathSuggestion>(), index.suggestions(EntryPath("g")))

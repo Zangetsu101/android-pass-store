@@ -21,7 +21,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,6 +33,7 @@ internal class NewEntryViewModel
         private val preferences: AppPreferences,
     ) : ViewModel() {
         val entries = passStore.index
+        val folders = passStore.folders
         var password by mutableStateOf("")
             private set
         var notes by mutableStateOf("")
@@ -63,10 +63,7 @@ internal class NewEntryViewModel
             withContext(Dispatchers.IO) {
                 try {
                     val root = context.repositoryDirectory().canonicalFile
-                    InsertPathCheck(
-                        digest = writer.checkInsertPath(root, path),
-                        folderExists = File(root, path.folder).isDirectory,
-                    )
+                    InsertPathCheck(digest = writer.checkInsertPath(root, path))
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
@@ -113,6 +110,5 @@ internal class NewEntryViewModel
 
 internal class InsertPathCheck(
     val digest: ByteArray? = null,
-    val folderExists: Boolean = false,
     val error: String? = null,
 )

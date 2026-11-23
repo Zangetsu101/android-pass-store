@@ -50,6 +50,17 @@ class PassStoreImplTest {
         }
 
     @Test
+    fun `the index includes folders without entries and skips hidden folders`() =
+        runBlocking {
+            createGpgFile("web/github.com/alice.gpg")
+            createGpgFile("shared/.gpg-id")
+            createGpgFile(".git/refs/heads/main")
+            store.buildIndex()
+
+            assertEquals(setOf("web", "web/github.com", "shared"), store.folders.value)
+        }
+
+    @Test
     fun `buildIndex recognizes a Card Entry beneath organizational directories`() =
         runBlocking {
             createGpgFile("finance/cards/visa/my-card.gpg")

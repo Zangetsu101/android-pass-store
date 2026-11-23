@@ -79,7 +79,7 @@ class LoginEntryWriter
             .async {
                 path.error?.let { throw LoginSaveError(it) }
                 if (password.isEmpty() || password.any(Char::isWhitespace)) throw LoginSaveError("enter a password")
-                val plaintext = if (notes.isEmpty()) "$password\n" else "$password\n$notes"
+                val plaintext = "$password\n$notes"
                 gitSync.commitInsert(path.filePath) { root, original ->
                     val actualDigest = original?.ciphertextDigest()
                     if (!expectedDigest.contentEquals(actualDigest)) {
