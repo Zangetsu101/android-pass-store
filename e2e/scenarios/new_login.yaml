@@ -39,9 +39,10 @@ appId: com.zangetsu101.pass
 - tapOn: "edit notes"
 - inputText: "username: demo"
 - pressKey: Enter
+- pressKey: Enter
 - inputText: "research fixture"
 - hideKeyboard
-- assertVisible: ".*2 lines of notes"
+- assertVisible: ".*3 lines of notes"
 - takeScreenshot: "26-notes-and-enabled-save"
 - tapOn: "save entry"
 - extendedWaitUntil:

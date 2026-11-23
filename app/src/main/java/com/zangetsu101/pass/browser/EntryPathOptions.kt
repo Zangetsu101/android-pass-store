@@ -30,7 +30,7 @@ internal class EntryPathOptions(
         if (path.value.isEmpty()) return emptyList()
         val folderMatches =
             folders.sorted().filter { it.startsWith(path.value, ignoreCase = true) }.map {
-                PathSuggestion(it, folder = true, matchStart = path.value.length - path.name.length, matchLength = path.name.length)
+                PathSuggestion(it, folder = true, match = (path.value.length - path.name.length) until path.value.length)
             }
         val entries =
             if (path.name.length < 2) {
@@ -38,8 +38,10 @@ internal class EntryPathOptions(
             } else {
                 paths.sorted().mapNotNull { candidate ->
                     val name = candidate.substringAfterLast('/')
-                    val match = name.indexOf(path.name, ignoreCase = true)
-                    if (match < 0) null else PathSuggestion(candidate, false, candidate.length - name.length + match, path.name.length)
+                    val nameMatch = name.indexOf(path.name, ignoreCase = true)
+                    if (nameMatch < 0) return@mapNotNull null
+                    val start = candidate.length - name.length + nameMatch
+                    PathSuggestion(candidate, folder = false, match = start until (start + path.name.length))
                 }
             }
         return folderMatches + entries
@@ -49,6 +51,5 @@ internal class EntryPathOptions(
 internal data class PathSuggestion(
     val path: String,
     val folder: Boolean,
-    val matchStart: Int,
-    val matchLength: Int,
+    val match: IntRange,
 )

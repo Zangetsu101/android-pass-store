@@ -63,11 +63,12 @@ internal class NewEntryViewModel
             withContext(Dispatchers.IO) {
                 try {
                     val root = context.repositoryDirectory().canonicalFile
-                    InsertPathCheck(digest = writer.checkInsertPath(root, path))
+                    val digest = writer.checkInsertPath(root, path)
+                    if (digest == null) InsertPathCheck.Available else InsertPathCheck.Existing(digest)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    InsertPathCheck(error = if (failure is LoginSaveError) failure.message else "couldn't check the entry path")
+                    InsertPathCheck.Unavailable(if (failure is LoginSaveError) failure.message else "couldn't check the entry path")
                 }
             }
 
@@ -108,7 +109,14 @@ internal class NewEntryViewModel
         }
     }
 
-internal class InsertPathCheck(
-    val digest: ByteArray? = null,
-    val error: String? = null,
-)
+internal sealed interface InsertPathCheck {
+    data object Available : InsertPathCheck
+
+    class Existing(
+        val digest: ByteArray,
+    ) : InsertPathCheck
+
+    class Unavailable(
+        val message: String,
+    ) : InsertPathCheck
+}

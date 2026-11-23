@@ -436,6 +436,7 @@ class GitSyncImpl
                 if (!path.endsWith(".gpg") || file != file.canonicalFile || !file.toPath().startsWith(root.toPath())) {
                     throw SyncError.EditRejected("invalid entry path")
                 }
+                if (insert) root.caseConflictMessage(path)?.let { throw SyncError.EditRejected(it) }
                 openRepo(root).use { git ->
                     if (git.repository.repositoryState != RepositoryState.SAFE) {
                         throw SyncError.EditRejected("repository is busy")
@@ -447,6 +448,7 @@ class GitSyncImpl
                     if (indexEntry == null && (!insert || file.exists())) {
                         throw SyncError.EditRejected("path is already in use or is not tracked")
                     }
+                    if (insert) git.repository.committedCaseConflictMessage(path)?.let { throw SyncError.EditRejected(it) }
                     val before = git.repository.resolve(Constants.HEAD)
                     val original = indexEntry?.let { file.readBytes() }
                     val edit = prepare(root, original)

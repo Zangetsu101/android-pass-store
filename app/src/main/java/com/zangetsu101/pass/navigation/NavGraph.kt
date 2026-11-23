@@ -78,9 +78,15 @@ import kotlin.time.Duration.Companion.milliseconds
 @Serializable data object Settings : NavKey
 
 @Composable
-fun PassAndroidNavHost(appPreferences: AppPreferences) {
+fun PassAndroidNavHost(
+    appPreferences: AppPreferences,
+    setLightStatusBarIcons: (Boolean) -> Unit,
+) {
     val backStack = rememberNavBackStack(Splash)
     var addedPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val currentDestination = backStack.lastOrNull()
+    val useLightStatusBarIcons = currentDestination == EntryBrowser || currentDestination is NewEntry
+    LaunchedEffect(useLightStatusBarIcons) { setLightStatusBarIcons(useLightStatusBarIcons) }
 
     NavDisplay(
         backStack = backStack,

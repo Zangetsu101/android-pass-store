@@ -61,7 +61,7 @@ class NewEntryPathTest {
         val options = EntryPathOptions(emptyList(), setOf("dev/github.com"))
         val suggestion = options.suggestions(EntryPath("dev/git")).single()
 
-        assertEquals("git", suggestion.path.substring(suggestion.matchStart, suggestion.matchStart + suggestion.matchLength))
+        assertEquals("git", suggestion.path.substring(suggestion.match))
     }
 
     @Test

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass
 
-import android.graphics.Color
 import android.os.Bundle
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -17,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.navigation.PassAndroidNavHost
 import com.zangetsu101.pass.passstore.LoginEntryWriter
@@ -33,7 +32,9 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
+        enableEdgeToEdge()
+        val systemBars = WindowCompat.getInsetsController(window, window.decorView)
+        val defaultDarkStatusBarIcons = systemBars.isAppearanceLightStatusBars
         setContent {
             PassTheme {
                 val snackbar = remember { SnackbarHostState() }
@@ -43,7 +44,9 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 Box(Modifier.fillMaxSize()) {
-                    PassAndroidNavHost(appPreferences)
+                    PassAndroidNavHost(appPreferences) { useLightStatusBarIcons ->
+                        systemBars.isAppearanceLightStatusBars = !useLightStatusBarIcons && defaultDarkStatusBarIcons
+                    }
                     SnackbarHost(
                         hostState = snackbar,
                         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing),

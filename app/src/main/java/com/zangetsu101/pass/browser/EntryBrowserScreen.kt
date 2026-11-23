@@ -349,54 +349,72 @@ private fun TreeView(
     onEntryClick: (PassEntry) -> Unit,
     enabled: Boolean = true,
 ) {
-    val grouped =
-        remember(entries) {
-            entries.groupBy { entry ->
-                val parts = entry.path.split("/")
-                if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
+    val grouped = remember(entries) { entries.groupBy { it.path.substringBeforeLast('/', "") } }
+    val rows =
+        remember(grouped, collapsedDirs) {
+            buildList {
+                for ((directory, directoryEntries) in grouped) {
+                    val collapsed = directory.isNotEmpty() && directory in collapsedDirs
+                    if (directory.isNotEmpty()) add(TreeRow.Directory(directory, directoryEntries.size, collapsed))
+                    if (!collapsed) directoryEntries.forEach { add(TreeRow.Entry(it, indent = directory.isNotEmpty())) }
+                }
             }
         }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(grouped, selectedPath) {
-        val keys =
-            grouped.flatMap { (dir, dirEntries) ->
-                val header = if (dir.isEmpty()) emptyList() else listOf("dir_$dir")
-                header + if (dir in collapsedDirs) emptyList() else dirEntries.map { it.path }
-            }
-        val selectedIndex = keys.indexOf(selectedPath)
-        if (selectedIndex >= 0) {
+    val selectedIndex = if (selectedPath == null) -1 else rows.indexOfFirst { it is TreeRow.Entry && it.entry.path == selectedPath }
+    val hasSelectedRow = selectedIndex >= 0
+    LaunchedEffect(grouped, selectedPath, hasSelectedRow) {
+        if (hasSelectedRow) {
             listState.scrollToItem(selectedIndex)
-        } else if (selectedPath == null && keys.isNotEmpty()) {
+        } else if (selectedPath == null && rows.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }
     LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 64.dp)) {
-        grouped.forEach { (dir, dirEntries) ->
-            if (dir.isNotEmpty()) {
-                item(key = "dir_$dir") {
+        items(rows, key = { it.key }) { row ->
+            when (row) {
+                is TreeRow.Directory -> {
                     DirHeader(
-                        dir = dir,
-                        collapsed = dir in collapsedDirs,
-                        count = dirEntries.size,
+                        dir = row.path,
+                        collapsed = row.collapsed,
+                        count = row.count,
                         enabled = enabled,
-                        onToggle = { onToggleDir(dir) },
+                        onToggle = { onToggleDir(row.path) },
                     )
                 }
-            }
-            if (dir.isEmpty() || dir !in collapsedDirs) {
-                items(dirEntries, key = { it.path }) { entry ->
+
+                is TreeRow.Entry -> {
                     TreeEntryRow(
-                        entry = entry,
-                        indent = dir.isNotEmpty(),
-                        selected = entry.path == selectedPath,
+                        entry = row.entry,
+                        indent = row.indent,
+                        selected = row.entry.path == selectedPath,
                         enabled = enabled,
-                        onClick = { onEntryClick(entry) },
+                        onClick = { onEntryClick(row.entry) },
                     )
                     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 }
             }
         }
+    }
+}
+
+private sealed interface TreeRow {
+    val key: String
+
+    class Directory(
+        val path: String,
+        val count: Int,
+        val collapsed: Boolean,
+    ) : TreeRow {
+        override val key = "directory:$path"
+    }
+
+    class Entry(
+        val entry: PassEntry,
+        val indent: Boolean,
+    ) : TreeRow {
+        override val key = "entry:${entry.path}"
     }
 }
 

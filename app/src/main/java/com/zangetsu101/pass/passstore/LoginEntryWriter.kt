@@ -11,6 +11,7 @@ import com.zangetsu101.pass.di.AppBackgroundScope
 import com.zangetsu101.pass.gitsync.EncryptedEdit
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.caseConflictMessage
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +67,7 @@ class LoginEntryWriter
             if (file != file.canonicalFile || (file.exists() && !file.isFile)) {
                 throw LoginSaveError("path is already in use")
             }
+            root.caseConflictMessage(path.filePath)?.let { throw LoginSaveError(it) }
             LoginEncryption(keyStore.publicKeySource()).checkRecipients(root, path.filePath)
             return if (file.isFile) file.readBytes().ciphertextDigest() else null
         }
@@ -121,5 +123,5 @@ internal class SavedLogin(
 )
 
 internal class LoginSaveError(
-    message: String,
+    override val message: String,
 ) : Exception(message)

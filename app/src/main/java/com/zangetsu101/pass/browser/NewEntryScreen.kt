@@ -85,11 +85,15 @@ internal fun NewEntryScreen(
             result
         }
     val exists =
-        if (check != null && check.error == null) check.digest != null else entries.any { it.path == path.filePath }
-    val error = path.error?.takeIf { path.value.isNotEmpty() } ?: check?.error
+        when (check) {
+            is InsertPathCheck.Existing -> true
+            InsertPathCheck.Available -> false
+            else -> entries.any { it.path == path.filePath }
+        }
+    val error = path.error?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
     val canSave = enabled && check != null && error == null && viewModel.password.isNotEmpty()
-    val noteLines = viewModel.notes.lines().count { it.isNotBlank() }
+    val noteLines = if (viewModel.notes.isEmpty()) 0 else viewModel.notes.lineSequence().count()
     val suggestions = remember(options, path) { options.suggestions(path) }
 
     val changed = input != initialPath || viewModel.password.isNotEmpty() || viewModel.notes.isNotEmpty()
@@ -170,14 +174,14 @@ internal fun NewEntryScreen(
             }
             SaveFooter(
                 path = path.value,
-                flags = (if (viewModel.notes.isNotEmpty()) "-m " else "") + (if (exists) "-f " else ""),
+                flags = (if (noteLines > 0) "-m " else "") + (if (exists) "-f " else ""),
                 lineCount = noteLines,
                 enabled = canSave,
                 saving = viewModel.saving,
                 error = viewModel.error,
                 showGlow = true,
                 onSave = {
-                    val digest = check?.digest
+                    val digest = (check as? InsertPathCheck.Existing)?.digest
                     if (digest != null) {
                         replacement = EntryReplacement(path, digest)
                     } else {
@@ -343,14 +347,13 @@ private fun PathSuggestions(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val end = suggestion.matchStart + suggestion.matchLength
                 Text(
                     buildAnnotatedString {
-                        append(suggestion.path.substring(0, suggestion.matchStart))
+                        append(suggestion.path.substring(0, suggestion.match.first))
                         withStyle(SpanStyle(color = PassColorsDark.Accent)) {
-                            append(suggestion.path.substring(suggestion.matchStart, end))
+                            append(suggestion.path.substring(suggestion.match))
                         }
-                        append(suggestion.path.substring(end))
+                        append(suggestion.path.substring(suggestion.match.last + 1))
                         if (suggestion.folder) append("/")
                     },
                     style = PassType.Body.copy(fontSize = 10.sp),
