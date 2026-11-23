@@ -34,7 +34,7 @@ class SyncPanelViewModelTest {
     @BeforeEach
     fun setup() {
         Dispatchers.setMain(dispatcher)
-        every { gitSync.syncState } returns MutableStateFlow(SyncState(status, conflict = true))
+        every { gitSync.syncState } returns MutableStateFlow(SyncState(status, error = SyncError.Conflict(emptyList())))
         coEvery { passStore.buildIndex() } returns emptyList()
     }
 

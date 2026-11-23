@@ -50,7 +50,7 @@ class EntryBrowserViewModel
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    Log.w("EntryBrowser", "Couldn't load the sync status", failure)
+                    Log.w("EntryBrowser", "Could not load the sync status", failure)
                 }
             }
             viewModelScope.launch {
@@ -90,20 +90,20 @@ class EntryBrowserViewModel
             }
         }
 
-        fun pull() {
+        fun sync() {
             if (_state.value.syncing) return
             _state.update { it.copy(syncing = true) }
             viewModelScope.launch {
                 try {
                     try {
-                        gitSync.pull()
+                        gitSync.sync()
                     } catch (_: SyncError) {
                     }
                     passStore.buildIndex()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    Log.w("EntryBrowser", "Couldn't refresh the entries after sync", failure)
+                    Log.w("EntryBrowser", "Could not refresh the entries after sync", failure)
                 } finally {
                     _state.update { it.copy(syncing = false) }
                 }

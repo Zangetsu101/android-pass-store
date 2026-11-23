@@ -20,7 +20,9 @@ data class SyncStatus(
     val upstreamCommit: String? = null,
     val unpushed: List<UnpushedCommit> = emptyList(),
     val discardPaths: List<EntryChange> = emptyList(),
-)
+) {
+    val isSynced: Boolean get() = localCommit != null && localCommit == upstreamCommit
+}
 
 data class UnpushedCommit(
     val message: String,
@@ -29,14 +31,19 @@ data class UnpushedCommit(
 
 data class EntryChange(
     val path: String,
-    val action: String,
+    val action: EntryChangeAction,
 )
+
+enum class EntryChangeAction {
+    ADDED,
+    DELETED,
+    EDITED,
+}
 
 data class SyncState(
     val status: SyncStatus = SyncStatus(),
     val command: String? = null,
-    val error: String? = null,
-    val conflict: Boolean = false,
+    val error: SyncError? = null,
     val completed: Boolean = false,
 )
 
@@ -56,7 +63,7 @@ sealed class SyncError : Exception() {
     ) : SyncError()
 
     data class RemoteUnreachable(
-        override val message: String = "Couldn't reach the remote. Check your connection and try again.",
+        override val message: String = "Could not reach the remote. Check your connection and try again.",
     ) : SyncError()
 
     data class AuthFailure(

@@ -63,8 +63,8 @@ The `domain` field is expected to be a DNS domain name for login entries. Non-DN
 The app syncs the pass store via JGit over SSH. Key constraints:
 
 - **GitHub only.** Host verification accepts only GitHub's known SSH fingerprints (ed25519, ecdsa-nistp256, rsa). Any other host (GitLab, self-hosted, etc.) will fail host verification.
-- **Manual sync.** Fetch the tracked branch, rebase local commits onto it, then push any unpushed commits. With no local commits, the working copy fast-forwards. Saving an edit also attempts a background push.
-- Pull returns a `SyncResult` with `newEntries` (added + modified `.gpg` paths) and `removedEntries` (deleted `.gpg` paths). A rename appears as a delete + add, not a single rename event.
+- **Manual sync.** Fetch the tracked branch, rebase local commits onto it, then push any unpushed commits. With no local commits, the working copy fast-forwards. When you save an edit, the app tries to push it in the background.
+- Sync returns a `SyncResult` with `newEntries` (added + modified `.gpg` paths) and `removedEntries` (deleted `.gpg` paths). The result lists a rename as a deletion and an addition.
 
 **Unpushed Commit** — a commit reachable from the device branch and absent from the fetched remote branch. It remains local until a push succeeds.
 

@@ -220,11 +220,11 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `pull with no changes returns empty SyncResult`() =
+    fun `sync with no changes returns empty SyncResult`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 
-            val result = gitSync.pull()
+            val result = gitSync.sync()
 
             assertTrue(result.newEntries.isEmpty())
             assertTrue(result.removedEntries.isEmpty())
@@ -232,7 +232,7 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `pull fast-forwards and returns correct SyncResult`() =
+    fun `sync fast-forwards and returns correct SyncResult`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 
@@ -257,7 +257,7 @@ class GitSyncImplTest {
             pushGit.close()
             tempWork.deleteRecursively()
 
-            val result = gitSync.pull()
+            val result = gitSync.sync()
 
             assertTrue(result.newEntries.any { it.contains("bob.gpg") })
             assertTrue(result.removedEntries.isEmpty())
@@ -303,7 +303,7 @@ class GitSyncImplTest {
             pushGit.close()
             tempWork.deleteRecursively()
 
-            gitSync.pull()
+            gitSync.sync()
 
             val status = gitSync.syncStatus()
             assertTrue(localHead != status.localCommit)
@@ -315,10 +315,10 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `syncStatus reflects last pull timestamp`() =
+    fun `syncStatus reflects last sync timestamp`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
-            gitSync.pull()
+            gitSync.sync()
 
             val status = gitSync.syncStatus()
 
@@ -336,16 +336,16 @@ class GitSyncImplTest {
                 }
             publishRemoteEdit(path)
 
-            val error = runCatching { gitSync.pull() }.exceptionOrNull()
+            val error = runCatching { gitSync.sync() }.exceptionOrNull()
             assertEquals(SyncError.Conflict(listOf("web/github.com/alice")), error)
             val snapshot = gitSync.syncState.value.status
-            assertTrue(gitSync.syncState.value.conflict)
+            assertTrue(gitSync.syncState.value.error is SyncError.Conflict)
             assertEquals(local.commitHash, snapshot.localCommit?.take(7))
-            assertEquals(listOf(EntryChange("web/github.com/alice", "edited")), snapshot.discardPaths)
+            assertEquals(listOf(EntryChange("web/github.com/alice", EntryChangeAction.EDITED)), snapshot.discardPaths)
             assertEquals(listOf("web/github.com/alice"), snapshot.unpushed.single().paths)
             assertTrue(runCatching { gitSync.push() }.isFailure)
-            assertEquals(error?.message, gitSync.syncState.value.error)
-            assertTrue(gitSync.syncState.value.conflict)
+            assertEquals(error, gitSync.syncState.value.error)
+            assertTrue(gitSync.syncState.value.error is SyncError.Conflict)
             assertEquals("local edit", File(repoDir, path).readText())
             Git.open(repoDir).use { assertTrue(it.status().call().isClean) }
 
@@ -360,6 +360,9 @@ class GitSyncImplTest {
             assertEquals(final.status.upstreamCommit, final.status.localCommit)
             assertTrue(final.status.unpushed.isEmpty())
             assertEquals(null, final.error)
+            assertTrue(final.status.isSynced)
+            assertEquals(snapshot.lastSyncTime, final.status.lastSyncTime)
+            assertFalse(final.completed)
             assertEquals("remote edit", File(repoDir, path).readText())
         }
 
@@ -381,7 +384,7 @@ class GitSyncImplTest {
             val path = "web/github.com/alice.gpg"
             val savePrepared = CompletableDeferred<Boolean>()
             try {
-                val sync = async { gitSync.pull() }
+                val sync = async { gitSync.sync() }
                 fetchChangedRef.await()
                 val save =
                     async {

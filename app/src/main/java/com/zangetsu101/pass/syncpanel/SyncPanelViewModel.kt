@@ -43,7 +43,7 @@ class SyncPanelViewModel
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Exception) {
-                        Log.w("SyncPanel", "Couldn't refresh entries after discard", failure)
+                        Log.w("SyncPanel", "Could not refresh entries after discard", failure)
                     }
                     discard.value = DiscardState(done = true)
                 } catch (cancelled: CancellationException) {
@@ -51,7 +51,7 @@ class SyncPanelViewModel
                 } catch (error: Exception) {
                     discard.value =
                         DiscardState(
-                            error = (error as? SyncError)?.message ?: "Couldn't finish discarding. Return home and check sync.",
+                            error = (error as? SyncError)?.message ?: "Could not finish discarding. Return home and check sync.",
                         )
                 }
             }

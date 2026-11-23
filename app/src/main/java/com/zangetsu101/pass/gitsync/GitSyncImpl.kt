@@ -37,6 +37,7 @@ import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryState
+import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.revwalk.filter.RevFilter
 import org.eclipse.jgit.transport.RefSpec
@@ -134,9 +135,9 @@ class GitSyncImpl
             }
         }
 
-        override suspend fun pull(): SyncResult =
+        override suspend fun sync(): SyncResult =
             withRepositoryLock {
-                state.update { it.copy(command = "git fetch", error = null, conflict = false, completed = false) }
+                state.update { it.copy(command = "git fetch", error = null, completed = false) }
                 try {
                     openRepo(context.repositoryDirectory()).use { git ->
                         try {
@@ -149,7 +150,7 @@ class GitSyncImpl
                     throw cancelled
                 } catch (failure: Exception) {
                     val error = syncError(failure, state.value.command ?: "sync")
-                    state.update { it.copy(error = error.message, conflict = error is SyncError.Conflict, completed = false) }
+                    state.update { it.copy(error = error, completed = false) }
                     throw error
                 } finally {
                     state.update { it.copy(command = null) }
@@ -177,11 +178,11 @@ class GitSyncImpl
             if (before != upstream) {
                 val base =
                     mergeBase(repo, before, upstream)
-                        ?: throw SyncError.RecoveryFailure("The remote history was replaced. Check the remote branch before syncing.")
+                        ?: throw SyncError.RecoveryFailure("The remote replaced its history. Check the remote branch before syncing.")
                 if (base != upstream) {
                     if (base != before) {
-                        val localPaths = commitChanges(git, upstream, before).flatMap { it.paths }.toSet()
-                        val remotePaths = commitChanges(git, before, upstream).flatMap { it.paths }.toSet()
+                        val localPaths = commitsBetween(git, upstream, before).flatMap { entryPaths(git, it) }.toSet()
+                        val remotePaths = commitsBetween(git, before, upstream).flatMap { entryPaths(git, it) }.toSet()
                         val conflicts = localPaths.intersect(remotePaths).sorted()
                         if (conflicts.isNotEmpty()) throw SyncError.Conflict(conflicts)
                     }
@@ -221,7 +222,7 @@ class GitSyncImpl
                 openRepo(context.repositoryDirectory()).use { git ->
                     val current = readStatus(git)
                     if (
-                        !state.value.conflict || current != expected || current.upstreamCommit == null ||
+                        state.value.error !is SyncError.Conflict || current != expected || current.upstreamCommit == null ||
                         current.unpushed.isEmpty() || git.repository.repositoryState != RepositoryState.SAFE ||
                         !git.status().call().isClean
                     ) {
@@ -233,11 +234,9 @@ class GitSyncImpl
                             .setMode(ResetType.HARD)
                             .setRef(current.upstreamCommit)
                             .call()
-                        val lastSync = recordSyncTime()
                         state.value =
                             SyncState(
-                                status = SyncStatus(lastSync, current.upstreamCommit, current.upstreamCommit),
-                                completed = true,
+                                status = SyncStatus(current.lastSyncTime, current.upstreamCommit, current.upstreamCommit),
                             )
                     }
                 }
@@ -262,7 +261,7 @@ class GitSyncImpl
                             .map { it.removeSuffix(".gpg") }
                             .sorted()
                     if (conflicts.isNotEmpty()) throw SyncError.Conflict(conflicts)
-                    throw SyncError.RecoveryFailure("Couldn't rebase the local changes (${result.status}).")
+                    throw SyncError.RecoveryFailure("Could not rebase the local changes (${result.status}).")
                 }
             } finally {
                 if (git.repository.repositoryState.isRebasing) {
@@ -273,7 +272,7 @@ class GitSyncImpl
                             .call()
                             .status == RebaseResult.Status.ABORTED,
                     ) {
-                        "Couldn't restore the working copy after rebase"
+                        "Could not restore the working copy after rebase"
                     }
                 }
             }
@@ -292,7 +291,9 @@ class GitSyncImpl
                     val message = failure.message.orEmpty()
                     when {
                         message.contains("write access", ignoreCase = true) || message.contains("read only", ignoreCase = true) -> {
-                            SyncError.RecoveryFailure("Push was rejected. Check that your SSH key has write access and try again.")
+                            SyncError.RecoveryFailure(
+                                "The remote rejected the push. Check that your SSH key has write access and try again.",
+                            )
                         }
 
                         message.contains("auth", ignoreCase = true) || message.contains("publickey", ignoreCase = true) -> {
@@ -315,7 +316,7 @@ class GitSyncImpl
             try {
                 context.gitSyncDataStore.edit { it[KEY_LAST_SYNC] = now.toEpochMilli() }
             } catch (failure: IOException) {
-                Log.w("GitSync", "Couldn't persist the sync timestamp", failure)
+                Log.w("GitSync", "Could not save the sync time", failure)
             }
             state.update { it.copy(status = it.status.copy(lastSyncTime = now)) }
             return now
@@ -328,7 +329,7 @@ class GitSyncImpl
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                Log.w("GitSync", "Couldn't refresh the repository status", failure)
+                Log.w("GitSync", "Could not refresh the repository status", failure)
             }
         }
 
@@ -342,7 +343,10 @@ class GitSyncImpl
                         .first()[KEY_LAST_SYNC]
                         ?.let(Instant::ofEpochMilli)
             if (head == null || upstream == null) return SyncStatus(lastSync, head?.name)
-            val unpushed = commitChanges(git, upstream, head)
+            val unpushed =
+                commitsBetween(git, upstream, head).map { commit ->
+                    UnpushedCommit(commit.fullMessage.trimEnd(), entryPaths(git, commit))
+                }
             val base = if (unpushed.isEmpty()) null else mergeBase(repo, head, upstream)
             val paths =
                 base?.let { diffEntries(git, it, head) }.orEmpty().mapNotNull { change ->
@@ -351,9 +355,9 @@ class GitSyncImpl
                     if (!path.endsWith(".gpg")) return@mapNotNull null
                     val action =
                         when (change.changeType) {
-                            DiffEntry.ChangeType.ADD -> "added"
-                            DiffEntry.ChangeType.DELETE -> "deleted"
-                            else -> "edited"
+                            DiffEntry.ChangeType.ADD -> EntryChangeAction.ADDED
+                            DiffEntry.ChangeType.DELETE -> EntryChangeAction.DELETED
+                            else -> EntryChangeAction.EDITED
                         }
                     EntryChange(path.removeSuffix(".gpg"), action)
                 }
@@ -386,31 +390,26 @@ class GitSyncImpl
                 .toList()
         }
 
-        private fun commitChanges(
+        private fun entryPaths(
             git: Git,
-            from: ObjectId,
-            to: ObjectId,
-        ): List<UnpushedCommit> =
-            commitsBetween(git, from, to).map { commit ->
-                val paths =
-                    if (commit.parentCount == 0) {
-                        TreeWalk(git.repository).use { walk ->
-                            walk.addTree(commit.tree)
-                            walk.isRecursive = true
-                            buildList { while (walk.next()) add(walk.pathString) }
-                        }
-                    } else {
-                        diffEntries(git, commit.getParent(0), commit).flatMap { listOf(it.oldPath, it.newPath) }
+            commit: RevCommit,
+        ): List<String> {
+            val paths =
+                if (commit.parentCount == 0) {
+                    TreeWalk(git.repository).use { walk ->
+                        walk.addTree(commit.tree)
+                        walk.isRecursive = true
+                        buildList { while (walk.next()) add(walk.pathString) }
                     }
-                UnpushedCommit(
-                    commit.fullMessage.trimEnd(),
-                    paths
-                        .filter { it.endsWith(".gpg") }
-                        .distinct()
-                        .sorted()
-                        .map { it.removeSuffix(".gpg") },
-                )
-            }
+                } else {
+                    diffEntries(git, commit.getParent(0), commit).flatMap { listOf(it.oldPath, it.newPath) }
+                }
+            return paths
+                .filter { it.endsWith(".gpg") }
+                .distinct()
+                .sorted()
+                .map { it.removeSuffix(".gpg") }
+        }
 
         override suspend fun commitEdit(
             path: String,
@@ -463,7 +462,7 @@ class GitSyncImpl
                                 }
                             }
                         state.update {
-                            it.copy(error = if (it.conflict) it.error else null, completed = false)
+                            it.copy(error = it.error as? SyncError.Conflict, completed = false)
                         }
                         publishStatus(git)
                         FileCommitInfo(commit.name.take(7), Instant.ofEpochSecond(commit.commitTime.toLong()))
@@ -481,7 +480,7 @@ class GitSyncImpl
                     try {
                         pushBranch(git, remote, remoteSshKey()?.let(::makeSshCallback))
                         recordSyncTime()
-                        state.update { it.copy(error = null, conflict = false) }
+                        state.update { it.copy(error = null) }
                     } finally {
                         withContext(NonCancellable) {
                             publishStatus(git)
@@ -528,7 +527,7 @@ class GitSyncImpl
                     it.status != RemoteRefUpdate.Status.OK && it.status != RemoteRefUpdate.Status.UP_TO_DATE
                 }
             ) {
-                throw SyncError.RecoveryFailure("Push was rejected. Check that your SSH key has write access and try again.")
+                throw SyncError.RecoveryFailure("The remote rejected the push. Check that your SSH key has write access and try again.")
             }
         }
 

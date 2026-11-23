@@ -78,22 +78,14 @@ fun EntryBrowserScreen(
             value = false
         }
     }
-    val synced = sync.status.localCommit != null && sync.status.localCommit == sync.status.upstreamCommit
-    val syncLabel =
+    val (syncLabel, chipColor) =
         when {
-            chipBusy -> if (state.syncing) "syncing…" else "pushing…"
-            sync.error != null -> "error"
-            sync.status.unpushed.isNotEmpty() -> "↑${sync.status.unpushed.size} unpushed"
-            synced && lastSync != null -> "synced · ${syncAge(lastSync, now)}"
-            synced -> "synced"
-            else -> "sync"
-        }
-    val chipColor =
-        when {
-            chipBusy -> PassColorsDark.Accent
-            sync.error != null -> PassColorsDark.Danger
-            synced -> PassColorsDark.Accent
-            else -> PassColorsDark.TextDim
+            chipBusy -> (if (state.syncing) "syncing…" else "pushing…") to PassColorsDark.Accent
+            sync.error != null -> "error" to PassColorsDark.Danger
+            sync.status.unpushed.isNotEmpty() -> "↑${sync.status.unpushed.size} unpushed" to PassColorsDark.TextDim
+            sync.status.isSynced && lastSync != null -> "synced · ${syncAge(lastSync, now)}" to PassColorsDark.Accent
+            sync.status.isSynced -> "synced" to PassColorsDark.Accent
+            else -> "sync" to PassColorsDark.TextDim
         }
 
     val syncRotation by if (chipBusy) {
@@ -137,7 +129,7 @@ fun EntryBrowserScreen(
                             Modifier
                                 .background(PassColorsDark.Surface, PassShapes.small)
                                 .border(1.dp, PassColorsDark.Border2, PassShapes.small)
-                                .clickable(enabled = !chipBusy, onClick = viewModel::pull)
+                                .clickable(enabled = !chipBusy, onClick = viewModel::sync)
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -195,7 +187,7 @@ fun EntryBrowserScreen(
                     )
                 }
             } else {
-                val error = sync.error
+                val error = sync.error?.message
                 if (error != null) {
                     Text(
                         "$error · view details ›",

@@ -23,7 +23,7 @@ interface GitSync {
         progressMonitor: ProgressMonitor? = null,
     )
 
-    suspend fun pull(): SyncResult
+    suspend fun sync(): SyncResult
 
     suspend fun commitEdit(
         path: String,
