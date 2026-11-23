@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -134,7 +136,8 @@ fun EntryBrowserScreen(
                             .dropShadow(PassShapes.small, Shadow(radius = 20.dp, color = PassColorsDark.AccentMid))
                             .border(1.dp, PassColorsDark.Accent, PassShapes.small),
                     shape = PassShapes.small,
-                    containerColor = PassColorsDark.AccentDim,
+                    containerColor = PassColorsDark.AccentDim.compositeOver(PassColorsDark.Background),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
                     contentColor = PassColorsDark.Accent,
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "add entry", modifier = Modifier.size(20.dp))
