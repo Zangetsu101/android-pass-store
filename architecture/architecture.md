@@ -96,7 +96,7 @@ See [`docs/adr/0002-threat-model.md`](../docs/adr/0002-threat-model.md) for the 
 | # | Module | Responsibility |
 |---|---|---|
 | 1 | [Key Management](modules/key-management.md) | GPG + SSH key import/generation, Keystore-backed storage, session passphrase, biometric unlock |
-| 2 | [Git Sync](modules/git-sync.md) | Clone, fast-forward pull, commit encrypted edits, and push to GitHub over SSH |
+| 2 | [Git Sync](modules/git-sync.md) | Clone, sync, and commit encrypted edits. Sync fetches, rebases, and pushes over SSH. |
 | 3 | [Pass Store](modules/pass-store.md) | Index `.gpg` paths, resolve autofill queries, fuzzy user search |
 | 4 | [Decryption](modules/decryption.md) | GPG-decrypt entries, parse password/card fields from pass files |
 | 5 | [Autofill](modules/autofill.md) | `AutofillService` and Credential Manager provider integration |

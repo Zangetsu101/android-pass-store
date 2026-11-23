@@ -220,7 +220,7 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `sync with no changes returns empty SyncResult`() =
+    fun `sync with no changes returns no new or removed entries`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 
@@ -232,7 +232,7 @@ class GitSyncImplTest {
         }
 
     @Test
-    fun `sync fast-forwards and returns correct SyncResult`() =
+    fun `sync fast-forwards and lists the new entry`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
 

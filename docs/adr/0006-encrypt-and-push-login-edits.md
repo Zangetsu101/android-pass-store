@@ -18,11 +18,11 @@ working copy and Git history receive only ciphertext.
 
 Clone, sync, commit, push, and discard share a lock. The write checks the current
 ciphertext against the form's original version while holding the lock so a
-pull cannot cause the form to overwrite a newer version silently.
+sync cannot cause the form to overwrite a newer version silently.
 
 Manual sync fetches the tracked branch, rebases unpushed commits if the remote
 advanced, then pushes. This keeps local edits when the two histories changed
 different entries. When both histories change the same encrypted entry, sync
 cannot combine the ciphertexts safely. Sync keeps the local commits and
-reports the conflict. The recovery panel shows each entry change that the
-reset removes before the user confirms the reset to the fetched remote branch.
+reports the conflict. The recovery panel shows the changes that the reset will remove.
+The user can review these changes before they confirm the reset.

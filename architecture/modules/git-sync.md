@@ -48,7 +48,7 @@ After onboarding, sync is source-agnostic: it reads the stored SSH keypair from 
 ## Interfaces
 
 - `clone(remoteUrl: String, localPath: Path, sshKeyPair: SshKeyPair?, progressMonitor: ProgressMonitor?)` — initial clone.
-- `sync(): SyncResult` — fetch, rebase, and push, returning changed `.gpg` paths and last sync time.
+- `sync(): SyncResult` fetches, rebases, and pushes. It returns the changed `.gpg` paths and the last sync time.
 - `commitEdit(path, prepare)` — validate and prepare an encrypted edit under the repository lock, then commit that file.
 - `push()` — push the current branch and verify the remote accepted the update.
 - `syncStatus(): SyncStatus` — local snapshot of the tracked branch, unpushed commits, affected paths, and last sync time.

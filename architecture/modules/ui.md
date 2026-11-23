@@ -42,8 +42,8 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 **Sync Panel**
 
 - Last sync timestamp / status.
-- Manual pull.
-- Error display for auth failure, unreachable remote, and non-fast-forward history.
+- Manual sync.
+- Error display for auth failure, unreachable remote, and conflicts between local and remote changes.
 
 **Settings**
 

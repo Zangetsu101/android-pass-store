@@ -134,7 +134,7 @@ class EntryBrowserViewModelTest {
         }
 
     @Test
-    fun `sync while already syncing is no-op`() =
+    fun `a second request does not start another sync`() =
         runTest(testDispatcher) {
             val syncLatch = CompletableDeferred<SyncResult>()
             coEvery { gitSync.sync() } coAnswers { syncLatch.await() }
