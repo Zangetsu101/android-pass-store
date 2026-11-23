@@ -56,7 +56,7 @@ fun SyncPanelScreen(
                 title = { Text("sync recovery", style = PassType.Title) },
                 navigationIcon = {
                     IconButton(onClick = onBack, enabled = !discard.running) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
                     }
                 },
                 colors =
@@ -82,7 +82,7 @@ fun SyncPanelScreen(
                     }
                 }
             }
-            item { Text("UNPUSHED COMMITS (${sync.status.unpushed.size})", style = PassType.Label) }
+            item { Text("unpushed commits (${sync.status.unpushed.size})", style = PassType.Label) }
             items(sync.status.unpushed) { commit ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(commit.message, style = PassType.Body)
@@ -108,7 +108,7 @@ fun SyncPanelScreen(
     confirmation?.let { expected ->
         AlertDialog(
             onDismissRequest = { confirmation = null },
-            title = { Text("Discard unpushed changes?") },
+            title = { Text("discard unpushed changes?") },
             text = {
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 280.dp),
@@ -126,13 +126,13 @@ fun SyncPanelScreen(
                     }
                 }
             },
-            dismissButton = { TextButton(onClick = { confirmation = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmation = null }) { Text("cancel") } },
             confirmButton = {
                 TextButton(onClick = {
                     confirmation = null
                     viewModel.discardUnpushed(expected)
                 }) {
-                    Text("Discard changes", color = PassColorsDark.Danger)
+                    Text("discard changes", color = PassColorsDark.Danger)
                 }
             },
         )

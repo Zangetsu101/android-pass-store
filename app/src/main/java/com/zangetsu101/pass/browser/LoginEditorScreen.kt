@@ -205,7 +205,7 @@ internal fun PasswordEditor(
     newEntry: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.Bottom) {
-        Text(if (newEntry) "PASSWORD" else "password", style = PassType.Label, modifier = Modifier.weight(1f))
+        Text("password", style = PassType.Label, modifier = Modifier.weight(1f))
         if (passwordChanged) {
             Text("edited by you", style = PassType.Caption.copy(color = PassColorsDark.Accent))
         }

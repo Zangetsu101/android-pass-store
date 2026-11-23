@@ -258,7 +258,7 @@ fun EntryBrowserScreen(
                 PassTextField(
                     value = state.searchQuery,
                     onValueChange = viewModel::setSearchQuery,
-                    prefix = "$ grep -r ",
+                    prefix = "> grep -r ",
                     placeholder = "\"\"",
                     modifier =
                         Modifier

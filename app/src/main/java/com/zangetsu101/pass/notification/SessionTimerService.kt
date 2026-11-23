@@ -76,8 +76,8 @@ class SessionTimerService : Service() {
         return NotificationCompat
             .Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Session active")
-            .setContentText("Touch to clear session")
+            .setContentTitle("session active")
+            .setContentText("touch to clear session")
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setContentIntent(clearIntent)

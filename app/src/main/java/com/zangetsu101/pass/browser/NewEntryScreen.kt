@@ -274,7 +274,7 @@ private fun EntryPathField(
             exists -> PassColorsDark.Warning
             else -> PassColorsDark.Border2
         }
-    Text("STORE PATH", style = PassType.Label)
+    Text("store path", style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
         Modifier

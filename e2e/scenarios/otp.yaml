@@ -11,7 +11,7 @@ appId: com.zangetsu101.pass
 
 # The search sorts the alex.morgan entries to the top and stays after Back.
 # The browser shows a tree, so each entry is the alex.morgan row below its folder.
-- tapOn: "\\$ grep -r "
+- tapOn: "> grep -r "
 - inputText: "alex.morgan"
 - hideKeyboard
 
