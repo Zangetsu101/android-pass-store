@@ -3,7 +3,10 @@ package com.zangetsu101.pass.browser
 
 import android.content.Context
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.SyncResult
+import com.zangetsu101.pass.gitsync.SyncState
+import com.zangetsu101.pass.gitsync.SyncStatus
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -54,7 +57,9 @@ class EntryBrowserViewModelTest {
         every { passStore.index } returns MutableStateFlow(emptyList())
         coEvery { passStore.buildIndex() } returns emptyList()
         every { passStore.search(any()) } returns emptyList()
-        coEvery { gitSync.pull() } returns SyncResult(emptyList(), emptyList(), Instant.now())
+        every { gitSync.syncState } returns MutableStateFlow(SyncState())
+        coEvery { gitSync.syncStatus() } returns SyncStatus()
+        coEvery { gitSync.sync() } returns SyncResult(emptyList(), emptyList(), Instant.now())
     }
 
     @AfterEach
@@ -115,50 +120,51 @@ class EntryBrowserViewModelTest {
         }
 
     @Test
-    fun `pull sets syncing true then false and calls gitSync pull`() =
+    fun `sync sets syncing true then false and calls the sync operation`() =
         runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.pull()
+            vm.sync()
             assertTrue(vm.state.value.syncing)
 
             advanceUntilIdle()
             assertFalse(vm.state.value.syncing)
-            coVerify { gitSync.pull() }
+            coVerify { gitSync.sync() }
         }
 
     @Test
-    fun `pull while already syncing is no-op`() =
+    fun `a second request does not start another sync`() =
         runTest(testDispatcher) {
-            val pullLatch = CompletableDeferred<SyncResult>()
-            coEvery { gitSync.pull() } coAnswers { pullLatch.await() }
+            val syncLatch = CompletableDeferred<SyncResult>()
+            coEvery { gitSync.sync() } coAnswers { syncLatch.await() }
 
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.pull()
+            vm.sync()
             assertTrue(vm.state.value.syncing)
 
-            vm.pull() // guard: syncing == true, returns immediately
+            vm.sync()
 
-            pullLatch.complete(SyncResult(emptyList(), emptyList(), Instant.now()))
+            syncLatch.complete(SyncResult(emptyList(), emptyList(), Instant.now()))
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { gitSync.pull() }
+            coVerify(exactly = 1) { gitSync.sync() }
         }
 
     @Test
-    fun `pull exception is swallowed and syncing resets to false`() =
+    fun `a failed sync clears the busy state and refreshes the index`() =
         runTest(testDispatcher) {
-            coEvery { gitSync.pull() } throws RuntimeException("network error")
+            coEvery { gitSync.sync() } throws SyncError.RemoteUnreachable()
 
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.pull()
+            vm.sync()
             advanceUntilIdle()
 
             assertFalse(vm.state.value.syncing)
+            coVerify(exactly = 2) { passStore.buildIndex() }
         }
 }

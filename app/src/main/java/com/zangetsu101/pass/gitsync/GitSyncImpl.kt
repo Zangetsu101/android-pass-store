@@ -2,6 +2,7 @@
 package com.zangetsu101.pass.gitsync
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -12,7 +13,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -20,7 +24,9 @@ import org.apache.sshd.common.config.keys.KeyUtils
 import org.apache.sshd.common.digest.BuiltinDigests
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.MergeCommand.FastForwardMode
+import org.eclipse.jgit.api.RebaseCommand
+import org.eclipse.jgit.api.RebaseResult
+import org.eclipse.jgit.api.ResetCommand.ResetType
 import org.eclipse.jgit.api.TransportConfigCallback
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
@@ -31,13 +37,18 @@ import org.eclipse.jgit.lib.ObjectInserter
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryState
+import org.eclipse.jgit.revwalk.RevCommit
+import org.eclipse.jgit.revwalk.RevWalk
+import org.eclipse.jgit.revwalk.filter.RevFilter
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.SshTransport
 import org.eclipse.jgit.transport.sshd.ServerKeyDatabase
 import org.eclipse.jgit.transport.sshd.SshdSessionFactory
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.eclipse.jgit.treewalk.TreeWalk
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -71,6 +82,8 @@ class GitSyncImpl
         private val sshKeyStore: SshKeyStore,
     ) : GitSync {
         private val operations = Mutex()
+        private val state = MutableStateFlow(SyncState())
+        override val syncState = state.asStateFlow()
 
         init {
             // MINA SSHD's PathUtils rejects Android's empty "user.home". Set a valid path.
@@ -106,6 +119,8 @@ class GitSyncImpl
                         it[KEY_REPO_PATH] = localPath.toAbsolutePath().toString()
                         it[KEY_LAST_SYNC] = System.currentTimeMillis()
                     }
+                    state.value = SyncState(status = SyncStatus(lastSyncTime = Instant.now()))
+                    openRepo(localPath.toFile()).use { publishStatus(it) }
                 } catch (e: TransportException) {
                     val msg = e.message ?: ""
                     when {
@@ -120,94 +135,281 @@ class GitSyncImpl
             }
         }
 
-        override suspend fun pull(): SyncResult =
+        override suspend fun sync(): SyncResult =
             withRepositoryLock {
-                val keyPair = remoteSshKey()
-
-                val git = openRepo(context.repositoryDirectory())
-                val beforeHead: ObjectId =
-                    git.repository.resolve("HEAD")
-                        ?: error("Repository has no HEAD")
-
+                state.update { it.copy(command = "git fetch", error = null, completed = false) }
                 try {
-                    val cmd =
-                        git
-                            .pull()
-                            .setRebase(false)
-                            .setFastForward(FastForwardMode.FF_ONLY)
-                    if (keyPair != null) {
-                        cmd.setTransportConfigCallback(makeSshCallback(keyPair))
+                    openRepo(context.repositoryDirectory()).use { git ->
+                        try {
+                            syncRepository(git)
+                        } finally {
+                            withContext(NonCancellable) { publishStatus(git) }
+                        }
                     }
-                    val result = cmd.call()
-
-                    if (!result.isSuccessful) throw SyncError.NotFastForward()
-
-                    val afterHead: ObjectId = git.repository.resolve("HEAD")!!
-                    val syncTime = Instant.now()
-                    context.gitSyncDataStore.edit { it[KEY_LAST_SYNC] = syncTime.toEpochMilli() }
-
-                    val diff = diffEntries(git, beforeHead, afterHead)
-                    SyncResult(
-                        newEntries =
-                            diff
-                                .filter { it.changeType != DiffEntry.ChangeType.DELETE }
-                                .map { it.newPath }
-                                .filter { it.endsWith(".gpg") },
-                        removedEntries =
-                            diff
-                                .filter { it.changeType == DiffEntry.ChangeType.DELETE }
-                                .map { it.oldPath }
-                                .filter { it.endsWith(".gpg") },
-                        lastSyncTime = syncTime,
-                    )
-                } catch (e: SyncError) {
-                    throw e
-                } catch (e: TransportException) {
-                    val msg = e.message ?: ""
-                    when {
-                        msg.contains("Auth fail") || msg.contains("authentication") -> throw SyncError.AuthFailure()
-                        msg.contains("non-fast") || msg.contains("rejected") -> throw SyncError.NotFastForward()
-                        else -> throw SyncError.RemoteUnreachable()
-                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    val error = syncError(failure, state.value.command ?: "sync")
+                    state.update { it.copy(error = error, completed = false) }
+                    throw error
                 } finally {
-                    git.close()
+                    state.update { it.copy(command = null) }
                 }
             }
 
-        override suspend fun syncStatus(): SyncStatus =
-            withContext(Dispatchers.IO) {
-                val prefs = context.gitSyncDataStore.data.first()
-                val lastSyncMs = prefs[KEY_LAST_SYNC]
-                val remoteUrl = prefs[KEY_REMOTE_URL]
-                val currentRepoDir = context.repositoryDirectory()
+        private suspend fun syncRepository(git: Git): SyncResult {
+            val repo = git.repository
+            val before = requireNotNull(repo.resolve(Constants.HEAD))
+            val remote = remoteBranch(git)
+            val callback = remoteSshKey()?.let(::makeSshCallback)
+            state.update { it.copy(command = "git fetch ${remote.name}") }
+            val fetch =
+                git
+                    .fetch()
+                    .setRemote(remote.name)
+                    .setTimeout(30)
+                    .setRemoveDeletedRefs(true)
+            callback?.let(fetch::setTransportConfigCallback)
+            fetch.call()
 
-                val localCommit: String? =
-                    if (currentRepoDir.exists()) {
-                        runCatching {
-                            openRepo(currentRepoDir).use { it.repository.resolve("HEAD")?.name }
-                        }.getOrNull()
-                    } else {
-                        null
+            val upstream =
+                repo.resolve(remote.trackingRef)
+                    ?: throw SyncError.RecoveryFailure("The tracked branch is missing. Check the remote branch.")
+            if (before != upstream) {
+                val base =
+                    mergeBase(repo, before, upstream)
+                        ?: throw SyncError.RecoveryFailure("The remote replaced its history. Check the remote branch before syncing.")
+                if (base != upstream) {
+                    if (base != before) {
+                        val localPaths = commitsBetween(git, upstream, before).flatMap { entryPaths(git, it) }.toSet()
+                        val remotePaths = commitsBetween(git, before, upstream).flatMap { entryPaths(git, it) }.toSet()
+                        val conflicts = localPaths.intersect(remotePaths).sorted()
+                        if (conflicts.isNotEmpty()) throw SyncError.Conflict(conflicts)
                     }
-
-                val remoteReachable =
-                    if (remoteUrl != null && currentRepoDir.exists()) {
-                        runCatching {
-                            openRepo(currentRepoDir).use { git ->
-                                git.fetch().setDryRun(true).call()
-                                true
-                            }
-                        }.getOrElse { false }
-                    } else {
-                        false
-                    }
-
-                SyncStatus(
-                    lastSyncTime = lastSyncMs?.let { Instant.ofEpochMilli(it) },
-                    localCommit = localCommit,
-                    remoteReachable = remoteReachable,
-                )
+                    state.update { it.copy(command = "git rebase ${remote.trackingRef.removePrefix(Constants.R_REMOTES)}") }
+                    rebase(git, upstream)
+                }
             }
+            val after = repo.resolve(Constants.HEAD)
+            if (after != upstream) {
+                state.update { it.copy(command = "git push ${remote.name}") }
+                pushBranch(git, remote, callback)
+            }
+            val lastSync = recordSyncTime()
+            val diff = diffEntries(git, before, after)
+            state.update { it.copy(completed = true) }
+            return SyncResult(
+                newEntries = diff.map { it.newPath }.filter { it.endsWith(".gpg") },
+                removedEntries =
+                    diff
+                        .filter { it.changeType == DiffEntry.ChangeType.DELETE }
+                        .map { it.oldPath }
+                        .filter { it.endsWith(".gpg") },
+                lastSyncTime = lastSync,
+            )
+        }
+
+        override suspend fun syncStatus(): SyncStatus =
+            withRepositoryLock {
+                val root = context.repositoryDirectory()
+                val status = if (File(root, ".git").exists()) openRepo(root).use { readStatus(it) } else SyncStatus()
+                state.update { it.copy(status = status) }
+                status
+            }
+
+        override suspend fun discardUnpushed(expected: SyncStatus) {
+            withRepositoryLock {
+                openRepo(context.repositoryDirectory()).use { git ->
+                    val current = readStatus(git)
+                    if (
+                        state.value.error !is SyncError.Conflict || current != expected || current.upstreamCommit == null ||
+                        current.unpushed.isEmpty() || git.repository.repositoryState != RepositoryState.SAFE ||
+                        !git.status().call().isClean
+                    ) {
+                        throw SyncError.RecoveryFailure("The working copy changed. Return home and sync again before discarding.")
+                    }
+                    withContext(NonCancellable) {
+                        git
+                            .reset()
+                            .setMode(ResetType.HARD)
+                            .setRef(current.upstreamCommit)
+                            .call()
+                        state.value =
+                            SyncState(
+                                status = SyncStatus(current.lastSyncTime, current.upstreamCommit, current.upstreamCommit),
+                            )
+                    }
+                }
+            }
+        }
+
+        private fun rebase(
+            git: Git,
+            upstream: ObjectId,
+        ) {
+            if (git.repository.repositoryState != RepositoryState.SAFE || !git.status().call().isClean) {
+                throw SyncError.RecoveryFailure("The working copy has unfinished changes. Resolve them before syncing.")
+            }
+            try {
+                val result = git.rebase().setUpstream(upstream).call()
+                if (!result.status.isSuccessful) {
+                    val conflicts =
+                        git
+                            .status()
+                            .call()
+                            .conflicting
+                            .map { it.removeSuffix(".gpg") }
+                            .sorted()
+                    if (conflicts.isNotEmpty()) throw SyncError.Conflict(conflicts)
+                    throw SyncError.RecoveryFailure("Could not rebase the local changes (${result.status}).")
+                }
+            } finally {
+                if (git.repository.repositoryState.isRebasing) {
+                    check(
+                        git
+                            .rebase()
+                            .setOperation(RebaseCommand.Operation.ABORT)
+                            .call()
+                            .status == RebaseResult.Status.ABORTED,
+                    ) {
+                        "Could not restore the working copy after rebase"
+                    }
+                }
+            }
+        }
+
+        private fun syncError(
+            failure: Exception,
+            command: String,
+        ): SyncError =
+            when (failure) {
+                is SyncError -> {
+                    failure
+                }
+
+                is TransportException -> {
+                    val message = failure.message.orEmpty()
+                    when {
+                        message.contains("write access", ignoreCase = true) || message.contains("read only", ignoreCase = true) -> {
+                            SyncError.RecoveryFailure(
+                                "The remote rejected the push. Check that your SSH key has write access and try again.",
+                            )
+                        }
+
+                        message.contains("auth", ignoreCase = true) || message.contains("publickey", ignoreCase = true) -> {
+                            SyncError.AuthFailure()
+                        }
+
+                        else -> {
+                            SyncError.RemoteUnreachable()
+                        }
+                    }
+                }
+
+                else -> {
+                    SyncError.RecoveryFailure("$command failed. Try syncing again.")
+                }
+            }
+
+        private suspend fun recordSyncTime(): Instant {
+            val now = Instant.ofEpochMilli(System.currentTimeMillis())
+            try {
+                context.gitSyncDataStore.edit { it[KEY_LAST_SYNC] = now.toEpochMilli() }
+            } catch (failure: IOException) {
+                Log.w("GitSync", "Could not save the sync time", failure)
+            }
+            state.update { it.copy(status = it.status.copy(lastSyncTime = now)) }
+            return now
+        }
+
+        private suspend fun publishStatus(git: Git) {
+            try {
+                val status = readStatus(git)
+                state.update { it.copy(status = status) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w("GitSync", "Could not refresh the repository status", failure)
+            }
+        }
+
+        private suspend fun readStatus(git: Git): SyncStatus {
+            val repo = git.repository
+            val head = repo.resolve(Constants.HEAD)
+            val upstream = repo.resolve(remoteBranch(git).trackingRef)
+            val lastSync =
+                state.value.status.lastSyncTime
+                    ?: context.gitSyncDataStore.data
+                        .first()[KEY_LAST_SYNC]
+                        ?.let(Instant::ofEpochMilli)
+            if (head == null || upstream == null) return SyncStatus(lastSync, head?.name)
+            val unpushed =
+                commitsBetween(git, upstream, head).map { commit ->
+                    UnpushedCommit(commit.fullMessage.trimEnd(), entryPaths(git, commit))
+                }
+            val base = if (unpushed.isEmpty()) null else mergeBase(repo, head, upstream)
+            val paths =
+                base?.let { diffEntries(git, it, head) }.orEmpty().mapNotNull { change ->
+                    val deleted = change.changeType == DiffEntry.ChangeType.DELETE
+                    val path = if (deleted) change.oldPath else change.newPath
+                    if (!path.endsWith(".gpg")) return@mapNotNull null
+                    val action =
+                        when (change.changeType) {
+                            DiffEntry.ChangeType.ADD -> EntryChangeAction.ADDED
+                            DiffEntry.ChangeType.DELETE -> EntryChangeAction.DELETED
+                            else -> EntryChangeAction.EDITED
+                        }
+                    EntryChange(path.removeSuffix(".gpg"), action)
+                }
+            return SyncStatus(lastSync, head.name, upstream.name, unpushed, paths)
+        }
+
+        private fun mergeBase(
+            repo: Repository,
+            head: ObjectId,
+            upstream: ObjectId,
+        ): ObjectId? =
+            RevWalk(repo).use { walk ->
+                walk.revFilter = RevFilter.MERGE_BASE
+                walk.markStart(walk.parseCommit(head))
+                walk.markStart(walk.parseCommit(upstream))
+                walk.next()
+            }
+
+        private fun commitsBetween(
+            git: Git,
+            from: ObjectId,
+            to: ObjectId,
+        ) = if (from == to) {
+            emptyList()
+        } else {
+            git
+                .log()
+                .addRange(from, to)
+                .call()
+                .toList()
+        }
+
+        private fun entryPaths(
+            git: Git,
+            commit: RevCommit,
+        ): List<String> {
+            val paths =
+                if (commit.parentCount == 0) {
+                    TreeWalk(git.repository).use { walk ->
+                        walk.addTree(commit.tree)
+                        walk.isRecursive = true
+                        buildList { while (walk.next()) add(walk.pathString) }
+                    }
+                } else {
+                    diffEntries(git, commit.getParent(0), commit).flatMap { listOf(it.oldPath, it.newPath) }
+                }
+            return paths
+                .filter { it.endsWith(".gpg") }
+                .distinct()
+                .sorted()
+                .map { it.removeSuffix(".gpg") }
+        }
 
         override suspend fun commitEdit(
             path: String,
@@ -259,6 +461,10 @@ class GitSyncImpl
                                     throw failure
                                 }
                             }
+                        state.update {
+                            it.copy(error = it.error as? SyncError.Conflict, completed = false)
+                        }
+                        publishStatus(git)
                         FileCommitInfo(commit.name.take(7), Instant.ofEpochSecond(commit.commitTime.toLong()))
                     }
                 }
@@ -267,27 +473,61 @@ class GitSyncImpl
         override suspend fun push() {
             withRepositoryLock {
                 openRepo(context.repositoryDirectory()).use { git ->
-                    val branch = git.repository.fullBranch
-                    check(branch.startsWith("refs/heads/")) { "repository has no checked-out branch" }
-                    val branchName = branch.removePrefix("refs/heads/")
-                    val config = git.repository.config
-                    val remote = config.getString("branch", branchName, "remote") ?: "origin"
-                    val destination = config.getString("branch", branchName, "merge") ?: branch
-                    val command =
-                        git
-                            .push()
-                            .setRemote(remote)
-                            .setRefSpecs(RefSpec("$branch:$destination"))
-                            .setTimeout(30)
-                    remoteSshKey()?.let { command.setTransportConfigCallback(makeSshCallback(it)) }
-                    val updates = command.call().flatMap { it.remoteUpdates }
-                    check(
-                        updates.isNotEmpty() &&
-                            updates.all {
-                                it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE
-                            },
-                    ) { "push rejected" }
+                    val remote = remoteBranch(git)
+                    if (git.repository.resolve(remote.trackingRef) == git.repository.resolve(Constants.HEAD)) return@use
+
+                    state.update { it.copy(command = "git push ${remote.name}") }
+                    try {
+                        pushBranch(git, remote, remoteSshKey()?.let(::makeSshCallback))
+                        recordSyncTime()
+                        state.update { it.copy(error = null) }
+                    } finally {
+                        withContext(NonCancellable) {
+                            publishStatus(git)
+                            state.update { it.copy(command = null) }
+                        }
+                    }
                 }
+            }
+        }
+
+        private data class RemoteBranch(
+            val name: String,
+            val destination: String,
+        ) {
+            val trackingRef = "refs/remotes/$name/${destination.removePrefix("refs/heads/")}"
+        }
+
+        private fun remoteBranch(git: Git): RemoteBranch {
+            val branch = git.repository.fullBranch
+            check(branch.startsWith(Constants.R_HEADS)) { "Repository has no checked-out branch" }
+            val branchName = branch.removePrefix(Constants.R_HEADS)
+            val config = git.repository.config
+            return RemoteBranch(
+                config.getString("branch", branchName, "remote") ?: "origin",
+                config.getString("branch", branchName, "merge") ?: branch,
+            )
+        }
+
+        private fun pushBranch(
+            git: Git,
+            remote: RemoteBranch,
+            callback: TransportConfigCallback?,
+        ) {
+            val command =
+                git
+                    .push()
+                    .setRemote(remote.name)
+                    .setRefSpecs(RefSpec("${git.repository.fullBranch}:${remote.destination}"))
+                    .setTimeout(30)
+            callback?.let(command::setTransportConfigCallback)
+            val updates = command.call().flatMap { it.remoteUpdates }
+            if (updates.isEmpty() ||
+                updates.any {
+                    it.status != RemoteRefUpdate.Status.OK && it.status != RemoteRefUpdate.Status.UP_TO_DATE
+                }
+            ) {
+                throw SyncError.RecoveryFailure("The remote rejected the push. Check that your SSH key has write access and try again.")
             }
         }
 

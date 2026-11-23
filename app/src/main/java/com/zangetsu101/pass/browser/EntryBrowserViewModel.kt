@@ -2,14 +2,17 @@
 package com.zangetsu101.pass.browser
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +41,18 @@ class EntryBrowserViewModel
         private val _state = MutableStateFlow(EntryBrowserUiState())
         val state: StateFlow<EntryBrowserUiState> = _state.asStateFlow()
 
+        val syncState = gitSync.syncState
+
         init {
+            viewModelScope.launch {
+                try {
+                    gitSync.syncStatus()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    Log.w("EntryBrowser", "Could not load the sync status", failure)
+                }
+            }
             viewModelScope.launch {
                 appPreferences.defaultViewTree.collect { tree ->
                     _state.update { it.copy(treeView = tree) }
@@ -76,14 +90,20 @@ class EntryBrowserViewModel
             }
         }
 
-        fun pull() {
+        fun sync() {
             if (_state.value.syncing) return
             _state.update { it.copy(syncing = true) }
             viewModelScope.launch {
                 try {
-                    gitSync.pull()
+                    try {
+                        gitSync.sync()
+                    } catch (_: SyncError) {
+                    }
                     passStore.buildIndex()
-                } catch (_: Exception) {
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    Log.w("EntryBrowser", "Could not refresh the entries after sync", failure)
                 } finally {
                     _state.update { it.copy(syncing = false) }
                 }

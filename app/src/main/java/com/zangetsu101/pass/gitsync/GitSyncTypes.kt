@@ -15,9 +15,36 @@ data class SyncResult(
 )
 
 data class SyncStatus(
-    val lastSyncTime: Instant?,
-    val localCommit: String?,
-    val remoteReachable: Boolean,
+    val lastSyncTime: Instant? = null,
+    val localCommit: String? = null,
+    val upstreamCommit: String? = null,
+    val unpushed: List<UnpushedCommit> = emptyList(),
+    val discardPaths: List<EntryChange> = emptyList(),
+) {
+    val isSynced: Boolean get() = localCommit != null && localCommit == upstreamCommit
+}
+
+data class UnpushedCommit(
+    val message: String,
+    val paths: List<String>,
+)
+
+data class EntryChange(
+    val path: String,
+    val action: EntryChangeAction,
+)
+
+enum class EntryChangeAction {
+    ADDED,
+    DELETED,
+    EDITED,
+}
+
+data class SyncState(
+    val status: SyncStatus = SyncStatus(),
+    val command: String? = null,
+    val error: SyncError? = null,
+    val completed: Boolean = false,
 )
 
 sealed class SyncError : Exception() {
@@ -25,16 +52,22 @@ sealed class SyncError : Exception() {
         override val message: String,
     ) : SyncError()
 
-    data class NotFastForward(
-        override val message: String = "Remote diverged; cannot fast-forward",
+    data class Conflict(
+        val paths: List<String>,
+    ) : SyncError() {
+        override val message: String get() = "Sync conflict · ${paths.joinToString()}"
+    }
+
+    data class RecoveryFailure(
+        override val message: String,
     ) : SyncError()
 
     data class RemoteUnreachable(
-        override val message: String = "Remote unreachable",
+        override val message: String = "Could not reach the remote. Check your connection and try again.",
     ) : SyncError()
 
     data class AuthFailure(
-        override val message: String = "SSH authentication failed",
+        override val message: String = "SSH authentication failed. Check that your key has access to the remote.",
     ) : SyncError()
 
     data class CloneFailure(

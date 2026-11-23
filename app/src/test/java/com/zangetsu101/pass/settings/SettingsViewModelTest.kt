@@ -73,7 +73,7 @@ class SettingsViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        coEvery { gitSync.syncStatus() } returns SyncStatus(null, null, false)
+        coEvery { gitSync.syncStatus() } returns SyncStatus()
         every { gpgKeyOperations.getGpgKeyInfo() } returns null
         every { sessionOperations.sessionState } returns MutableStateFlow(SessionState.Inactive(EndReason.MANUAL))
         every { appPreferences.sshPublicKey } returns flowOf(null)

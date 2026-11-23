@@ -6,6 +6,14 @@ appId: com.zangetsu101.pass
     env:
       KEY_FILE: test-key-auth.asc
       USE_GPG_AUTH: "true"
+- extendedWaitUntil:
+    visible: "synced · .*"
+    timeout: 10000
+- tapOn: "synced · .*"
+- extendedWaitUntil:
+    visible: "✓ sync complete"
+    timeout: 60000
+- takeScreenshot: "24-synced"
 - tapOn: "alex\\.dev"
 - tapOn:
     text: "Allow"
@@ -32,3 +40,19 @@ appId: com.zangetsu101.pass
     timeout: 30000
 - tapOn: "reveal"
 - assertVisible: "edited-password-23"
+- back
+- extendedWaitUntil:
+    visible: "↑1 unpushed"
+    timeout: 10000
+- takeScreenshot: "24-unpushed"
+- tapOn: "↑1 unpushed"
+- extendedWaitUntil:
+    visible: ".*view details.*"
+    timeout: 60000
+- assertVisible: "error"
+- takeScreenshot: "24-sync-error"
+- tapOn: ".*view details.*"
+- assertVisible: "sync recovery"
+- assertVisible: "Edit password for dev/github\\.com/alex\\.dev using editor\\."
+- assertVisible: "dev/github\\.com/alex\\.dev"
+- takeScreenshot: "24-sync-recovery"
