@@ -4,10 +4,10 @@ cd "$(dirname "$0")/../.."
 scenario=${1:-all}
 if [[ "$scenario" == all ]]; then
   flow=e2e/scenarios
-elif [[ "$scenario" =~ ^(onboarding|onboarding_gpg_auth|entry_tap|otp|edit_login)$ ]]; then
+elif [[ "$scenario" =~ ^(onboarding|onboarding_gpg_auth|entry_tap|otp|edit_login|new_login)$ ]]; then
   flow="e2e/scenarios/$scenario.yaml"
 else
-  echo "Unknown scenario: $scenario (choose all, onboarding, onboarding_gpg_auth, entry_tap, otp, edit_login)" >&2
+  echo "Unknown scenario: $scenario (choose all, onboarding, onboarding_gpg_auth, entry_tap, otp, edit_login, new_login)" >&2
   exit 1
 fi
 : "${MAESTRO_BIN:=$(command -v maestro || echo "$HOME/.maestro/bin/maestro")}"

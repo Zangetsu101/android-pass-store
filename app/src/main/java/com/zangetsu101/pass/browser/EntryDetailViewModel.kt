@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.browser
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.os.SystemClock
 import androidx.fragment.app.FragmentActivity
@@ -28,7 +26,6 @@ import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.preferences.AppPreferences
-import com.zangetsu101.pass.util.markSensitive
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -356,11 +353,8 @@ class EntryDetailViewModel
             label: String,
             value: String,
         ) {
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText(label, value).markSensitive())
             val timeoutMillis = _state.value.clipboardTimeoutSeconds * 1000L
-            ClipboardClearReceiver.cancel(context)
-            ClipboardClearReceiver.schedule(context, timeoutMillis)
+            copySecretToClipboard(context, label, value, timeoutMillis)
             clipClearJob?.cancel()
             clipClearJob =
                 viewModelScope.launch {

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface PassStore {
     val index: StateFlow<List<PassEntry>>
+    val folders: StateFlow<Set<String>>
 
     suspend fun buildIndex(): List<PassEntry>
 

@@ -23,19 +23,25 @@ class PassStoreImpl
         private val _index = MutableStateFlow<List<PassEntry>>(emptyList())
         override val index: StateFlow<List<PassEntry>> = _index.asStateFlow()
 
+        private val _folders = MutableStateFlow<Set<String>>(emptySet())
+        override val folders: StateFlow<Set<String>> = _folders.asStateFlow()
+
         private val levenshtein = LevenshteinDistance.getDefaultInstance()
 
         override suspend fun buildIndex(): List<PassEntry> =
             withContext(Dispatchers.IO) {
                 val repoDir = context.repositoryDirectory()
-                val entries =
-                    repoDir
-                        .walkTopDown()
-                        .filter { it.isFile && it.name.endsWith(".gpg") }
-                        .map { file ->
-                            val relativePath = file.relativeTo(repoDir).path.replace(File.separatorChar, '/')
-                            parseEntry(relativePath, file)
-                        }.toList()
+                val entries = mutableListOf<PassEntry>()
+                val directories = mutableSetOf<String>()
+                repoDir.walkTopDown().forEach { file ->
+                    val relativePath = file.relativeTo(repoDir).invariantSeparatorsPath
+                    if (file.isFile && file.name.endsWith(".gpg")) {
+                        entries.add(parseEntry(relativePath, file))
+                    } else if (relativePath.isNotEmpty() && !relativePath.startsWith('.') && "/." !in relativePath && file.isDirectory) {
+                        directories.add(relativePath)
+                    }
+                }
+                _folders.value = directories
                 _index.value = entries
                 entries
             }

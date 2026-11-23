@@ -110,7 +110,7 @@ fun CloneProgressScreen(
             Spacer(Modifier.height(12.dp))
             Text(err, color = PassColorsDark.Danger, style = PassType.Caption)
             Spacer(Modifier.height(8.dp))
-            PassPrimaryButton(onClick = { viewModel.retryClone() }, label = "$ retry")
+            PassPrimaryButton(onClick = { viewModel.retryClone() }, label = "> retry")
         }
         if (state.cloning) {
             Spacer(Modifier.height(12.dp))

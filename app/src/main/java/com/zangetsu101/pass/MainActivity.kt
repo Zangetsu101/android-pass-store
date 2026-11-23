@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.navigation.PassAndroidNavHost
 import com.zangetsu101.pass.passstore.LoginEntryWriter
@@ -32,6 +33,8 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val systemBars = WindowCompat.getInsetsController(window, window.decorView)
+        val defaultDarkStatusBarIcons = systemBars.isAppearanceLightStatusBars
         setContent {
             PassTheme {
                 val snackbar = remember { SnackbarHostState() }
@@ -41,7 +44,9 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 Box(Modifier.fillMaxSize()) {
-                    PassAndroidNavHost(appPreferences)
+                    PassAndroidNavHost(appPreferences) { useLightStatusBarIcons ->
+                        systemBars.isAppearanceLightStatusBars = !useLightStatusBarIcons && defaultDarkStatusBarIcons
+                    }
                     SnackbarHost(
                         hostState = snackbar,
                         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing),

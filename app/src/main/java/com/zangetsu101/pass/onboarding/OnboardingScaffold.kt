@@ -48,7 +48,7 @@ internal fun OnboardingScaffold(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "SETUP · $step / $total", style = PassType.Caption)
+                Text(text = "setup · $step / $total", style = PassType.Caption)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     repeat(total) { i ->
                         Box(

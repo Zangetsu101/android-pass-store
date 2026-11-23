@@ -39,8 +39,8 @@ class SystemBiometricPrompter
 private suspend fun showBiometricPromptWithCrypto(
     activity: FragmentActivity,
     cryptoObject: BiometricPrompt.CryptoObject,
-    title: String = "Authenticate",
-    subtitle: String = "Unlock pass.android to continue",
+    title: String = "authenticate",
+    subtitle: String = "unlock pass.android to continue",
 ) = suspendCancellableCoroutine<BiometricPrompt.AuthenticationResult> { cont ->
     val executor = ContextCompat.getMainExecutor(activity)
     val prompt =
@@ -79,7 +79,7 @@ private suspend fun showBiometricPromptWithCrypto(
             .setTitle(title)
             .setSubtitle(subtitle)
             .setAllowedAuthenticators(BIOMETRIC_STRONG)
-            .setNegativeButtonText("Cancel")
+            .setNegativeButtonText("cancel")
             .build()
 
     cont.invokeOnCancellation { /* prompt has no cancel API; activity finish will dismiss it */ }

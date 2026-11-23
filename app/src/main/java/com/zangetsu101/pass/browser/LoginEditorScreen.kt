@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -77,6 +78,7 @@ internal fun LoginEditorScreen(
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
+    val noteLines = editor.notes.lines().count { it.isNotBlank() }
     var revealed by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     val back = {
@@ -94,7 +96,7 @@ internal fun LoginEditorScreen(
                 .consumeWindowInsets(padding)
                 .fillMaxSize(),
         ) {
-            EditorTopBar(path = path, enabled = !editor.saving, onBack = back)
+            EditorTopBar(title = "edit entry", path = path, enabled = !editor.saving, onBack = back)
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
             Column(
                 modifier =
@@ -104,7 +106,9 @@ internal fun LoginEditorScreen(
                         .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 12.dp),
             ) {
                 PasswordEditor(
-                    editor = editor,
+                    password = editor.password,
+                    enabled = !editor.saving,
+                    passwordChanged = editor.passwordChanged,
                     revealed = revealed,
                     onToggleReveal = { revealed = !revealed },
                     onPasswordChange = viewModel::updateEditorPassword,
@@ -113,29 +117,56 @@ internal fun LoginEditorScreen(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 Spacer(Modifier.height(12.dp))
-                NotesEditor(editor = editor, onNotesChange = viewModel::updateEditorNotes)
+                NotesEditor(
+                    notes = editor.notes,
+                    lineCount = noteLines,
+                    enabled = !editor.saving,
+                    onNotesChange = viewModel::updateEditorNotes,
+                )
                 if (editor.hasOtp) {
                     Spacer(Modifier.height(16.dp))
                     OtpKeptRow()
                 }
             }
-            SaveFooter(path = path, editor = editor, onSave = viewModel::saveEditor)
+            SaveFooter(
+                path = path,
+                flags = "-m -f ",
+                lineCount = noteLines,
+                enabled = editor.changed && !editor.saving,
+                saving = editor.saving,
+                error = editor.error,
+                onSave = viewModel::saveEditor,
+            )
         }
     }
 
     if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("discard changes to $path?") },
-            confirmButton = { TextButton(onClick = viewModel::discardEditor) { Text("discard") } },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("keep editing") } },
+        DiscardChangesDialog(
+            title = "discard changes to $path?",
+            onDiscard = viewModel::discardEditor,
+            onKeepEditing = { confirmDiscard = false },
         )
     }
 }
 
 @Composable
-private fun EditorTopBar(
-    path: String,
+internal fun DiscardChangesDialog(
+    title: String,
+    onDiscard: () -> Unit,
+    onKeepEditing: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        title = { Text(title) },
+        confirmButton = { TextButton(onClick = onDiscard) { Text("discard") } },
+        dismissButton = { TextButton(onClick = onKeepEditing) { Text("keep editing") } },
+    )
+}
+
+@Composable
+internal fun EditorTopBar(
+    title: String,
+    path: String? = null,
     enabled: Boolean,
     onBack: () -> Unit,
 ) {
@@ -156,23 +187,26 @@ private fun EditorTopBar(
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text("edit entry", style = PassType.Title)
-            Text(path, style = PassType.Caption)
+            Text(title, style = PassType.Title)
+            if (path != null) Text(path, style = PassType.Caption)
         }
     }
 }
 
 @Composable
-private fun PasswordEditor(
-    editor: LoginEditorState,
+internal fun PasswordEditor(
+    password: String,
+    enabled: Boolean,
     revealed: Boolean,
     onToggleReveal: () -> Unit,
     onPasswordChange: (String) -> Unit,
     onCopy: () -> Unit,
+    passwordChanged: Boolean = false,
+    newEntry: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.Bottom) {
         Text("password", style = PassType.Label, modifier = Modifier.weight(1f))
-        if (editor.passwordChanged) {
+        if (passwordChanged) {
             Text("edited by you", style = PassType.Caption.copy(color = PassColorsDark.Accent))
         }
     }
@@ -181,14 +215,23 @@ private fun PasswordEditor(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(PassColorsDark.Surface, PassShapes.small)
+                .then(
+                    if (newEntry) {
+                        Modifier.dropShadow(
+                            PassShapes.small,
+                            Shadow(radius = 20.dp, color = PassColorsDark.AccentDim),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ).background(PassColorsDark.Surface, PassShapes.small)
                 .border(1.dp, PassColorsDark.Accent.copy(alpha = 0.33f), PassShapes.small)
                 .clip(PassShapes.small),
     ) {
         BasicTextField(
-            value = editor.password,
+            value = password,
             onValueChange = onPasswordChange,
-            enabled = !editor.saving,
+            enabled = enabled,
             singleLine = false,
             textStyle =
                 PassType.Body.copy(
@@ -214,7 +257,7 @@ private fun PasswordEditor(
         Row(modifier = Modifier.fillMaxWidth().height(40.dp)) {
             CardAction(label = if (revealed) "hide" else "show", enabled = true, onClick = onToggleReveal)
             VerticalDivider(color = PassColorsDark.Border, thickness = 1.dp)
-            CardAction(label = "copy", enabled = editor.password.isNotEmpty(), onClick = onCopy)
+            CardAction(label = "copy", enabled = password.isNotEmpty(), onClick = onCopy)
         }
     }
 }
@@ -241,11 +284,12 @@ private fun RowScope.CardAction(
 }
 
 @Composable
-private fun NotesEditor(
-    editor: LoginEditorState,
+internal fun NotesEditor(
+    notes: String,
+    lineCount: Int,
+    enabled: Boolean,
     onNotesChange: (String) -> Unit,
 ) {
-    val lineCount = editor.notes.lines().count { it.isNotBlank() }
     Row(verticalAlignment = Alignment.Bottom) {
         Text("notes", style = PassType.Label)
         if (lineCount > 0) {
@@ -256,6 +300,15 @@ private fun NotesEditor(
         }
     }
     Spacer(Modifier.height(6.dp))
+    NotesField(notes, enabled, onNotesChange)
+}
+
+@Composable
+internal fun NotesField(
+    notes: String,
+    enabled: Boolean,
+    onNotesChange: (String) -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -280,9 +333,9 @@ private fun NotesEditor(
             Text("line 1 · password", style = PassType.Caption)
         }
         BasicTextField(
-            value = editor.notes,
+            value = notes,
             onValueChange = onNotesChange,
-            enabled = !editor.saving,
+            enabled = enabled,
             singleLine = false,
             minLines = 3,
             textStyle = PassType.Body,
@@ -295,7 +348,7 @@ private fun NotesEditor(
                     .semantics { contentDescription = "edit notes" },
             decorationBox = { innerTextField ->
                 Box {
-                    if (editor.notes.isEmpty()) {
+                    if (notes.isEmpty()) {
                         Text(
                             "write anything\nrecovery codes, security answers…",
                             style = PassType.Body.copy(color = PassColorsDark.TextFaint),
@@ -324,16 +377,19 @@ private fun OtpKeptRow() {
 }
 
 @Composable
-private fun SaveFooter(
+internal fun SaveFooter(
     path: String,
-    editor: LoginEditorState,
+    flags: String,
+    lineCount: Int,
+    enabled: Boolean,
+    saving: Boolean,
+    error: String?,
     onSave: () -> Unit,
+    showGlow: Boolean = false,
 ) {
-    val enabled = editor.changed && !editor.saving
-    val lineCount = editor.notes.lines().count { it.isNotBlank() }
     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
     Column(modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp)) {
-        editor.error?.let {
+        error?.let {
             Text(it, style = PassType.Caption.copy(color = PassColorsDark.Danger))
             Spacer(Modifier.height(8.dp))
         }
@@ -341,7 +397,15 @@ private fun SaveFooter(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(if (enabled) PassColorsDark.AccentDim else PassColorsDark.Border, PassShapes.small)
+                    .then(
+                        if (enabled &&
+                            showGlow
+                        ) {
+                            Modifier.dropShadow(PassShapes.small, Shadow(radius = 12.dp, color = PassColorsDark.AccentDim))
+                        } else {
+                            Modifier
+                        },
+                    ).background(if (enabled) PassColorsDark.AccentDim else PassColorsDark.Border, PassShapes.small)
                     .border(1.dp, if (enabled) PassColorsDark.Accent else PassColorsDark.Border, PassShapes.small)
                     .clip(PassShapes.small)
                     .clickable(enabled = enabled, role = Role.Button, onClick = onSave)
@@ -351,7 +415,7 @@ private fun SaveFooter(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    if (editor.saving) savingText() else commandText(path, enabled),
+                    if (saving) savingText() else commandText(path, flags, enabled),
                     style = PassType.Caption.copy(fontWeight = FontWeight.SemiBold),
                 )
                 if (lineCount > 0) {
@@ -379,6 +443,7 @@ private fun savingText(): AnnotatedString = AnnotatedString("saving…", SpanSty
 /** The `pass` command that matches the save, with the flags in the warning color. */
 private fun commandText(
     path: String,
+    flags: String,
     enabled: Boolean,
 ): AnnotatedString {
     val prompt = if (enabled) PassColorsDark.TextDim else PassColorsDark.TextFaint
@@ -387,7 +452,7 @@ private fun commandText(
     return buildAnnotatedString {
         withStyle(SpanStyle(color = prompt)) { append("> ") }
         withStyle(SpanStyle(color = command)) { append("pass insert ") }
-        withStyle(SpanStyle(color = flag)) { append("-m -f ") }
+        withStyle(SpanStyle(color = flag)) { append(flags) }
         withStyle(SpanStyle(color = command)) { append(path) }
     }
 }

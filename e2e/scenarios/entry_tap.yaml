@@ -27,5 +27,5 @@ appId: com.zangetsu101.pass
 # Biometric prompt should appear
 - extendedWaitUntil:
     visible:
-      text: "Authenticate"
+      text: "authenticate"
     timeout: 30000

@@ -36,11 +36,10 @@ internal class LoginEncryption(
         return PersonIdent(name, identity.groupValues[2])
     }
 
-    fun encrypt(
+    fun checkRecipients(
         root: File,
         path: String,
-        plaintext: String,
-    ): ByteArray {
+    ) {
         val pgp = PGPainless.getInstance()
         val info = pgp.inspect(certificate)
         val keys =
@@ -82,7 +81,15 @@ internal class LoginEncryption(
             val count = if (unknown == 1) "1 other key" else "$unknown other keys"
             throw LoginSaveError("$label is shared with $count · can't encrypt for them yet")
         }
+    }
 
+    fun encrypt(
+        root: File,
+        path: String,
+        plaintext: String,
+    ): ByteArray {
+        checkRecipients(root, path)
+        val pgp = PGPainless.getInstance()
         val options =
             EncryptionOptions.get().addRecipient(certificate) { candidates ->
                 candidates.filter { it.pgpPublicKey.keyID in key.availableKeyIds }
