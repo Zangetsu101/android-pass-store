@@ -18,6 +18,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,26 +53,66 @@ class LoginEntryWriter
                         rawEntry = RawEntry(plaintext, ciphertext.ciphertextDigest())
                         EncryptedEdit(ciphertext, encryption.author())
                     }
-                scope.launch {
-                    try {
-                        gitSync.push()
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        failures.trySend(Unit)
-                    }
-                }
-                scope.launch {
-                    try {
-                        passStore.buildIndex()
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (error: Exception) {
-                        Log.w("LoginEntryWriter", "Couldn't refresh the entry index after saving", error)
-                    }
-                }
+                pushInBackground(reportFailure = true)
+                scope.launch { refreshIndex() }
                 SavedLogin(DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry), commit)
             }.await()
+
+        internal fun checkInsertPath(
+            root: File,
+            path: EntryPath,
+        ): ByteArray? {
+            val file = File(root, path.filePath)
+            if (file != file.canonicalFile || (file.exists() && !file.isFile)) {
+                throw LoginSaveError("path is already in use")
+            }
+            LoginEncryption(keyStore.publicKeySource()).checkRecipients(root, path.filePath)
+            return if (file.isFile) file.readBytes().ciphertextDigest() else null
+        }
+
+        internal suspend fun insert(
+            path: EntryPath,
+            expectedDigest: ByteArray?,
+            password: String,
+            notes: String,
+        ) = scope
+            .async {
+                path.error?.let { throw LoginSaveError(it) }
+                if (password.isEmpty() || password.any(Char::isWhitespace)) throw LoginSaveError("enter a password")
+                val plaintext = if (notes.isEmpty()) "$password\n" else "$password\n$notes"
+                gitSync.commitInsert(path.filePath) { root, original ->
+                    val actualDigest = original?.ciphertextDigest()
+                    if (!expectedDigest.contentEquals(actualDigest)) {
+                        throw LoginSaveError("entry changed on disk · check the path and try again")
+                    }
+                    val encryption = LoginEncryption(keyStore.publicKeySource())
+                    EncryptedEdit(encryption.encrypt(root, path.filePath, plaintext), encryption.author())
+                }
+                pushInBackground(reportFailure = false)
+                refreshIndex()
+            }.await()
+
+        private fun pushInBackground(reportFailure: Boolean) {
+            scope.launch {
+                try {
+                    gitSync.push()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (reportFailure) failures.trySend(Unit)
+                }
+            }
+        }
+
+        private suspend fun refreshIndex() {
+            try {
+                passStore.buildIndex()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w("LoginEntryWriter", "Could not refresh the entry index after saving", error)
+            }
+        }
     }
 
 internal class SavedLogin(

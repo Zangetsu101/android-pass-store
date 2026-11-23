@@ -9,6 +9,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.zangetsu101.pass.util.markSensitive
 
 class ClipboardClearReceiver : BroadcastReceiver() {
     override fun onReceive(
@@ -57,4 +58,16 @@ class ClipboardClearReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
     }
+}
+
+internal fun copySecretToClipboard(
+    context: Context,
+    label: String,
+    value: String,
+    timeoutMillis: Long,
+) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, value).markSensitive())
+    ClipboardClearReceiver.cancel(context)
+    ClipboardClearReceiver.schedule(context, timeoutMillis)
 }

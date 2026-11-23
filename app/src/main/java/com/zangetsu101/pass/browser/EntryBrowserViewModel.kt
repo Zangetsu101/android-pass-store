@@ -27,6 +27,7 @@ data class EntryBrowserUiState(
     val treeView: Boolean = false,
     val collapsedDirs: Set<String> = emptySet(),
     val syncing: Boolean = false,
+    val selectedPath: String? = null,
 )
 
 @HiltViewModel
@@ -69,9 +70,15 @@ class EntryBrowserViewModel
         }
 
         fun setSearchQuery(query: String) {
-            _state.update { it.copy(searchQuery = query) }
+            _state.update { it.copy(searchQuery = query, selectedPath = null) }
             val entries = if (query.isEmpty()) passStore.index.value else passStore.search(query)
             updateDisplayedEntries(entries, query)
+        }
+
+        fun selectEntry(path: String) {
+            _state.update {
+                it.copy(selectedPath = path, collapsedDirs = it.collapsedDirs - path.substringBeforeLast('/', ""))
+            }
         }
 
         fun toggleView() {

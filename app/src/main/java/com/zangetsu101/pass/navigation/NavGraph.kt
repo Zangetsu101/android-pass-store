@@ -6,7 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -19,6 +22,8 @@ import com.zangetsu101.pass.browser.EntryBrowserScreen
 import com.zangetsu101.pass.browser.EntryBrowserViewModel
 import com.zangetsu101.pass.browser.EntryDetailScreen
 import com.zangetsu101.pass.browser.EntryDetailViewModel
+import com.zangetsu101.pass.browser.NewEntryScreen
+import com.zangetsu101.pass.browser.NewEntryViewModel
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.onboarding.CloneProgressScreen
 import com.zangetsu101.pass.onboarding.CloneProgressViewModel
@@ -64,6 +69,10 @@ import kotlin.time.Duration.Companion.milliseconds
     val entryPath: String,
 ) : NavKey
 
+@Serializable data class NewEntry(
+    val initialPath: String,
+) : NavKey
+
 @Serializable data object SyncPanel : NavKey
 
 @Serializable data object Settings : NavKey
@@ -71,6 +80,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun PassAndroidNavHost(appPreferences: AppPreferences) {
     val backStack = rememberNavBackStack(Splash)
+    var addedPath by rememberSaveable { mutableStateOf<String?>(null) }
 
     NavDisplay(
         backStack = backStack,
@@ -154,14 +164,31 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
                     EntryBrowserScreen(
                         viewModel = vm,
                         onNavigateToEntryDetail = { entry ->
-                            if (navVm.requiresSessionStart()) {
-                                backStack.add(SessionStart(returnEntryPath = entry.path))
-                            } else {
-                                backStack.add(EntryDetail(entry.path))
-                            }
+                            backStack.add(navVm.detailDestination(entry.path))
                         },
                         onNavigateToSettings = { backStack.add(Settings) },
                         onNavigateToSyncPanel = { backStack.add(SyncPanel) },
+                        onNewEntry = { backStack.add(NewEntry(it)) },
+                        addedPath = addedPath,
+                        onAddedPathHandled = { addedPath = null },
+                    )
+                }
+
+                entry<NewEntry> {
+                    val vm: NewEntryViewModel = hiltViewModel()
+                    val navVm: NavViewModel = hiltViewModel()
+                    NewEntryScreen(
+                        initialPath = it.initialPath,
+                        viewModel = vm,
+                        onBack = { backStack.removeLastOrNull() },
+                        onOpenEntry = { path ->
+                            backStack.removeLastOrNull()
+                            backStack.add(navVm.detailDestination(path))
+                        },
+                        onSaved = { path ->
+                            addedPath = path
+                            backStack.removeLastOrNull()
+                        },
                     )
                 }
 
@@ -213,3 +240,6 @@ fun PassAndroidNavHost(appPreferences: AppPreferences) {
             },
     )
 }
+
+private fun NavViewModel.detailDestination(path: String): NavKey =
+    if (requiresSessionStart()) SessionStart(returnEntryPath = path) else EntryDetail(path)

@@ -14,11 +14,15 @@ fun PassScaffold(
     modifier: Modifier = Modifier,
     topBar: @Composable () -> Unit = {},
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
+    floatingActionButton: @Composable () -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
         topBar = topBar,
+        floatingActionButton = floatingActionButton,
+        snackbarHost = snackbarHost,
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = contentWindowInsets,

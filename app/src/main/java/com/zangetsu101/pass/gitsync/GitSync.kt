@@ -30,6 +30,11 @@ interface GitSync {
         prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
     ): FileCommitInfo
 
+    suspend fun commitInsert(
+        path: String,
+        prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
+    ): FileCommitInfo
+
     suspend fun push()
 
     suspend fun syncStatus(): SyncStatus

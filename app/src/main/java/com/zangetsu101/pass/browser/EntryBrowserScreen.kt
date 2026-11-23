@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,16 +20,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zangetsu101.pass.passstore.PassEntry
@@ -60,6 +67,9 @@ fun EntryBrowserScreen(
     onNavigateToEntryDetail: (PassEntry) -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToSyncPanel: () -> Unit = {},
+    onNewEntry: (String) -> Unit = {},
+    addedPath: String? = null,
+    onAddedPathHandled: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val sync by viewModel.syncState.collectAsState()
@@ -99,7 +109,31 @@ fun EntryBrowserScreen(
         remember { mutableFloatStateOf(0f) }
     }
 
-    PassScaffold { padding ->
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(addedPath) {
+        if (addedPath != null) {
+            viewModel.selectEntry("$addedPath.gpg")
+            snackbar.showSnackbar("added $addedPath")
+            onAddedPathHandled()
+        }
+    }
+
+    PassScaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            if (!state.syncing) {
+                FloatingActionButton(
+                    onClick = { onNewEntry(state.searchQuery) },
+                    modifier = Modifier.size(44.dp),
+                    shape = PassShapes.small,
+                    containerColor = PassColorsDark.AccentDim,
+                    contentColor = PassColorsDark.Accent,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "add entry", modifier = Modifier.size(20.dp))
+                }
+            }
+        },
+    ) { padding ->
         Column(
             modifier =
                 Modifier
@@ -234,6 +268,7 @@ fun EntryBrowserScreen(
                     state.treeView -> {
                         TreeView(
                             entries = state.entries,
+                            selectedPath = state.selectedPath,
                             collapsedDirs = state.collapsedDirs,
                             onToggleDir = viewModel::toggleDir,
                             onEntryClick = onNavigateToEntryDetail,
@@ -244,6 +279,7 @@ fun EntryBrowserScreen(
                     else -> {
                         FlatView(
                             entries = state.entries,
+                            selectedPath = state.selectedPath,
                             onEntryClick = onNavigateToEntryDetail,
                             enabled = !state.syncing,
                         )
@@ -270,14 +306,23 @@ private fun syncAge(
 @Composable
 private fun FlatView(
     entries: List<PassEntry>,
+    selectedPath: String?,
     onEntryClick: (PassEntry) -> Unit,
     enabled: Boolean = true,
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(entries) { listState.scrollToItem(0) }
-    LazyColumn(state = listState) {
-        itemsIndexed(entries, key = { _, it -> it.path }) { index, entry ->
-            FlatEntryRow(entry = entry, index = index, enabled = enabled, onClick = { onEntryClick(entry) })
+    LaunchedEffect(entries, selectedPath) {
+        val selectedIndex = entries.indexOfFirst { it.path == selectedPath }
+        if (entries.isNotEmpty()) listState.scrollToItem(selectedIndex.coerceAtLeast(0))
+    }
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 64.dp)) {
+        items(entries, key = { it.path }) { entry ->
+            FlatEntryRow(
+                entry = entry,
+                selected = entry.path == selectedPath,
+                enabled = enabled,
+                onClick = { onEntryClick(entry) },
+            )
             HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         }
     }
@@ -286,6 +331,7 @@ private fun FlatView(
 @Composable
 private fun TreeView(
     entries: List<PassEntry>,
+    selectedPath: String?,
     collapsedDirs: Set<String>,
     onToggleDir: (String) -> Unit,
     onEntryClick: (PassEntry) -> Unit,
@@ -300,8 +346,20 @@ private fun TreeView(
         }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(entries) { listState.scrollToItem(0) }
-    LazyColumn(state = listState) {
+    LaunchedEffect(grouped, selectedPath) {
+        val keys =
+            grouped.flatMap { (dir, dirEntries) ->
+                val header = if (dir.isEmpty()) emptyList() else listOf("dir_$dir")
+                header + if (dir in collapsedDirs) emptyList() else dirEntries.map { it.path }
+            }
+        val selectedIndex = keys.indexOf(selectedPath)
+        if (selectedIndex >= 0) {
+            listState.scrollToItem(selectedIndex)
+        } else if (selectedPath == null && keys.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 64.dp)) {
         grouped.forEach { (dir, dirEntries) ->
             if (dir.isNotEmpty()) {
                 item(key = "dir_$dir") {
@@ -316,7 +374,13 @@ private fun TreeView(
             }
             if (dir.isEmpty() || dir !in collapsedDirs) {
                 items(dirEntries, key = { it.path }) { entry ->
-                    TreeEntryRow(entry = entry, indent = dir.isNotEmpty(), enabled = enabled, onClick = { onEntryClick(entry) })
+                    TreeEntryRow(
+                        entry = entry,
+                        indent = dir.isNotEmpty(),
+                        selected = entry.path == selectedPath,
+                        enabled = enabled,
+                        onClick = { onEntryClick(entry) },
+                    )
                     HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 }
             }
@@ -354,6 +418,7 @@ private fun DirHeader(
 private fun TreeEntryRow(
     entry: PassEntry,
     indent: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
@@ -361,7 +426,9 @@ private fun TreeEntryRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .background(if (selected) PassColorsDark.AccentDim else Color.Transparent)
                 .clickable(enabled = enabled, onClick = onClick)
+                .semantics { this.selected = selected }
                 .padding(start = if (indent) 40.dp else 18.dp, end = 18.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -374,7 +441,7 @@ private fun TreeEntryRow(
 @Composable
 private fun FlatEntryRow(
     entry: PassEntry,
-    index: Int,
+    selected: Boolean,
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
@@ -382,7 +449,9 @@ private fun FlatEntryRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .background(if (selected) PassColorsDark.AccentDim else Color.Transparent)
                 .clickable(enabled = enabled, onClick = onClick)
+                .semantics { this.selected = selected }
                 .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

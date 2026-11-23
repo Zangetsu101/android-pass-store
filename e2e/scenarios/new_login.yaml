@@ -1,0 +1,31 @@
+appId: com.zangetsu101.pass
+---
+# The GPG auth key can clone the fixture store. It cannot push to it.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- assertVisible: "flat view"
+- tapOn: "add entry"
+- assertVisible: "new entry"
+- tapOn: "entry path"
+- inputText: "new/example.com/new-login-26"
+- tapOn: "edit password"
+- inputText: "test-password-26"
+- hideKeyboard
+- tapOn: "save entry"
+- extendedWaitUntil:
+    visible: "added new/example\\.com/new-login-26"
+    timeout: 30000
+- assertVisible:
+    text: "new-login-26"
+    selected: true
+- assertNotVisible: "new entry"
+- extendedWaitUntil:
+    visible: "↑1 unpushed"
+    timeout: 30000
+- tapOn: "flat view"
+- assertVisible:
+    text: "new-login-26"
+    selected: true

@@ -30,6 +30,7 @@ import org.eclipse.jgit.api.ResetCommand.ResetType
 import org.eclipse.jgit.api.TransportConfigCallback
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.diff.DiffEntry
+import org.eclipse.jgit.dircache.DirCacheEditor
 import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
@@ -415,6 +416,20 @@ class GitSyncImpl
             path: String,
             prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
         ): FileCommitInfo =
+            commitEntry(path, insert = false) { root, original ->
+                prepare(root, checkNotNull(original))
+            }
+
+        override suspend fun commitInsert(
+            path: String,
+            prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
+        ): FileCommitInfo = commitEntry(path, insert = true, prepare = prepare)
+
+        private suspend fun commitEntry(
+            path: String,
+            insert: Boolean,
+            prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
+        ): FileCommitInfo =
             withRepositoryLock {
                 val root = context.repositoryDirectory().canonicalFile
                 val file = File(root, path)
@@ -426,24 +441,32 @@ class GitSyncImpl
                         throw SyncError.EditRejected("repository is busy")
                     }
                     val indexEntry = git.repository.readDirCache().getEntry(path)
-                    if (indexEntry == null || !file.isFile) {
+                    if ((!insert || indexEntry != null) && !file.isFile) {
                         throw SyncError.EditRejected("entry no longer exists")
                     }
+                    if (indexEntry == null && (!insert || file.exists())) {
+                        throw SyncError.EditRejected("path is already in use or is not tracked")
+                    }
                     val before = git.repository.resolve(Constants.HEAD)
-                    val original = file.readBytes()
+                    val original = indexEntry?.let { file.readBytes() }
                     val edit = prepare(root, original)
+                    val name = path.removeSuffix(".gpg")
+                    val message = if (insert) "Add given password for $name to store." else "Edit password for $name using editor."
+                    val missingFolders = generateSequence(file.parentFile) { it.parentFile }.takeWhile { !it.exists() }.toList()
                     withContext(NonCancellable) {
-                        replaceFile(file, edit.ciphertext)
                         val commit =
                             try {
-                                // setOnly stages this path and leaves other staged files out of the commit.
+                                Files.createDirectories(file.parentFile!!.toPath())
+                                replaceFile(file, edit.ciphertext)
+                                // JGit setOnly needs a new file in the index. It excludes other staged files.
+                                if (indexEntry == null) git.add().addFilepattern(path).call()
                                 git
                                     .commit()
                                     .setOnly(path)
                                     .setAuthor(edit.author)
                                     .setCommitter(edit.author)
                                     .setSign(false)
-                                    .setMessage("Edit password for ${path.removeSuffix(".gpg")} using editor.")
+                                    .setMessage(message)
                                     .call()
                             } catch (failure: Exception) {
                                 val after = git.repository.resolve(Constants.HEAD)
@@ -453,8 +476,14 @@ class GitSyncImpl
                                     git.repository.parseCommit(after)
                                 } else {
                                     try {
-                                        replaceFile(file, original)
-                                        restoreIndexEntry(git.repository, indexEntry)
+                                        if (original == null) {
+                                            Files.deleteIfExists(file.toPath())
+                                            removeIndexEntry(git.repository, path)
+                                            missingFolders.forEach { Files.deleteIfExists(it.toPath()) }
+                                        } else {
+                                            replaceFile(file, original)
+                                            restoreIndexEntry(git.repository, checkNotNull(indexEntry))
+                                        }
                                     } catch (rollbackFailure: Exception) {
                                         failure.addSuppressed(rollbackFailure)
                                     }
@@ -539,6 +568,20 @@ class GitSyncImpl
 
         private suspend fun <T> withRepositoryLock(block: suspend () -> T): T =
             withContext(Dispatchers.IO) { operations.withLock { block() } }
+
+        private fun removeIndexEntry(
+            repository: Repository,
+            path: String,
+        ) {
+            val index = repository.lockDirCache()
+            try {
+                val editor = index.editor()
+                editor.add(DirCacheEditor.DeletePath(path))
+                check(editor.commit()) { "could not remove index entry" }
+            } finally {
+                index.unlock()
+            }
+        }
 
         private fun restoreIndexEntry(
             repository: Repository,

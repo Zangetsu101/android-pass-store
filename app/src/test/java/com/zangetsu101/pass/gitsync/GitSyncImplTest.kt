@@ -152,6 +152,75 @@ class GitSyncImplTest {
         }
 
     @Test
+    fun `insert creates missing folders and commits the entry`() =
+        runTest {
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            val path = "new/example.com/alice.gpg"
+            gitSync.commitInsert(path) { _, original ->
+                assertEquals(null, original)
+                EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+            }
+            assertEquals("ciphertext", File(repoDir, path).readText())
+            Git.open(repoDir).use { git ->
+                assertEquals(
+                    "Add given password for new/example.com/alice to store.",
+                    git
+                        .log()
+                        .call()
+                        .first()
+                        .fullMessage,
+                )
+                assertTrue(git.status().call().isClean)
+            }
+        }
+
+    @Test
+    fun `insert replaces an existing entry with the pass commit message`() =
+        runTest {
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            val path = "web/github.com/alice.gpg"
+            gitSync.commitInsert(path) { _, original ->
+                assertEquals("dummy encrypted content", original?.decodeToString())
+                EncryptedEdit("replacement".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+            }
+            assertEquals("replacement", File(repoDir, path).readText())
+            Git.open(repoDir).use { git ->
+                assertEquals(
+                    "Add given password for web/github.com/alice to store.",
+                    git
+                        .log()
+                        .call()
+                        .first()
+                        .fullMessage,
+                )
+                assertTrue(git.status().call().isClean)
+            }
+        }
+
+    @Test
+    fun `a failed insert removes the new file and folders`() =
+        runTest {
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            Git.open(repoDir).use { git ->
+                val refLock = File(git.repository.directory, "${git.repository.fullBranch}.lock")
+                assertTrue(refLock.createNewFile())
+                try {
+                    val result =
+                        runCatching {
+                            gitSync.commitInsert("new/example.com/alice.gpg") { _, _ ->
+                                EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
+                            }
+                        }
+                    assertTrue(result.isFailure)
+                } finally {
+                    refLock.delete()
+                }
+                assertFalse(File(repoDir, "new").exists())
+                assertTrue(git.status().call().isClean)
+            }
+        }
+
+    @Test
     fun `a failed commit restores the entry and its index record`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
