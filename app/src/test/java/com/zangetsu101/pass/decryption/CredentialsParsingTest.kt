@@ -48,6 +48,24 @@ class CredentialsParsingTest {
     }
 
     @Test
+    fun `the username comes from username then login then user then the file name`() {
+        assertEquals("u1", parseCredentials("pw\nuser: u3\nlogin: u2\nusername: u1", "file").username)
+        assertEquals("u2", parseCredentials("pw\nuser: u3\nlogin: u2", "file").username)
+        assertEquals("u3", parseCredentials("pw\nemail: e@x.com\nuser: u3", "file").username)
+        assertEquals("file", parseCredentials("pw\nemail: e@x.com\nnote", "file").username)
+    }
+
+    @Test
+    fun `the first username line wins and the key ignores case`() {
+        assertEquals("first", parseCredentials("pw\nUsername: first\nusername: second", "file").username)
+    }
+
+    @Test
+    fun `a username line that is not a key value line does not count`() {
+        assertEquals("file", parseCredentials("pw\nusername :bob\nusername:", "file").username)
+    }
+
+    @Test
     fun `ordinary entries retain original splitting`() {
         val creds = parseCredentials("password\nusername: bob\n", "alice")
         assertEquals("password", String(creds.password))

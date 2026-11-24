@@ -130,6 +130,18 @@ class DecryptionImplTest {
         }
 
     @Test
+    fun `decrypt gives autofill the username line and not the file name`() =
+        runTest {
+            coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey
+            val entry = makeEntry("github.com.gpg", "autofillpass\nurl: https://github.com\nlogin: dave")
+            val activity: FragmentActivity = mockk()
+
+            val creds = decryption.decrypt(entry, activity)
+
+            assertEquals("dave", creds.username)
+        }
+
+    @Test
     fun `decrypt throws DecryptionError for wrong key`() =
         runTest {
             val wrongKey =

@@ -1,0 +1,49 @@
+appId: com.zangetsu101.pass
+---
+# The GPG auth key can clone the fixture store. It cannot push to it.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- tapOn: "add entry"
+- tapOn: "entry path"
+- inputText: "new/example.com/notes-28"
+- hideKeyboard
+- tapOn: "\\+ notes / username"
+- assertVisible: "\\+ url:"
+- tapOn: "\\+ username:"
+# The chip puts the cursor after `username: `, so the typed text is the value.
+- inputText: "user-28"
+- pressKey: Enter
+- inputText: "pin: 4821"
+- hideKeyboard
+- assertVisible: "✓ username:"
+- assertVisible: "\\+ email:"
+- takeScreenshot: "28-notes-chips"
+- tapOn: "save entry"
+- extendedWaitUntil:
+    visible: "added new/example\\.com/notes-28"
+    timeout: 30000
+- tapOn: "notes-28"
+- tapOn:
+    text: "Allow"
+    optional: true
+- extendedWaitUntil:
+    visible: "start session"
+    timeout: 5000
+- tapOn: "enter passphrase"
+- inputText: "testpass"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "details"
+    timeout: 60000
+- assertVisible: "user-28"
+- assertVisible: "reveal pin"
+- assertNotVisible: "notes"
+- takeScreenshot: "28-entry-fields"
+- tapOn: "copy username"
+- assertVisible: "copied"
+- tapOn: "reveal pin"
+- assertVisible: "hide pin"
+- takeScreenshot: "28-entry-fields-revealed"

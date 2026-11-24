@@ -177,6 +177,7 @@ internal fun NewEntryScreen(
                 if (notesOpen) {
                     Spacer(Modifier.height(6.dp))
                     NotesField(
+                        path = path.value,
                         notes = viewModel.notes,
                         enabled = enabled,
                         onNotesChange = {

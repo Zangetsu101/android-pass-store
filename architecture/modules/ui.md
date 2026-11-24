@@ -36,6 +36,9 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - Tap entry → decrypt through app UI path.
 - App UI may reuse cached passphrase during an active session.
 - Shows first-line secret and notes.
+- Each `key: value` line of the notes is a row in a `details` card, with its own copy button. The other lines stay in the `notes` block.
+- A row copy uses the password clipboard rules: the clip is sensitive, and the clipboard clears after the configured timeout.
+- The values of secret keys (`pin`, `cvv`, `secret`, `answer`, `recovery`, and each key that contains `password`) stay blurred until the user taps them.
 - Copy password/card number to clipboard with configured auto-clear timeout.
 - Shows git metadata where available.
 
@@ -45,6 +48,7 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - The new-entry form opens with a generated password. The edit form keeps the password until the user regenerates or types.
 - The `generator` package makes the password. It is a pure function of the settings and a random source, so JVM tests can reach it.
 - The save button shows the `pass` command that does the same change.
+- Chips above the notes editor add `username:`, `url:` and `email:` lines. In a flat store, where the path has no `/` and has a `.`, there is no `url:` chip. A chip for a key that the notes have already is disabled.
 
 **Sync Panel**
 

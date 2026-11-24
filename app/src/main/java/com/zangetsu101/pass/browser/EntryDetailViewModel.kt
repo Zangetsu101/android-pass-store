@@ -11,8 +11,10 @@ import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.EditableLogin
+import com.zangetsu101.pass.decryption.EntryNotes
 import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.decryption.RawEntry
+import com.zangetsu101.pass.decryption.parseEntryNotes
 import com.zangetsu101.pass.generator.GeneratorSettings
 import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.FileCommitInfo
@@ -57,7 +59,11 @@ sealed class UnlockState {
         val clipboardCopied: Boolean = false,
         val otpCopied: Boolean = false,
         val canEdit: Boolean = false,
-    ) : UnlockState()
+        val revealedFields: Set<Int> = emptySet(),
+        val copiedField: Int? = null,
+    ) : UnlockState() {
+        val notes: EntryNotes by lazy { parseEntryNotes(credentials.notes) }
+    }
 
     data class Failed(
         val message: String,
@@ -347,7 +353,22 @@ class EntryDetailViewModel
             if (current.credentials.password.isEmpty()) return
             val password = String(current.credentials.password)
             copySecret("password", password)
-            _state.update { it.copy(unlockState = current.copy(clipboardCopied = true)) }
+            _state.update { it.copy(unlockState = current.copy(clipboardCopied = true, copiedField = null)) }
+        }
+
+        fun toggleFieldReveal(index: Int) {
+            refreshLock()
+            val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            val revealed = if (index in current.revealedFields) current.revealedFields - index else current.revealedFields + index
+            _state.update { it.copy(unlockState = current.copy(revealedFields = revealed)) }
+        }
+
+        fun copyField(index: Int) {
+            refreshLock()
+            val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
+            val field = current.notes.fields.getOrNull(index) ?: return
+            copySecret(field.key, field.value)
+            _state.update { it.copy(unlockState = current.copy(clipboardCopied = false, copiedField = index)) }
         }
 
         fun copyOtp() {
@@ -355,7 +376,7 @@ class EntryDetailViewModel
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             val otp = current.credentials.otp as? Otp.Totp ?: return
             copySecret("otp", otp.code(System.currentTimeMillis() / 1000))
-            _state.update { it.copy(unlockState = current.copy(otpCopied = true)) }
+            _state.update { it.copy(unlockState = current.copy(otpCopied = true, clipboardCopied = false, copiedField = null)) }
             otpHintJob?.cancel()
             otpHintJob =
                 viewModelScope.launch {
@@ -379,7 +400,7 @@ class EntryDetailViewModel
                 viewModelScope.launch {
                     delay(timeMillis = timeoutMillis)
                     val decrypted = _state.value.unlockState as? UnlockState.Decrypted ?: return@launch
-                    _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false)) }
+                    _state.update { it.copy(unlockState = decrypted.copy(clipboardCopied = false, copiedField = null)) }
                 }
         }
     }

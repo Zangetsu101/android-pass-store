@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +51,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -57,6 +62,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.zangetsu101.pass.decryption.NoteField
 import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.ui.components.PassPrimaryButton
@@ -249,7 +255,111 @@ private fun DecryptedContent(
         OtpCard(otp, unlock.otpCopied, clipboardTimeoutSeconds, viewModel::copyOtp)
         Spacer(Modifier.height(20.dp))
     }
-    NotesCard(notes = unlock.credentials.notes)
+    val notes = unlock.notes
+    val text =
+        notes.lines
+            .dropWhile { it.isBlank() }
+            .dropLastWhile { it.isBlank() }
+            .joinToString("\n")
+    if (notes.fields.isNotEmpty()) {
+        FieldsCard(
+            fields = notes.fields,
+            revealed = unlock.revealedFields,
+            copied = unlock.copiedField,
+            onToggleReveal = viewModel::toggleFieldReveal,
+            onCopy = viewModel::copyField,
+        )
+        if (text.isNotEmpty()) Spacer(Modifier.height(20.dp))
+    }
+    if (text.isNotEmpty() || notes.fields.isEmpty()) NotesCard(notes = text)
+}
+
+/** The `key: value` lines of the notes, each with a copy button. Secret values stay blurred until tapped. */
+@Composable
+private fun FieldsCard(
+    fields: List<NoteField>,
+    revealed: Set<Int>,
+    copied: Int?,
+    onToggleReveal: (Int) -> Unit,
+    onCopy: (Int) -> Unit,
+) {
+    Text("details", style = PassType.Label)
+    Spacer(Modifier.height(6.dp))
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(PassShapes.small)
+                .background(PassColorsDark.Surface)
+                .border(1.dp, PassColorsDark.Border2, PassShapes.small),
+    ) {
+        fields.forEachIndexed { index, field ->
+            if (index > 0) HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+            FieldRow(
+                field = field,
+                revealed = index in revealed,
+                copied = copied == index,
+                onToggleReveal = { onToggleReveal(index) },
+                onCopy = { onCopy(index) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FieldRow(
+    field: NoteField,
+    revealed: Boolean,
+    copied: Boolean,
+    onToggleReveal: () -> Unit,
+    onCopy: () -> Unit,
+) {
+    val valueStyle = PassType.Caption.copy(color = PassColorsDark.TextPrimary)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            field.key,
+            style = PassType.Caption.copy(color = PassColorsDark.TextDim),
+            modifier = Modifier.widthIn(min = 72.dp).padding(end = 8.dp),
+        )
+        if (field.secret) {
+            Text(
+                field.value,
+                style = valueStyle.copy(letterSpacing = 0.08.em),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .clickable(role = Role.Button, onClick = onToggleReveal)
+                        .semantics { contentDescription = "${if (revealed) "hide" else "reveal"} ${field.key}" }
+                        .padding(vertical = 8.dp)
+                        .then(if (revealed) Modifier else Modifier.blur(5.dp)),
+            )
+        } else {
+            SelectionContainer(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(field.value, style = valueStyle)
+            }
+        }
+        Box(
+            modifier =
+                Modifier
+                    .minimumInteractiveComponentSize()
+                    .clip(PassShapes.extraSmall)
+                    .clickable(role = Role.Button, onClick = onCopy)
+                    .semantics { contentDescription = "copy ${field.key}" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (copied) "copied" else "copy",
+                style = PassType.Caption.copy(color = PassColorsDark.Accent),
+                modifier =
+                    Modifier
+                        .border(1.dp, PassColorsDark.AccentMid, PassShapes.extraSmall)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -419,9 +529,9 @@ private fun MetadataCard(
                 .background(PassColorsDark.Surface)
                 .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
-        MetaRow("path", entry.path)
-        HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         MetaRow("type", if (entry.isCard) "card" else "login")
+        HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
+        MetaRow("path", entry.path)
         HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
         when (gitStatus) {
             is GitStatus.Loading -> {

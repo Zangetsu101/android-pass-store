@@ -666,4 +666,68 @@ class EntryDetailViewModelTest {
             verify(exactly = 1) { ClipboardClearReceiver.schedule(mockContext, 90_000L) }
             verify(exactly = 1) { ClipboardClearReceiver.cancel(mockContext) }
         }
+
+    @Test
+    fun `a field copy is sensitive uses the timeout and moves the copied mark from the password`() =
+        runTest(testDispatcher) {
+            every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(12)
+            val clipboard = mockk<ClipboardManager>(relaxed = true)
+            every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboard
+            val credentials = fakeCredentials.copy(notes = "note\nusername: alice\npin: 4821")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(credentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+            viewModel.copyPassword()
+
+            viewModel.copyField(1)
+
+            verify { ClipData.newPlainText("pin", "4821") }
+            verify(exactly = 2) { clipboard.setPrimaryClip(any()) }
+            verify { ClipboardClearReceiver.schedule(mockContext, 12_000L) }
+            val copied = viewModel.state.value.unlockState as UnlockState.Decrypted
+            assertEquals(1, copied.copiedField)
+            assertFalse(copied.clipboardCopied)
+
+            viewModel.copyPassword()
+            assertEquals(null, (viewModel.state.value.unlockState as UnlockState.Decrypted).copiedField)
+
+            viewModel.copyField(0)
+            advanceTimeBy(12_001)
+            runCurrent()
+            assertEquals(null, (viewModel.state.value.unlockState as UnlockState.Decrypted).copiedField)
+        }
+
+    @Test
+    fun `a tap on a secret field shows its value and a second tap blurs it again`() =
+        runTest(testDispatcher) {
+            val credentials = fakeCredentials.copy(notes = "username: alice\npin: 4821\ncvv: 123")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(credentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+
+            viewModel.toggleFieldReveal(1)
+            viewModel.toggleFieldReveal(2)
+            assertEquals(setOf(1, 2), (viewModel.state.value.unlockState as UnlockState.Decrypted).revealedFields)
+
+            viewModel.toggleFieldReveal(1)
+            assertEquals(setOf(2), (viewModel.state.value.unlockState as UnlockState.Decrypted).revealedFields)
+        }
+
+    @Test
+    fun `the decrypted state splits the notes into fields and lines`() =
+        runTest(testDispatcher) {
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+
+            val notes = (viewModel.state.value.unlockState as UnlockState.Decrypted).notes
+            assertEquals(listOf("cvv"), notes.fields.map { it.key })
+            assertEquals(listOf("private notes"), notes.lines)
+        }
 }

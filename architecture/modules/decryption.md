@@ -35,8 +35,10 @@ For login entries:
 ```
 line 1  → password
 line 2+ → notes for display
-username → path-derived PassEntry.username
+username → first `username`, `login` or `user` line, else path-derived PassEntry.username
 ```
+
+`parseEntryNotes` splits the notes into **fields** and other lines. A field is a line that matches `key: value`: the key is one word with no space before the colon, and at least one space comes after the colon. The other lines keep their order. The username keys use the first field that it finds, in the order `username`, `login`, `user`, and the key ignores case.
 
 Every `otpauth://` line is removed from password/notes; the first is parsed as TOTP or a safe error. OTP-only entries have an empty password and are not returned by external credential surfaces. The OTP module uses RFC 6238 HMAC via `javax.crypto.Mac` (SHA1/SHA256/SHA512, 6–8 digits, positive period). Secrets remain in memory alongside the decrypted credentials and are released on the existing detail lock.
 
