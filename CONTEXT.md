@@ -15,6 +15,10 @@ folder inherits its parent's recipients when it has no `.gpg-id`.
 **OTP Line**, in its position among the surrounding lines. It also preserves
 the original line endings and final newline.
 
+**Generated Password**: A password that the app made with the generator, which the user did not change by hand after that. A commit for it uses the `pass generate` message.
+
+**Given Password**: A password that the user typed or changed by hand. A commit for it uses the `pass insert` or `pass edit` message.
+
 ## OTP Entries
 
 **Password + OTP Entry**: A pass entry with a password on line 1 and an `otpauth://` line below it.

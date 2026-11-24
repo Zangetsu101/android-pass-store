@@ -40,12 +40,13 @@ class LoginEntryWriter
             source: LoginEditSource,
             password: String,
             notes: String,
+            passwordSource: PasswordSource,
         ) = scope
             .async {
                 val plaintext = source.login.render(password, notes)
                 lateinit var rawEntry: RawEntry
                 val commit =
-                    gitSync.commitEdit(entry.path) { root, original ->
+                    gitSync.commitEdit(entry.path, editCommitMessage(entry.path.removeSuffix(".gpg"), passwordSource)) { root, original ->
                         if (!source.ciphertextDigest.contentEquals(original.ciphertextDigest())) {
                             throw LoginSaveError("entry changed on disk · reopen it to edit")
                         }
@@ -77,12 +78,13 @@ class LoginEntryWriter
             expectedDigest: ByteArray?,
             password: String,
             notes: String,
+            passwordSource: PasswordSource,
         ) = scope
             .async {
                 path.error?.let { throw LoginSaveError(it) }
                 if (password.isEmpty() || password.any(Char::isWhitespace)) throw LoginSaveError("enter a password")
                 val plaintext = "$password\n$notes"
-                gitSync.commitInsert(path.filePath) { root, original ->
+                gitSync.commitInsert(path.filePath, insertCommitMessage(path.value, passwordSource)) { root, original ->
                     val actualDigest = original?.ciphertextDigest()
                     if (!expectedDigest.contentEquals(actualDigest)) {
                         throw LoginSaveError("entry changed on disk · check the path and try again")

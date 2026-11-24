@@ -7,12 +7,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zangetsu101.pass.generator.GeneratorSettings
+import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.repositoryDirectory
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassStore
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.security.SecureRandom
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,7 +38,14 @@ internal class NewEntryViewModel
     ) : ViewModel() {
         val entries = passStore.index
         val folders = passStore.folders
-        var password by mutableStateOf("")
+        private val random = SecureRandom()
+        var passwordDraft by mutableStateOf(PasswordDraft.generate(random))
+            private set
+        val password get() = passwordDraft.password
+
+        private val firstPassword = passwordDraft.password
+        val passwordChanged get() = password != firstPassword
+        var copyAfterSave by mutableStateOf(true)
             private set
         var notes by mutableStateOf("")
             private set
@@ -46,8 +57,22 @@ internal class NewEntryViewModel
             private set
 
         fun updatePassword(value: String) {
-            password = value.filterNot(Char::isWhitespace)
+            passwordDraft = passwordDraft.type(value)
             error = null
+        }
+
+        fun regenerate() {
+            passwordDraft = passwordDraft.regenerate(random)
+            error = null
+        }
+
+        fun updateGenerator(settings: GeneratorSettings) {
+            passwordDraft = passwordDraft.withSettings(settings, random)
+            error = null
+        }
+
+        fun toggleCopyAfterSave() {
+            copyAfterSave = !copyAfterSave
         }
 
         fun updateNotes(value: String) {
@@ -73,7 +98,10 @@ internal class NewEntryViewModel
             }
 
         fun copyPassword() {
-            val value = password
+            copySecret(password)
+        }
+
+        private fun copySecret(value: String) {
             if (value.isEmpty()) return
             viewModelScope.launch {
                 val timeout = preferences.clipboardTimeoutSeconds.first() * 1000L
@@ -90,8 +118,11 @@ internal class NewEntryViewModel
             error = null
             viewModelScope.launch {
                 try {
-                    writer.insert(path, expectedDigest, password, notes)
-                    password = ""
+                    val password = password
+                    val source = if (passwordDraft.generated) PasswordSource.Generated else PasswordSource.Given
+                    writer.insert(path, expectedDigest, password, notes, source)
+                    if (copyAfterSave) copySecret(password)
+                    passwordDraft = passwordDraft.type("")
                     notes = ""
                     savedPath = path.value
                 } catch (cancelled: CancellationException) {

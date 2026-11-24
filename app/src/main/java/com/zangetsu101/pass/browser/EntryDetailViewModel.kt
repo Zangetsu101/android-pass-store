@@ -13,6 +13,8 @@ import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.EditableLogin
 import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.decryption.RawEntry
+import com.zangetsu101.pass.generator.GeneratorSettings
+import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
 import com.zangetsu101.pass.gitsync.SyncError
@@ -25,6 +27,7 @@ import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -40,6 +43,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.security.SecureRandom
 import kotlin.coroutines.coroutineContext
 
 sealed class UnlockState {
@@ -90,13 +94,19 @@ sealed interface EntryDetailMode {
 @ConsistentCopyVisibility
 data class LoginEditorState internal constructor(
     internal val source: LoginEditSource,
-    val password: String,
+    internal val passwordDraft: PasswordDraft,
     val notes: String,
     val saving: Boolean = false,
     val error: String? = null,
 ) {
+    val password: String get() = passwordDraft.password
     val passwordChanged: Boolean get() = password != source.login.password
-    val changed: Boolean get() = passwordChanged || notes != source.login.notes
+    val notesChanged: Boolean get() = notes != source.login.notes
+
+    /** `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`. */
+    val passwordSource: PasswordSource
+        get() = if (passwordDraft.generated && passwordChanged && !notesChanged) PasswordSource.Generated else PasswordSource.Given
+    val changed: Boolean get() = passwordChanged || notesChanged
     val hasOtp: Boolean get() = source.login.hasOtp
 
     override fun toString(): String = "LoginEditorState"
@@ -125,6 +135,7 @@ class EntryDetailViewModel
             )
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
+        private val random = SecureRandom()
         private var clipClearJob: Job? = null
         private var otpHintJob: Job? = null
         private var autoLockJob: Job? = null
@@ -223,12 +234,20 @@ class EntryDetailViewModel
             val original = rawEntry ?: return
             val login = EditableLogin(original.plaintext)
             val source = LoginEditSource(login, original.ciphertextDigest)
-            val draft = LoginEditorState(source, login.password, login.notes)
+            val draft = LoginEditorState(source, PasswordDraft(login.password), login.notes)
             _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
         }
 
         fun updateEditorPassword(password: String) {
-            updateEditor { it.copy(password = password.filterNot(Char::isWhitespace), error = null) }
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.type(password), error = null) }
+        }
+
+        fun regenerateEditorPassword() {
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.regenerate(random), error = null) }
+        }
+
+        internal fun updateEditorGenerator(settings: GeneratorSettings) {
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.withSettings(settings, random), error = null) }
         }
 
         fun updateEditorNotes(notes: String) {
@@ -272,7 +291,7 @@ class EntryDetailViewModel
             updateEditor { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val saved = loginWriter.save(entry, editor.source, password, editor.notes)
+                    val saved = loginWriter.save(entry, editor.source, password, editor.notes, editor.passwordSource)
                     showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled

@@ -19,7 +19,7 @@ Manage the pass store working copy and synchronize it with GitHub over SSH. Git 
 - **First run:** `git clone <remote> <local-path>` via SSH.
 - **Subsequent syncs:** Fetch the tracked branch, rebase local commits if the remote advanced, then push unpushed commits.
 - **Trigger:** the Home sync chip and the background push after a save.
-- **Login edit:** Commit only the selected encrypted entry. The unsigned commit uses the first GPG UID for its identity and the `pass edit` message.
+- **Login edit or insert:** Commit only the selected encrypted entry. The unsigned commit uses the first GPG UID for its identity. The caller gives the commit message. The Pass Store writer uses the message that `pass` uses for the same change: `pass insert`, `pass edit`, `pass generate` or `pass generate -i`.
 - **Push:** After a successful commit, push the current branch from the application scope. A rejected or failed push leaves the commit local, updates the Home chip, and displays a snackbar.
 - **Serialization:** Clone, sync, commit, push, and discard share one repository lock.
 
@@ -49,7 +49,8 @@ After onboarding, sync is source-agnostic: it reads the stored SSH keypair from 
 
 - `clone(remoteUrl: String, localPath: Path, sshKeyPair: SshKeyPair?, progressMonitor: ProgressMonitor?)` — initial clone.
 - `sync(): SyncResult` fetches, rebases, and pushes. It returns the changed `.gpg` paths and the last sync time.
-- `commitEdit(path, prepare)` — validate and prepare an encrypted edit under the repository lock, then commit that file.
+- `commitEdit(path, message, prepare)` — validate and prepare an encrypted edit under the repository lock, then commit that file with `message`.
+- `commitInsert(path, message, prepare)` — the same as `commitEdit` for a new entry or a replaced entry. It makes the missing folders.
 - `push()` — push the current branch and verify the remote accepted the update.
 - `syncStatus(): SyncStatus` — local snapshot of the tracked branch, unpushed commits, affected paths, and last sync time.
 - `syncState` — observable repository snapshot, command progress, and sync error.

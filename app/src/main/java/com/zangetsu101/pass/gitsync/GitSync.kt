@@ -27,11 +27,13 @@ interface GitSync {
 
     suspend fun commitEdit(
         path: String,
+        message: String,
         prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
     ): FileCommitInfo
 
     suspend fun commitInsert(
         path: String,
+        message: String,
         prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
     ): FileCommitInfo
 

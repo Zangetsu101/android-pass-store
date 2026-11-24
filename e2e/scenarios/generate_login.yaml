@@ -1,0 +1,36 @@
+appId: com.zangetsu101.pass
+---
+# The GPG auth key can clone the fixture store. It cannot push to it.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- tapOn: "add entry"
+- assertVisible: "new entry"
+# The form opens with a visible generated password and the default settings.
+- assertVisible: "auto-generated · tap to edit"
+- assertVisible: "hide"
+- assertVisible: "excellent · 164 bits"
+- assertVisible: "25 · A–z 0–9 !@#"
+- takeScreenshot: "27-new-entry-generated"
+- tapOn: "entry path"
+- inputText: "new/example.com/generated-27"
+- hideKeyboard
+- tapOn: "customize"
+- assertVisible: "\\* pass default"
+- tapOn: "32"
+- assertVisible: "32 · A–z 0–9 !@#"
+- assertVisible: "excellent · 210 bits"
+- assertVisible: "reset"
+- takeScreenshot: "27-customize-32"
+- tapOn: "save entry"
+- extendedWaitUntil:
+    visible: "added new/example\\.com/generated-27"
+    timeout: 30000
+- assertVisible:
+    checked: true
+    containsDescendants:
+      - text: "generated-27"
+- assertNotVisible: "new entry"
+- takeScreenshot: "27-home-tree-selected"

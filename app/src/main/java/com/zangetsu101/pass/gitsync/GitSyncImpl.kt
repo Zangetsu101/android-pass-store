@@ -414,20 +414,23 @@ class GitSyncImpl
 
         override suspend fun commitEdit(
             path: String,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
         ): FileCommitInfo =
-            commitEntry(path, insert = false) { root, original ->
+            commitEntry(path, insert = false, message) { root, original ->
                 prepare(root, checkNotNull(original))
             }
 
         override suspend fun commitInsert(
             path: String,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
-        ): FileCommitInfo = commitEntry(path, insert = true, prepare = prepare)
+        ): FileCommitInfo = commitEntry(path, insert = true, message, prepare)
 
         private suspend fun commitEntry(
             path: String,
             insert: Boolean,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
         ): FileCommitInfo =
             withRepositoryLock {
@@ -452,8 +455,6 @@ class GitSyncImpl
                     val before = git.repository.resolve(Constants.HEAD)
                     val original = indexEntry?.let { file.readBytes() }
                     val edit = prepare(root, original)
-                    val name = path.removeSuffix(".gpg")
-                    val message = if (insert) "Add given password for $name to store." else "Edit password for $name using editor."
                     val missingFolders = generateSequence(file.parentFile) { it.parentFile }.takeWhile { !it.exists() }.toList()
                     withContext(NonCancellable) {
                         val commit =

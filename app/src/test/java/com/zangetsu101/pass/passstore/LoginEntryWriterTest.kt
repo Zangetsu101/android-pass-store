@@ -53,15 +53,15 @@ class LoginEntryWriterTest {
             val original = byteArrayOf(1)
             val source = LoginEditSource(EditableLogin("old password"), original.ciphertextDigest())
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
-            coEvery { git.commitEdit(entry.path, any()) } coAnswers {
-                secondArg<(File, ByteArray) -> EncryptedEdit>().invoke(root, original)
+            coEvery { git.commitEdit(entry.path, "Edit password for alice using editor.", any()) } coAnswers {
+                thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(root, original)
                 commit
             }
             coEvery { git.push() } throws IllegalStateException("read-only remote")
             coEvery { store.buildIndex() } returns listOf(entry)
             val writer = LoginEntryWriter(git, store, keyStore, backgroundScope)
 
-            val saved = writer.save(entry, source, "newpassword", "")
+            val saved = writer.save(entry, source, "newpassword", "", PasswordSource.Given)
             withTimeout(1_000) { writer.pushFailures.first() }
 
             assertEquals(commit, saved.commit)
@@ -73,20 +73,35 @@ class LoginEntryWriterTest {
         }
 
     @Test
+    fun `an insert of a generated password uses the pass generate commit message`() =
+        runTest {
+            val git = mockk<GitSync>()
+            val store = mockk<PassStore>()
+            coEvery { git.commitInsert(any(), any(), any()) } returns FileCommitInfo("abc1234", Instant.EPOCH)
+            coEvery { git.push() } returns Unit
+            coEvery { store.buildIndex() } returns emptyList()
+            val writer = LoginEntryWriter(git, store, mockk(), backgroundScope)
+
+            writer.insert(EntryPath("dev/github"), null, "password", "", PasswordSource.Generated)
+
+            coVerify { git.commitInsert("dev/github.gpg", "Add generated password for dev/github.", any()) }
+        }
+
+    @Test
     fun `a draft cannot overwrite an entry changed by a pull`() =
         runTest {
             val git = mockk<GitSync>()
             val entry = PassEntry("alice.gpg", null, "alice", File("repo/alice.gpg"))
             val source = LoginEditSource(EditableLogin("old password"), byteArrayOf(1).ciphertextDigest())
-            coEvery { git.commitEdit(entry.path, any()) } coAnswers {
-                secondArg<(File, ByteArray) -> EncryptedEdit>().invoke(File("repo"), byteArrayOf(2))
+            coEvery { git.commitEdit(entry.path, "Edit password for alice using editor.", any()) } coAnswers {
+                thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(File("repo"), byteArrayOf(2))
                 error("The writer should reject the edit before preparing ciphertext")
             }
             val appScope = CoroutineScope(coroutineContext + SupervisorJob())
             try {
                 val writer = LoginEntryWriter(git, mockk(), mockk(), appScope)
 
-                val error = runCatching { writer.save(entry, source, "newpassword", "") }.exceptionOrNull()
+                val error = runCatching { writer.save(entry, source, "newpassword", "", PasswordSource.Given) }.exceptionOrNull()
 
                 assertEquals("entry changed on disk · reopen it to edit", error?.message)
                 coVerify(exactly = 0) { git.push() }
