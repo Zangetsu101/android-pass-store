@@ -143,7 +143,12 @@ fun EntryDetailScreen(
                     .padding(padding),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                EntryTopBar(entry = state.entry, onBack = leaveEntry)
+                EntryTopBar(
+                    domain = state.entry.domain,
+                    name = unlockState.headerName(state.entry),
+                    isCard = state.entry.isCard,
+                    onBack = leaveEntry,
+                )
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
 
                 Column(
@@ -207,7 +212,9 @@ fun EntryDetailScreen(
 
 @Composable
 private fun EntryTopBar(
-    entry: PassEntry,
+    domain: String?,
+    name: String,
+    isCard: Boolean,
     onBack: () -> Unit,
 ) {
     Row(
@@ -227,12 +234,12 @@ private fun EntryTopBar(
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            entry.domain?.let {
+            domain?.let {
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
-            Text(entry.username, style = PassType.Title)
+            Text(name, style = PassType.Title)
         }
-        if (entry.isCard) PassTag("card")
+        if (isCard) PassTag("card")
     }
 }
 
@@ -246,17 +253,17 @@ private fun DecryptedContent(
         PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
         Spacer(Modifier.height(6.dp))
         Text(
-            "decrypted in-memory" + if (unlock.clipboardCopied) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
+            "decrypted in-memory" + if (unlock.copied == Copied.Password) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
             style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
         )
         Spacer(Modifier.height(20.dp))
     }
     unlock.credentials.otp?.let { otp ->
-        OtpCard(otp, unlock.otpCopied, clipboardTimeoutSeconds, viewModel::copyOtp)
+        OtpCard(otp, unlock.copied == Copied.OtpCode, clipboardTimeoutSeconds, viewModel::copyOtp)
         Spacer(Modifier.height(20.dp))
     }
     val notes = unlock.notes
-    val text =
+    val otherLines =
         notes.lines
             .dropWhile { it.isBlank() }
             .dropLastWhile { it.isBlank() }
@@ -265,16 +272,16 @@ private fun DecryptedContent(
         FieldsCard(
             fields = notes.fields,
             revealed = unlock.revealedFields,
-            copied = unlock.copiedField,
+            copied = (unlock.copied as? Copied.Field)?.index,
             onToggleReveal = viewModel::toggleFieldReveal,
             onCopy = viewModel::copyField,
         )
-        if (text.isNotEmpty()) Spacer(Modifier.height(20.dp))
+        if (otherLines.isNotEmpty()) Spacer(Modifier.height(20.dp))
     }
-    if (text.isNotEmpty() || notes.fields.isEmpty()) NotesCard(notes = text)
+    if (otherLines.isNotEmpty() || notes.fields.isEmpty()) NotesCard(notes = otherLines)
 }
 
-/** The `key: value` lines of the notes, each with a copy button. Secret values stay blurred until tapped. */
+/** The Note Fields, each with a copy button. A secret value stays blurred until the user taps it. */
 @Composable
 private fun FieldsCard(
     fields: List<NoteField>,
@@ -467,7 +474,7 @@ private fun PasswordCard(
             ) {
                 Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(if (unlock.clipboardCopied) "copied" else "copy", style = PassType.Body)
+                Text(if (unlock.copied == Copied.Password) "copied" else "copy", style = PassType.Body)
             }
             OutlinedButton(
                 onClick = onToggleReveal,

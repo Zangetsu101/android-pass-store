@@ -40,7 +40,9 @@ Pass entries are `.gpg` files. `domain` and `username` are parsed from the file 
 - `username` = filename minus `.gpg` (always the last segment)
 - `domain` = immediate parent directory name (second-to-last segment), or `null` if the file is at the store root
 
-After decryption, a **Username Line** wins over the file name. The app reads the keys `username`, `login` and `user` in that order, and the first key that it finds wins. The autofill suggestion list still shows the file name, because the app cannot decrypt before the user picks an entry.
+After decryption, a **Username Line** wins over the file name. The app reads the keys `username`, `login` and `user` in that order, and the first key that it finds wins. Autofill fills the Username Line, and the entry detail header shows it. The autofill suggestion list still shows the file name, because the app cannot decrypt before the user picks an entry.
+
+**Flat Store**: A store that keeps each login in one file at the root, with the site as the file name, such as `github.com.gpg`. An entry path with no `/` and with a `.` is a Flat Store path. The path gives the URL, so the notes editor has no `url:` chip for it.
 
 Any path segments above the parent directory are organizational and are discarded. Both of these resolve identically:
 

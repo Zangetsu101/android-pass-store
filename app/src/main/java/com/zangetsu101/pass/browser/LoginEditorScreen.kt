@@ -77,7 +77,7 @@ internal fun LoginEditorScreen(
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
-    val noteLines = editor.notes.lines().count { it.isNotBlank() }
+    val noteLines = noteLineCount(editor.notes)
     var revealed by remember { mutableStateOf(false) }
     var customizeOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -248,9 +248,8 @@ internal fun NotesField(
     enabled: Boolean,
     onNotesChange: (String) -> Unit,
 ) {
-    // The field keeps its own cursor. When a chip changes the notes, the cursor goes to the end.
     var typed by remember { mutableStateOf(TextFieldValue(notes)) }
-    val value = if (typed.text == notes) typed else TextFieldValue(notes, TextRange(notes.length))
+    val value = typed.syncedWith(notes)
     val focusRequester = remember { FocusRequester() }
     NoteChipRow(
         chips = noteChips(path, notes),
@@ -319,6 +318,22 @@ internal fun NotesField(
     Text("saved as typed · key: value lines get their own copy row", style = PassType.Caption)
 }
 
+/** Returns this value when its text is [text]. When a chip changed the text, returns [text] with the cursor at the end. */
+private fun TextFieldValue.syncedWith(text: String): TextFieldValue {
+    if (this.text == text) return this
+    return TextFieldValue(text, TextRange(text.length))
+}
+
+private class ChipLook(
+    val mark: String,
+    val text: Color,
+    val background: Color,
+    val border: Color,
+)
+
+private val unusedChip = ChipLook("+ ", PassColorsDark.Accent, PassColorsDark.Surface, PassColorsDark.AccentMid)
+private val usedChip = ChipLook("✓ ", PassColorsDark.TextDim, Color.Transparent, PassColorsDark.Border)
+
 @Composable
 private fun NoteChipRow(
     chips: List<NoteChip>,
@@ -327,14 +342,15 @@ private fun NoteChipRow(
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         chips.forEach { chip ->
+            val look = if (chip.used) usedChip else unusedChip
             Text(
-                (if (chip.used) "✓ " else "+ ") + chip.key + ":",
-                style = PassType.Caption.copy(color = if (chip.used) PassColorsDark.TextDim else PassColorsDark.Accent),
+                look.mark + chip.key + ":",
+                style = PassType.Caption.copy(color = look.text),
                 modifier =
                     Modifier
                         .clip(PassShapes.extraSmall)
-                        .background(if (chip.used) Color.Transparent else PassColorsDark.Surface)
-                        .border(1.dp, if (chip.used) PassColorsDark.Border else PassColorsDark.AccentMid, PassShapes.extraSmall)
+                        .background(look.background)
+                        .border(1.dp, look.border, PassShapes.extraSmall)
                         .clickable(enabled = enabled && !chip.used, role = Role.Button) { onAdd(chip.key) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
             )

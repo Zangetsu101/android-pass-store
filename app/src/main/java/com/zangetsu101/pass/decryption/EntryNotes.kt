@@ -1,26 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.decryption
 
-/** A `key: value` line from the notes of an entry. */
+/** A Note Field: a `key: value` line from the notes of an entry. */
 data class NoteField(
     val key: String,
     val value: String,
 ) {
-    /** Entry detail blurs the value of a secret field until the user taps it. */
-    val secret: Boolean
-        get() = key.lowercase().let { it in secretKeys || "password" in it }
-
     override fun toString(): String = "NoteField($key)"
 }
 
-private val secretKeys = setOf("pin", "cvv", "secret", "answer", "recovery")
-
-/** The notes of an entry, split into its `key: value` fields and its other lines. */
+/** The notes of an entry, split into its Note Fields and its other lines. */
 data class EntryNotes(
     val fields: List<NoteField>,
     val lines: List<String>,
 ) {
-    /** The value of the first `username`, `login` or `user` field, in that order of keys. */
+    /** The value of the Username Line: the first `username`, `login` or `user` field, in that order of keys. */
     val username: String?
         get() =
             usernameKeys.firstNotNullOfOrNull { key ->
@@ -46,4 +40,9 @@ fun parseEntryNotes(notes: String): EntryNotes {
     return EntryNotes(fields, lines)
 }
 
-private val fieldPattern = Regex("""([^\s:]+):\s+(.*\S)\s*""")
+/** The key of [line], also when the line has no value yet. A Note Field uses the same rule for its key. */
+fun noteKey(line: String): String? = keyPattern.find(line)?.groupValues?.get(1)
+
+private const val KEY = """[^\s:]+"""
+private val keyPattern = Regex("""^($KEY):""")
+private val fieldPattern = Regex("""($KEY):\s+(.*\S)\s*""")

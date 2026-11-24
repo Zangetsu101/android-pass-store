@@ -33,4 +33,11 @@ class NoteChipsTest {
         assertEquals("note\nurl: ", addNoteKey("note", "url"))
         assertEquals("note\nurl: ", addNoteKey("note\n", "url"))
     }
+
+    @Test
+    fun `the line count of the notes skips blank lines`() {
+        assertEquals(0, noteLineCount(""))
+        assertEquals(0, noteLineCount("\n  \n"))
+        assertEquals(2, noteLineCount("username: alice\n\nnote\n"))
+    }
 }

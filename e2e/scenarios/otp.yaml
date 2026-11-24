@@ -34,7 +34,9 @@ appId: com.zangetsu101.pass
 - assertNotVisible: "(?s).*otpauth://.*"
 - assertNotVisible: "(?s).*FVDKKGZ5KNOOKJ2NTY57TU77ONZSNOFT.*"
 - assertVisible: "password"
-- assertVisible: "(?s).*url: https://console\\.aws\\.amazon\\.com.*"
+# The `url` Note Field is a row in the `details` card.
+- assertVisible: "details"
+- assertVisible: "https://console\\.aws\\.amazon\\.com.*"
 - assertVisible: "totp · 6 digits · 30s"
 - tapOn: ".*tap to copy.*"
 - assertVisible: ".*copied.*"

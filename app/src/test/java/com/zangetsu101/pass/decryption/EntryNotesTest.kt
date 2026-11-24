@@ -60,12 +60,12 @@ class EntryNotesTest {
     }
 
     @Test
-    fun `secret keys are pin cvv secret answer recovery and each key with password`() {
-        val secret = listOf("pin", "cvv", "secret", "answer", "recovery", "password", "wifi-password", "PasswordHint", "PIN")
-        val plain = listOf("username", "url", "email", "pins", "pass", "recovery-email", "cardholder")
-
-        assertEquals(secret, secret.filter { NoteField(it, "x").secret })
-        assertEquals(emptyList<String>(), plain.filter { NoteField(it, "x").secret })
+    fun `the key of a line is the word before the colon with or without a value`() {
+        assertEquals("username", noteKey("username: "))
+        assertEquals("Url", noteKey("Url:https://example.com"))
+        assertEquals(null, noteKey("two words: value"))
+        assertEquals(null, noteKey(" indented: value"))
+        assertEquals(null, noteKey("no colon here"))
     }
 
     @Test

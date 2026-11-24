@@ -39,6 +39,8 @@ appId: com.zangetsu101.pass
     visible: "details"
     timeout: 60000
 - assertVisible: "user-28"
+# The header shows the Username Line and not the file name.
+- assertNotVisible: "notes-28"
 - assertVisible: "reveal pin"
 - assertNotVisible: "notes"
 - takeScreenshot: "28-entry-fields"
