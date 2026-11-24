@@ -470,10 +470,12 @@ private fun PassToggle(on: Boolean) {
             .size(width = 30.dp, height = 16.dp)
             .background(if (on) PassColorsDark.AccentMid else PassColorsDark.Border, CircleShape)
             .border(1.dp, if (on) PassColorsDark.Accent else PassColorsDark.Border2, CircleShape),
+        contentAlignment = Alignment.CenterStart,
     ) {
+        // 3dp from each end: the 1dp border and a 2dp gap.
         Box(
             Modifier
-                .offset(x = if (on) 15.dp else 2.dp, y = 2.dp)
+                .offset(x = if (on) 17.dp else 3.dp)
                 .size(10.dp)
                 .background(if (on) PassColorsDark.Accent else PassColorsDark.TextDim, CircleShape),
         )
