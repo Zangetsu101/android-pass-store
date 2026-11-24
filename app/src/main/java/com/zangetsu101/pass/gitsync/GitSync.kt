@@ -13,9 +13,6 @@ class EncryptedEdit(
     val author: PersonIdent,
 )
 
-/** Where the password on line 1 came from. It selects the commit message that `pass` uses. */
-enum class PasswordSource { Given, Generated }
-
 interface GitSync {
     val syncState: StateFlow<SyncState>
 
@@ -30,13 +27,13 @@ interface GitSync {
 
     suspend fun commitEdit(
         path: String,
-        source: PasswordSource,
+        message: String,
         prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
     ): FileCommitInfo
 
     suspend fun commitInsert(
         path: String,
-        source: PasswordSource,
+        message: String,
         prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
     ): FileCommitInfo
 

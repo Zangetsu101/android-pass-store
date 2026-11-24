@@ -39,6 +39,13 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - Copy password/card number to clipboard with configured auto-clear timeout.
 - Shows git metadata where available.
 
+**Entry Forms**
+
+- The new-entry form and the edit form share the password card and the customize panel.
+- The new-entry form opens with a generated password. The edit form keeps the password until the user regenerates or types.
+- The `generator` package makes the password. It is a pure function of the settings and a random source, so JVM tests can reach it.
+- The save button shows the `pass` command that does the same change.
+
 **Sync Panel**
 
 - Last sync timestamp / status.
@@ -56,6 +63,6 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 
 ## Non-Goals (v1)
 
-- Create / edit / delete entries
+- Delete entries
 - Share sheet integration
 - Widget

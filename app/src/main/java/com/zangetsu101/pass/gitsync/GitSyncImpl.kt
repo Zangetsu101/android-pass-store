@@ -414,23 +414,23 @@ class GitSyncImpl
 
         override suspend fun commitEdit(
             path: String,
-            source: PasswordSource,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray) -> EncryptedEdit,
         ): FileCommitInfo =
-            commitEntry(path, insert = false, source) { root, original ->
+            commitEntry(path, insert = false, message) { root, original ->
                 prepare(root, checkNotNull(original))
             }
 
         override suspend fun commitInsert(
             path: String,
-            source: PasswordSource,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
-        ): FileCommitInfo = commitEntry(path, insert = true, source, prepare)
+        ): FileCommitInfo = commitEntry(path, insert = true, message, prepare)
 
         private suspend fun commitEntry(
             path: String,
             insert: Boolean,
-            source: PasswordSource,
+            message: String,
             prepare: (root: File, originalCiphertext: ByteArray?) -> EncryptedEdit,
         ): FileCommitInfo =
             withRepositoryLock {
@@ -455,15 +455,6 @@ class GitSyncImpl
                     val before = git.repository.resolve(Constants.HEAD)
                     val original = indexEntry?.let { file.readBytes() }
                     val edit = prepare(root, original)
-                    val name = path.removeSuffix(".gpg")
-                    // These are the messages that `pass insert`, `pass edit` and `pass generate [-i]` use.
-                    val message =
-                        when {
-                            source == PasswordSource.Generated && insert -> "Add generated password for $name."
-                            source == PasswordSource.Generated -> "Replace generated password for $name."
-                            insert -> "Add given password for $name to store."
-                            else -> "Edit password for $name using editor."
-                        }
                     val missingFolders = generateSequence(file.parentFile) { it.parentFile }.takeWhile { !it.exists() }.toList()
                     withContext(NonCancellable) {
                         val commit =

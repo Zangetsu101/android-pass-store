@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 
 class PassCommandTest {
     private val default = GeneratorSettings()
+    private val PassCommand.text get() = parts.joinToString(" ") { it.text }
 
     @Test
     fun `a generated password shows each flag only when it applies`() {
@@ -27,15 +28,15 @@ class PassCommandTest {
     }
 
     @Test
-    fun `flags and a length that is not 25 show as flags`() {
+    fun `flags and a length that is not 25 are highlighted`() {
         val command = PassCommand.generate("dev/github", default.toggle(CharacterSet.Symbols).withLength(32), copy = true, force = false)
         assertEquals(
             listOf(
                 CommandPart("pass generate"),
-                CommandPart("-c", flag = true),
-                CommandPart("-n", flag = true),
+                CommandPart("-c", highlighted = true),
+                CommandPart("-n", highlighted = true),
                 CommandPart("dev/github"),
-                CommandPart("32", flag = true),
+                CommandPart("32", highlighted = true),
             ),
             command.parts,
         )

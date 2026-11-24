@@ -8,13 +8,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zangetsu101.pass.generator.GeneratorSettings
-import com.zangetsu101.pass.gitsync.PasswordSource
+import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.repositoryDirectory
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassStore
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,17 +39,12 @@ internal class NewEntryViewModel
         val entries = passStore.index
         val folders = passStore.folders
         private val random = SecureRandom()
-        var generator by mutableStateOf(GeneratorSettings())
+        var passwordDraft by mutableStateOf(PasswordDraft.generate(random))
             private set
-        var password by mutableStateOf(generator.generate(random))
-            private set
+        val password get() = passwordDraft.password
 
-        /** True after the user types in the password field. A regenerate makes it false again. */
-        var typedPassword by mutableStateOf(false)
-            private set
-
-        /** True after any change to the generated password, or after a copy of it. */
-        var passwordTouched by mutableStateOf(false)
+        /** True after the user types in the password or taps regenerate. A settings change does not count. */
+        var passwordChanged by mutableStateOf(false)
             private set
         var copyAfterSave by mutableStateOf(true)
             private set
@@ -62,22 +58,20 @@ internal class NewEntryViewModel
             private set
 
         fun updatePassword(value: String) {
-            password = value.filterNot(Char::isWhitespace)
-            typedPassword = true
-            passwordTouched = true
+            passwordDraft = passwordDraft.type(value)
+            passwordChanged = true
             error = null
         }
 
         fun regenerate() {
-            password = generator.generate(random)
-            typedPassword = false
-            passwordTouched = true
+            passwordDraft = passwordDraft.regenerate(random)
+            passwordChanged = true
             error = null
         }
 
         fun updateGenerator(settings: GeneratorSettings) {
-            generator = settings
-            regenerate()
+            passwordDraft = passwordDraft.withSettings(settings, random)
+            error = null
         }
 
         fun toggleCopyAfterSave() {
@@ -107,7 +101,6 @@ internal class NewEntryViewModel
             }
 
         fun copyPassword() {
-            passwordTouched = true
             copySecret(password)
         }
 
@@ -128,10 +121,11 @@ internal class NewEntryViewModel
             error = null
             viewModelScope.launch {
                 try {
-                    val source = if (typedPassword) PasswordSource.Given else PasswordSource.Generated
+                    val password = password
+                    val source = if (passwordDraft.generated) PasswordSource.Generated else PasswordSource.Given
                     writer.insert(path, expectedDigest, password, notes, source)
                     if (copyAfterSave) copySecret(password)
-                    password = ""
+                    passwordDraft = passwordDraft.type("")
                     notes = ""
                     savedPath = path.value
                 } catch (cancelled: CancellationException) {

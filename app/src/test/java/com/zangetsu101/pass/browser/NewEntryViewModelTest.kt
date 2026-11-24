@@ -6,10 +6,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import com.zangetsu101.pass.generator.CharacterSet
 import com.zangetsu101.pass.generator.GeneratorSettings
-import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.PassStore
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -73,10 +73,10 @@ class NewEntryViewModelTest {
         runTest(testDispatcher) {
             val vm = createViewModel()
             val password = vm.password
-            assertEquals(GeneratorSettings(), vm.generator)
+            assertEquals(GeneratorSettings(), vm.passwordDraft.settings)
             assertEquals(25, password.length)
             assertTrue(vm.copyAfterSave)
-            assertFalse(vm.passwordTouched)
+            assertFalse(vm.passwordChanged)
 
             vm.save(path, expectedDigest = null)
             runCurrent()
@@ -102,17 +102,36 @@ class NewEntryViewModelTest {
         }
 
     @Test
-    fun `a change in the settings makes a new password and clears the typed state`() =
+    fun `a change in the settings makes a new password but is not a change to the draft`() =
         runTest(testDispatcher) {
             val vm = createViewModel()
-            vm.updatePassword("typed")
-            assertTrue(vm.typedPassword)
+            vm.copyPassword()
+            vm.updateGenerator(
+                vm.passwordDraft.settings
+                    .withLength(32)
+                    .toggle(CharacterSet.Symbols),
+            )
 
-            vm.updateGenerator(vm.generator.withLength(32).toggle(CharacterSet.Symbols))
-
-            assertFalse(vm.typedPassword)
-            assertTrue(vm.passwordTouched)
+            assertTrue(vm.passwordDraft.generated)
+            assertFalse(vm.passwordChanged)
             assertEquals(32, vm.password.length)
             assertTrue(vm.password.all { it.isLetterOrDigit() })
+        }
+
+    @Test
+    fun `typing or a regenerate is a change to the draft`() =
+        runTest(testDispatcher) {
+            val typed = createViewModel()
+            typed.updatePassword("typed")
+            assertFalse(typed.passwordDraft.generated)
+            assertTrue(typed.passwordChanged)
+
+            val regenerated = createViewModel()
+            val first = regenerated.password
+            regenerated.regenerate()
+            assertTrue(regenerated.passwordDraft.generated)
+            assertTrue(regenerated.passwordChanged)
+            assertEquals(25, regenerated.password.length)
+            assertTrue(first != regenerated.password)
         }
 }

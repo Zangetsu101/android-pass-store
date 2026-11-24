@@ -57,8 +57,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import com.zangetsu101.pass.generator.typedPasswordStrength
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
@@ -74,7 +74,6 @@ internal fun LoginEditorScreen(
     val noteLines = editor.notes.lines().count { it.isNotBlank() }
     var revealed by remember { mutableStateOf(false) }
     var customizeOpen by rememberSaveable { mutableStateOf(false) }
-    val regenerated = editor.generated && editor.passwordChanged
     var confirmDiscard by remember { mutableStateOf(false) }
     val back = {
         if (!editor.saving) {
@@ -104,11 +103,11 @@ internal fun LoginEditorScreen(
                     password = editor.password,
                     status =
                         when {
-                            editor.generated -> PasswordStatus.Generated
+                            editor.passwordDraft.generated -> PasswordStatus.Generated
                             editor.passwordChanged -> PasswordStatus.Typed
                             else -> null
                         },
-                    strength = if (editor.generated) editor.generator.strength() else typedPasswordStrength(editor.password),
+                    strength = editor.passwordDraft.strength,
                     enabled = !editor.saving,
                     revealed = revealed,
                     onToggleReveal = { revealed = !revealed },
@@ -121,7 +120,7 @@ internal fun LoginEditorScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 CustomizePanel(
-                    settings = editor.generator,
+                    settings = editor.passwordDraft.settings,
                     open = customizeOpen,
                     enabled = !editor.saving,
                     onToggleOpen = { customizeOpen = !customizeOpen },
@@ -146,8 +145,8 @@ internal fun LoginEditorScreen(
             }
             SaveFooter(
                 command =
-                    if (regenerated) {
-                        PassCommand.generateInPlace(path, editor.generator)
+                    if (editor.passwordSource == PasswordSource.Generated) {
+                        PassCommand.generateInPlace(path, editor.passwordDraft.settings)
                     } else {
                         PassCommand.insert(path, multiline = true, force = true)
                     },
@@ -380,7 +379,7 @@ private fun commandText(
         withStyle(SpanStyle(color = prompt)) { append("> ") }
         command.parts.forEachIndexed { index, part ->
             if (index > 0) append(" ")
-            withStyle(SpanStyle(color = if (part.flag) flag else text)) { append(part.text) }
+            withStyle(SpanStyle(color = if (part.highlighted) flag else text)) { append(part.text) }
         }
     }
 }

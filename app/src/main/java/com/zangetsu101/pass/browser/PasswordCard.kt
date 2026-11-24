@@ -75,6 +75,9 @@ import com.zangetsu101.pass.ui.theme.PassType
 internal enum class PasswordStatus { Generated, Typed }
 
 private val captionSmall = PassType.Caption.copy(fontSize = 9.sp)
+
+// JetBrains Mono joins character pairs such as `<=` into one glyph. A password must show each character.
+private const val NO_LIGATURES = "\"calt\" 0, \"liga\" 0"
 private val subLabel = PassType.Caption.copy(fontSize = 9.sp, letterSpacing = 0.1.em)
 
 @Composable
@@ -122,6 +125,7 @@ internal fun PasswordCard(
                 PassType.Body.copy(
                     color = if (revealed) PassColorsDark.TextPrimary else PassColorsDark.TextDim,
                     letterSpacing = 0.04.em,
+                    fontFeatureSettings = NO_LIGATURES,
                 ),
             cursorBrush = SolidColor(PassColorsDark.Accent),
             keyboardOptions =
@@ -250,20 +254,20 @@ internal fun CustomizePanel(
             Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp)) {
                 LengthControls(settings, enabled, onChange)
                 Spacer(Modifier.height(12.dp))
-                Text("CHARACTERS", style = subLabel)
+                Text("characters", style = subLabel)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for ((set, label) in characterSetLabels) {
+                    for (set in CharacterSet.entries) {
                         Chip(
-                            label = label,
-                            active = settings.isOn(set),
+                            label = set.label,
+                            active = set in settings.sets,
                             enabled = enabled,
                             onClick = { onChange(settings.toggle(set)) },
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
-                if (settings.symbols.isNotEmpty()) {
+                if (settings.symbolsOn) {
                     Spacer(Modifier.height(10.dp))
                     SymbolControls(settings, enabled, onChange)
                 }
@@ -286,14 +290,6 @@ internal fun CustomizePanel(
     }
 }
 
-private val characterSetLabels =
-    listOf(
-        CharacterSet.Upper to "A–Z",
-        CharacterSet.Lower to "a–z",
-        CharacterSet.Digits to "0–9",
-        CharacterSet.Symbols to "!@#…",
-    )
-
 private val lengthPresets = listOf(16, 20, 25, 32, 64)
 
 @Composable
@@ -303,7 +299,7 @@ private fun LengthControls(
     onChange: (GeneratorSettings) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("LENGTH", style = subLabel, modifier = Modifier.weight(1f))
+        Text("length", style = subLabel, modifier = Modifier.weight(1f))
         StepButton("−", "shorter", enabled && settings.length > MIN_LENGTH) { onChange(settings.withLength(settings.length - 1)) }
         Text(
             settings.length.toString(),
@@ -335,7 +331,7 @@ private fun SymbolControls(
 ) {
     val custom = settings.customSymbols
     Row(verticalAlignment = Alignment.Bottom) {
-        Text("ALLOWED SYMBOLS", style = subLabel, modifier = Modifier.weight(1f))
+        Text("allowed symbols", style = subLabel, modifier = Modifier.weight(1f))
         Text(
             "${settings.symbols.length} of ${ALL_SYMBOLS.length}",
             style = captionSmall.copy(color = if (custom) PassColorsDark.Accent else PassColorsDark.TextDim),
@@ -347,7 +343,13 @@ private fun SymbolControls(
         onValueChange = { onChange(settings.withSymbols(it)) },
         enabled = enabled,
         singleLine = true,
-        textStyle = PassType.Body.copy(fontSize = 11.sp, letterSpacing = 0.12.em, color = PassColorsDark.Warning),
+        textStyle =
+            PassType.Body.copy(
+                fontSize = 11.sp,
+                letterSpacing = 0.12.em,
+                color = PassColorsDark.Warning,
+                fontFeatureSettings = NO_LIGATURES,
+            ),
         cursorBrush = SolidColor(PassColorsDark.Accent),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
         modifier =
@@ -460,7 +462,7 @@ internal fun CopyAfterSaveRow(
     }
 }
 
-/** The terminal-style pill toggle from the designs. It is not the Material3 Switch. */
+/** A custom toggle, because the Material3 Switch does not match the terminal style of the app. */
 @Composable
 private fun PassToggle(on: Boolean) {
     Box(

@@ -15,52 +15,51 @@ internal const val DEFAULT_LENGTH = 25
 internal const val ALL_SYMBOLS = "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 internal const val SAFE_SYMBOLS = "!@#\$%^&*-_"
 
-private const val UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-private const val LOWER = "abcdefghijklmnopqrstuvwxyz"
-private const val DIGITS = "0123456789"
+internal enum class CharacterSet(
+    val label: String,
+    /** All the characters of the set. The user can choose a subset of the symbols. */
+    val chars: String,
+) {
+    Upper("A–Z", "ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+    Lower("a–z", "abcdefghijklmnopqrstuvwxyz"),
+    Digits("0–9", "0123456789"),
+    Symbols("!@#…", ALL_SYMBOLS),
+}
 
-internal enum class CharacterSet { Upper, Lower, Digits, Symbols }
-
-/** The settings for one generated password. An empty [symbols] means that symbols are off. */
+/** The settings for one generated password. [symbols] applies only when [sets] has [CharacterSet.Symbols]. */
 internal data class GeneratorSettings(
     val length: Int = DEFAULT_LENGTH,
-    val upper: Boolean = true,
-    val lower: Boolean = true,
-    val digits: Boolean = true,
+    val sets: Set<CharacterSet> = CharacterSet.entries.toSet(),
     val symbols: String = ALL_SYMBOLS,
 ) {
     init {
         require(length in MIN_LENGTH..MAX_LENGTH) { "length out of range" }
-        require(upper || lower || digits || symbols.isNotEmpty()) { "no character set is on" }
+        require(sets.isNotEmpty()) { "no character set is on" }
+        require(symbols.isNotEmpty()) { "no allowed symbols" }
     }
 
-    val customSymbols get() = symbols.isNotEmpty() && symbols.length != ALL_SYMBOLS.length
-    private val customCharset get() = !(upper && lower && digits) || customSymbols
+    val symbolsOn get() = CharacterSet.Symbols in sets
+    val customSymbols get() = symbolsOn && symbols.length != ALL_SYMBOLS.length
+    private val customCharset get() = !sets.containsAll(alphanumeric) || customSymbols
+    private val setsInOrder get() = CharacterSet.entries.filter { it in sets }
 
-    val pool: String
-        get() =
-            buildString {
-                if (upper) append(UPPER)
-                if (lower) append(LOWER)
-                if (digits) append(DIGITS)
-                append(symbols)
-            }
+    val pool get() = setsInOrder.joinToString("") { charsOf(it) }
 
-    val isDefault get() = length == DEFAULT_LENGTH && symbols.isNotEmpty() && !customCharset
+    val isDefault get() = length == DEFAULT_LENGTH && symbolsOn && !customCharset
 
     /** The closed customize row, for example `25 · A–z 0–9 !@#`. */
     val summary: String
         get() {
             val symbolText = if (customSymbols) "${symbols.length} symbols" else "!@#"
-            val sets = listOfNotNull(letters, "0–9".takeIf { digits }, symbolText.takeIf { symbols.isNotEmpty() })
-            return "$length · ${sets.joinToString(" ")}"
+            val parts = listOfNotNull(letters, digits, symbolText.takeIf { symbolsOn })
+            return "$length · ${parts.joinToString(" ")}"
         }
 
     val note: String
         get() =
             when {
                 customCharset -> "custom set · app-side charset"
-                symbols.isEmpty() -> "symbols off = -n"
+                !symbolsOn -> "symbols off = -n"
                 else -> "* pass default"
             }
 
@@ -68,54 +67,47 @@ internal data class GeneratorSettings(
     val charset: String?
         get() {
             if (!customCharset) return null
-            val sets = listOfNotNull(letters, "0–9".takeIf { digits }).joinToString(" ")
+            val alphanumeric = listOfNotNull(letters, digits).joinToString(" ")
             return when {
-                symbols.isEmpty() -> sets
-                customSymbols -> "$sets  $symbols"
-                else -> "$sets  all symbols"
+                !symbolsOn -> alphanumeric
+                customSymbols -> "$alphanumeric  $symbols"
+                else -> "$alphanumeric  all symbols"
             }
         }
 
     private val letters
         get() =
             when {
-                upper && lower -> "A–z"
-                upper -> "A–Z"
-                lower -> "a–z"
+                CharacterSet.Upper in sets && CharacterSet.Lower in sets -> "A–z"
+                CharacterSet.Upper in sets -> CharacterSet.Upper.label
+                CharacterSet.Lower in sets -> CharacterSet.Lower.label
                 else -> null
             }
+
+    private val digits get() = CharacterSet.Digits.label.takeIf { CharacterSet.Digits in sets }
+
+    private fun charsOf(set: CharacterSet) = if (set == CharacterSet.Symbols) symbols else set.chars
 
     fun withLength(length: Int) = copy(length = length.coerceIn(MIN_LENGTH, MAX_LENGTH))
 
     /** Turns [set] on or off. A change that turns off the last set that is on does nothing. */
     fun toggle(set: CharacterSet): GeneratorSettings {
-        val upper = upper != (set == CharacterSet.Upper)
-        val lower = lower != (set == CharacterSet.Lower)
-        val digits = digits != (set == CharacterSet.Digits)
-        val symbols =
-            if (set != CharacterSet.Symbols) {
-                symbols
-            } else if (symbols.isEmpty()) {
-                ALL_SYMBOLS
-            } else {
-                ""
-            }
-        return if (upper || lower || digits || symbols.isNotEmpty()) GeneratorSettings(length, upper, lower, digits, symbols) else this
+        val next = if (set in sets) sets - set else sets + set
+        return if (next.isEmpty()) this else copy(sets = next)
     }
 
-    /** Keeps the real symbols in [text], once each. No symbols turns symbols off. */
+    /**
+     * Keeps the real symbols in [text], once each. No symbols turns symbols off and keeps the
+     * last list for the next time that symbols turn on.
+     */
     fun withSymbols(text: String): GeneratorSettings {
         val kept = text.filter { it in ALL_SYMBOLS }.toSet().joinToString("")
-        return if (kept.isEmpty() && !(upper || lower || digits)) this else copy(symbols = kept)
-    }
-
-    fun isOn(set: CharacterSet) =
-        when (set) {
-            CharacterSet.Upper -> upper
-            CharacterSet.Lower -> lower
-            CharacterSet.Digits -> digits
-            CharacterSet.Symbols -> symbols.isNotEmpty()
+        return if (kept.isEmpty()) {
+            if (symbolsOn) toggle(CharacterSet.Symbols) else this
+        } else {
+            copy(sets = sets + CharacterSet.Symbols, symbols = kept)
         }
+    }
 
     /**
      * Makes a password from [random]. Each set that is on appears at least once: the generator
@@ -123,7 +115,7 @@ internal data class GeneratorSettings(
      */
     fun generate(random: Random): String {
         val pool = pool
-        val required = listOfNotNull(UPPER.takeIf { upper }, LOWER.takeIf { lower }, DIGITS.takeIf { digits }, symbols.ifEmpty { null })
+        val required = setsInOrder.map { charsOf(it) }
         while (true) {
             val password = String(CharArray(length) { pool[random.unbiasedIndex(pool.length)] })
             if (required.all { set -> password.any { it in set } }) return password
@@ -131,6 +123,10 @@ internal data class GeneratorSettings(
     }
 
     fun strength() = Strength.of(length, pool.length)
+
+    private companion object {
+        val alphanumeric = listOf(CharacterSet.Upper, CharacterSet.Lower, CharacterSet.Digits)
+    }
 }
 
 /** Picks an index below [bound] with rejection sampling, so that no index is more likely than another. */
@@ -185,6 +181,6 @@ internal data class Strength(
 /** The strength of a password that the user typed. The pool is the sets whose characters the password contains. */
 internal fun typedPasswordStrength(password: String): Strength {
     if (password.isEmpty()) return Strength(0, StrengthLevel.Weak)
-    val poolSize = listOf(UPPER, LOWER, DIGITS, ALL_SYMBOLS).filter { set -> password.any { it in set } }.sumOf { it.length }
+    val poolSize = CharacterSet.entries.filter { set -> password.any { it in set.chars } }.sumOf { it.chars.length }
     return Strength.of(password.length, poolSize)
 }

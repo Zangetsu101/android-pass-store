@@ -13,7 +13,6 @@ import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
-import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
@@ -21,6 +20,7 @@ import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.passstore.SavedLogin
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
@@ -186,17 +186,20 @@ class EntryDetailViewModelTest {
 
             fun draft() = (vm.state.value.mode as EntryDetailMode.EditEntry).draft
 
-            vm.updateEditorGenerator(draft().generator.withLength(32))
+            vm.updateEditorGenerator(draft().passwordDraft.settings.withLength(32))
             val generated = draft().password
             assertEquals(32, generated.length)
-            assertTrue(draft().generated)
+            assertTrue(draft().passwordDraft.generated)
             assertEquals(PasswordSource.Generated, draft().passwordSource)
 
             vm.updateEditorPassword(generated + "x")
-            assertFalse(draft().generated)
+            assertFalse(draft().passwordDraft.generated)
             assertEquals(PasswordSource.Given, draft().passwordSource)
 
             vm.regenerateEditorPassword()
+            vm.updateEditorNotes("new notes")
+            assertEquals(PasswordSource.Given, draft().passwordSource)
+            vm.updateEditorNotes("notes")
             assertEquals(32, draft().password.length)
             val regenerated = draft().password
             vm.saveEditor()

@@ -14,9 +14,9 @@ import com.zangetsu101.pass.decryption.EditableLogin
 import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.generator.GeneratorSettings
+import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
-import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.EndReason
@@ -27,6 +27,7 @@ import com.zangetsu101.pass.otp.Otp
 import com.zangetsu101.pass.passstore.LoginEntryWriter
 import com.zangetsu101.pass.passstore.LoginSaveError
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -93,18 +94,19 @@ sealed interface EntryDetailMode {
 @ConsistentCopyVisibility
 data class LoginEditorState internal constructor(
     internal val source: LoginEditSource,
-    val password: String,
+    internal val passwordDraft: PasswordDraft,
     val notes: String,
     val saving: Boolean = false,
     val error: String? = null,
-    internal val generator: GeneratorSettings = GeneratorSettings(),
-    /** True when the password came from the generator and the user did not type in it after that. */
-    val generated: Boolean = false,
 ) {
+    val password: String get() = passwordDraft.password
     val passwordChanged: Boolean get() = password != source.login.password
+    val notesChanged: Boolean get() = notes != source.login.notes
+
+    /** `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`. */
     val passwordSource: PasswordSource
-        get() = if (generated && passwordChanged) PasswordSource.Generated else PasswordSource.Given
-    val changed: Boolean get() = passwordChanged || notes != source.login.notes
+        get() = if (passwordDraft.generated && passwordChanged && !notesChanged) PasswordSource.Generated else PasswordSource.Given
+    val changed: Boolean get() = passwordChanged || notesChanged
     val hasOtp: Boolean get() = source.login.hasOtp
 
     override fun toString(): String = "LoginEditorState"
@@ -232,21 +234,20 @@ class EntryDetailViewModel
             val original = rawEntry ?: return
             val login = EditableLogin(original.plaintext)
             val source = LoginEditSource(login, original.ciphertextDigest)
-            val draft = LoginEditorState(source, login.password, login.notes)
+            val draft = LoginEditorState(source, PasswordDraft(login.password), login.notes)
             _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
         }
 
         fun updateEditorPassword(password: String) {
-            updateEditor { it.copy(password = password.filterNot(Char::isWhitespace), generated = false, error = null) }
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.type(password), error = null) }
         }
 
         fun regenerateEditorPassword() {
-            updateEditor { it.copy(password = it.generator.generate(random), generated = true, error = null) }
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.regenerate(random), error = null) }
         }
 
         internal fun updateEditorGenerator(settings: GeneratorSettings) {
-            updateEditor { it.copy(generator = settings) }
-            regenerateEditorPassword()
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.withSettings(settings, random), error = null) }
         }
 
         fun updateEditorNotes(notes: String) {

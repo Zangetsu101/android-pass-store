@@ -39,7 +39,7 @@ Domain vocabulary and store conventions live in [`../CONTEXT.md`](../CONTEXT.md)
 | Card autofill | Supported for **Card Entries** |
 | Passkey support | Out of scope |
 | OTP | Read-only pass-otp TOTP codes in entry details; external fill and HOTP deferred |
-| Write support | Edit login passwords and notes, encrypt to the imported key, commit locally, and push in the background |
+| Write support | Add and edit logins, generate passwords on the device, encrypt to the imported key, commit locally, and push in the background |
 | Offline | Full offline after first sync (local git clone, decrypt on demand) |
 | Session lock | Timed inactivity lock; app UI may use passphrase cache while session is active |
 
@@ -100,7 +100,7 @@ See [`docs/adr/0002-threat-model.md`](../docs/adr/0002-threat-model.md) for the 
 | 3 | [Pass Store](modules/pass-store.md) | Index `.gpg` paths, resolve autofill queries, fuzzy user search |
 | 4 | [Decryption](modules/decryption.md) | GPG-decrypt entries, parse password/card fields from pass files |
 | 5 | [Autofill](modules/autofill.md) | `AutofillService` and Credential Manager provider integration |
-| 6 | [UI](modules/ui.md) | Onboarding, entry browser, login editor, sync panel, settings |
+| 6 | [UI](modules/ui.md) | Onboarding, entry browser, entry forms with the password generator, sync panel, settings |
 
 ---
 
