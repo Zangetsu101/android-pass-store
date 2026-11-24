@@ -102,10 +102,30 @@ class NewEntryViewModelTest {
         }
 
     @Test
-    fun `a change in the settings makes a new password but is not a change to the draft`() =
+    fun `the password changes only when it differs from the first password`() =
         runTest(testDispatcher) {
             val vm = createViewModel()
+            val first = vm.password
             vm.copyPassword()
+            vm.toggleCopyAfterSave()
+            assertFalse(vm.passwordChanged)
+
+            vm.updatePassword("typed")
+            assertFalse(vm.passwordDraft.generated)
+            assertTrue(vm.passwordChanged)
+            vm.updatePassword(first)
+            assertFalse(vm.passwordChanged)
+
+            vm.regenerate()
+            assertTrue(vm.passwordDraft.generated)
+            assertEquals(25, vm.password.length)
+            assertTrue(vm.passwordChanged)
+        }
+
+    @Test
+    fun `a change in the settings makes a new password`() =
+        runTest(testDispatcher) {
+            val vm = createViewModel()
             vm.updateGenerator(
                 vm.passwordDraft.settings
                     .withLength(32)
@@ -113,25 +133,8 @@ class NewEntryViewModelTest {
             )
 
             assertTrue(vm.passwordDraft.generated)
-            assertFalse(vm.passwordChanged)
+            assertTrue(vm.passwordChanged)
             assertEquals(32, vm.password.length)
             assertTrue(vm.password.all { it.isLetterOrDigit() })
-        }
-
-    @Test
-    fun `typing or a regenerate is a change to the draft`() =
-        runTest(testDispatcher) {
-            val typed = createViewModel()
-            typed.updatePassword("typed")
-            assertFalse(typed.passwordDraft.generated)
-            assertTrue(typed.passwordChanged)
-
-            val regenerated = createViewModel()
-            val first = regenerated.password
-            regenerated.regenerate()
-            assertTrue(regenerated.passwordDraft.generated)
-            assertTrue(regenerated.passwordChanged)
-            assertEquals(25, regenerated.password.length)
-            assertTrue(first != regenerated.password)
         }
 }

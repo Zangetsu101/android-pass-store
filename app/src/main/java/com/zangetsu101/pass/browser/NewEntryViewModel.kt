@@ -43,9 +43,8 @@ internal class NewEntryViewModel
             private set
         val password get() = passwordDraft.password
 
-        /** True after the user types in the password or taps regenerate. A settings change does not count. */
-        var passwordChanged by mutableStateOf(false)
-            private set
+        private val firstPassword = passwordDraft.password
+        val passwordChanged get() = password != firstPassword
         var copyAfterSave by mutableStateOf(true)
             private set
         var notes by mutableStateOf("")
@@ -59,13 +58,11 @@ internal class NewEntryViewModel
 
         fun updatePassword(value: String) {
             passwordDraft = passwordDraft.type(value)
-            passwordChanged = true
             error = null
         }
 
         fun regenerate() {
             passwordDraft = passwordDraft.regenerate(random)
-            passwordChanged = true
             error = null
         }
 
