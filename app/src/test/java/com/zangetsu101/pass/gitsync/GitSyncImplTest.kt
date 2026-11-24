@@ -113,7 +113,7 @@ class GitSyncImplTest {
             }
 
             val commit =
-                gitSync.commitEdit(path) { root, original ->
+                gitSync.commitEdit(path, PasswordSource.Given) { root, original ->
                     assertEquals(customDir, root)
                     assertEquals("dummy encrypted content", original.decodeToString())
                     EncryptedEdit("new ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
@@ -156,7 +156,7 @@ class GitSyncImplTest {
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
             val path = "new/example.com/alice.gpg"
-            gitSync.commitInsert(path) { _, original ->
+            gitSync.commitInsert(path, PasswordSource.Given) { _, original ->
                 assertEquals(null, original)
                 EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
             }
@@ -179,7 +179,7 @@ class GitSyncImplTest {
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
             val path = "web/github.com/alice.gpg"
-            gitSync.commitInsert(path) { _, original ->
+            gitSync.commitInsert(path, PasswordSource.Given) { _, original ->
                 assertEquals("dummy encrypted content", original?.decodeToString())
                 EncryptedEdit("replacement".toByteArray(), PersonIdent("Alice", "alice@example.com"))
             }
@@ -198,6 +198,34 @@ class GitSyncImplTest {
         }
 
     @Test
+    fun `generated passwords use the pass generate commit messages`() =
+        runTest {
+            gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
+            val author = PersonIdent("Alice", "alice@example.com")
+
+            gitSync.commitInsert("new/example.com/alice.gpg", PasswordSource.Generated) { _, _ ->
+                EncryptedEdit("ciphertext".toByteArray(), author)
+            }
+            gitSync.commitEdit("web/github.com/alice.gpg", PasswordSource.Generated) { _, _ ->
+                EncryptedEdit("rotated".toByteArray(), author)
+            }
+
+            Git.open(repoDir).use { git ->
+                assertEquals(
+                    listOf(
+                        "Replace generated password for web/github.com/alice.",
+                        "Add generated password for new/example.com/alice.",
+                    ),
+                    git
+                        .log()
+                        .setMaxCount(2)
+                        .call()
+                        .map { it.fullMessage },
+                )
+            }
+        }
+
+    @Test
     fun `insert rejects paths that differ only in case from an existing file or folder`() =
         runTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
@@ -206,7 +234,7 @@ class GitSyncImplTest {
             for (path in listOf("web/github.com/Alice.gpg", "web/GitHub.com/bob.gpg")) {
                 val failure =
                     runCatching {
-                        gitSync.commitInsert(path) { _, _ ->
+                        gitSync.commitInsert(path, PasswordSource.Given) { _, _ ->
                             EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                         }
                     }.exceptionOrNull()
@@ -236,7 +264,7 @@ class GitSyncImplTest {
                     .call()
                 val failure =
                     runCatching {
-                        gitSync.commitInsert(newPath) { _, _ ->
+                        gitSync.commitInsert(newPath, PasswordSource.Given) { _, _ ->
                             EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                         }
                     }.exceptionOrNull()
@@ -258,7 +286,7 @@ class GitSyncImplTest {
                 try {
                     val result =
                         runCatching {
-                            gitSync.commitInsert("new/example.com/alice.gpg") { _, _ ->
+                            gitSync.commitInsert("new/example.com/alice.gpg", PasswordSource.Given) { _, _ ->
                                 EncryptedEdit("ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                             }
                         }
@@ -283,7 +311,7 @@ class GitSyncImplTest {
                 try {
                     val result =
                         runCatching {
-                            gitSync.commitEdit(path) { _, _ ->
+                            gitSync.commitEdit(path, PasswordSource.Given) { _, _ ->
                                 EncryptedEdit("new ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                             }
                         }
@@ -303,7 +331,7 @@ class GitSyncImplTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
             val originalRemoteHead = Git.open(bareRepo).use { it.repository.resolve("HEAD") }
             val commit =
-                gitSync.commitEdit("web/github.com/alice.gpg") { _, _ ->
+                gitSync.commitEdit("web/github.com/alice.gpg", PasswordSource.Given) { _, _ ->
                     EncryptedEdit("new ciphertext".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                 }
             Git.open(repoDir).use { git ->
@@ -451,7 +479,7 @@ class GitSyncImplTest {
             gitSync.clone(bareRepo.toURI().toString(), repoDir.toPath())
             val path = "web/github.com/alice.gpg"
             val local =
-                gitSync.commitEdit(path) { _, _ ->
+                gitSync.commitEdit(path, PasswordSource.Given) { _, _ ->
                     EncryptedEdit("local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                 }
             publishRemoteEdit(path)
@@ -469,7 +497,7 @@ class GitSyncImplTest {
             assertEquals("local edit", File(repoDir, path).readText())
             Git.open(repoDir).use { assertTrue(it.status().call().isClean) }
 
-            gitSync.commitEdit(path) { _, _ ->
+            gitSync.commitEdit(path, PasswordSource.Given) { _, _ ->
                 EncryptedEdit("another local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
             }
             assertTrue(runCatching { gitSync.discardUnpushed(snapshot) }.exceptionOrNull() is SyncError.RecoveryFailure)
@@ -508,7 +536,7 @@ class GitSyncImplTest {
                 fetchChangedRef.await()
                 val save =
                     async {
-                        gitSync.commitEdit(path) { root, _ ->
+                        gitSync.commitEdit(path, PasswordSource.Given) { root, _ ->
                             savePrepared.complete(File(root, "other.gpg").isFile)
                             EncryptedEdit("local edit".toByteArray(), PersonIdent("Alice", "alice@example.com"))
                         }

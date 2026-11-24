@@ -13,8 +13,10 @@ import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.EditableLogin
 import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.decryption.RawEntry
+import com.zangetsu101.pass.generator.GeneratorSettings
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.EndReason
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.security.SecureRandom
 import kotlin.coroutines.coroutineContext
 
 sealed class UnlockState {
@@ -94,8 +97,13 @@ data class LoginEditorState internal constructor(
     val notes: String,
     val saving: Boolean = false,
     val error: String? = null,
+    internal val generator: GeneratorSettings = GeneratorSettings(),
+    /** True when the password came from the generator and the user did not type in it after that. */
+    val generated: Boolean = false,
 ) {
     val passwordChanged: Boolean get() = password != source.login.password
+    val passwordSource: PasswordSource
+        get() = if (generated && passwordChanged) PasswordSource.Generated else PasswordSource.Given
     val changed: Boolean get() = passwordChanged || notes != source.login.notes
     val hasOtp: Boolean get() = source.login.hasOtp
 
@@ -125,6 +133,7 @@ class EntryDetailViewModel
             )
         val state: StateFlow<EntryDetailUiState> = _state.asStateFlow()
 
+        private val random = SecureRandom()
         private var clipClearJob: Job? = null
         private var otpHintJob: Job? = null
         private var autoLockJob: Job? = null
@@ -228,7 +237,16 @@ class EntryDetailViewModel
         }
 
         fun updateEditorPassword(password: String) {
-            updateEditor { it.copy(password = password.filterNot(Char::isWhitespace), error = null) }
+            updateEditor { it.copy(password = password.filterNot(Char::isWhitespace), generated = false, error = null) }
+        }
+
+        fun regenerateEditorPassword() {
+            updateEditor { it.copy(password = it.generator.generate(random), generated = true, error = null) }
+        }
+
+        internal fun updateEditorGenerator(settings: GeneratorSettings) {
+            updateEditor { it.copy(generator = settings) }
+            regenerateEditorPassword()
         }
 
         fun updateEditorNotes(notes: String) {
@@ -272,7 +290,7 @@ class EntryDetailViewModel
             updateEditor { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val saved = loginWriter.save(entry, editor.source, password, editor.notes)
+                    val saved = loginWriter.save(entry, editor.source, password, editor.notes, editor.passwordSource)
                     showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled

@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zangetsu101.pass.generator.GeneratorSettings
+import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.repositoryDirectory
 import com.zangetsu101.pass.passstore.EntryPath
@@ -21,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.security.SecureRandom
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,7 +37,20 @@ internal class NewEntryViewModel
     ) : ViewModel() {
         val entries = passStore.index
         val folders = passStore.folders
-        var password by mutableStateOf("")
+        private val random = SecureRandom()
+        var generator by mutableStateOf(GeneratorSettings())
+            private set
+        var password by mutableStateOf(generator.generate(random))
+            private set
+
+        /** True after the user types in the password field. A regenerate makes it false again. */
+        var typedPassword by mutableStateOf(false)
+            private set
+
+        /** True after any change to the generated password, or after a copy of it. */
+        var passwordTouched by mutableStateOf(false)
+            private set
+        var copyAfterSave by mutableStateOf(true)
             private set
         var notes by mutableStateOf("")
             private set
@@ -47,7 +63,25 @@ internal class NewEntryViewModel
 
         fun updatePassword(value: String) {
             password = value.filterNot(Char::isWhitespace)
+            typedPassword = true
+            passwordTouched = true
             error = null
+        }
+
+        fun regenerate() {
+            password = generator.generate(random)
+            typedPassword = false
+            passwordTouched = true
+            error = null
+        }
+
+        fun updateGenerator(settings: GeneratorSettings) {
+            generator = settings
+            regenerate()
+        }
+
+        fun toggleCopyAfterSave() {
+            copyAfterSave = !copyAfterSave
         }
 
         fun updateNotes(value: String) {
@@ -73,7 +107,11 @@ internal class NewEntryViewModel
             }
 
         fun copyPassword() {
-            val value = password
+            passwordTouched = true
+            copySecret(password)
+        }
+
+        private fun copySecret(value: String) {
             if (value.isEmpty()) return
             viewModelScope.launch {
                 val timeout = preferences.clipboardTimeoutSeconds.first() * 1000L
@@ -90,7 +128,9 @@ internal class NewEntryViewModel
             error = null
             viewModelScope.launch {
                 try {
-                    writer.insert(path, expectedDigest, password, notes)
+                    val source = if (typedPassword) PasswordSource.Given else PasswordSource.Generated
+                    writer.insert(path, expectedDigest, password, notes, source)
+                    if (copyAfterSave) copySecret(password)
                     password = ""
                     notes = ""
                     savedPath = path.value

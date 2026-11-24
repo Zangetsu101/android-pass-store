@@ -7,6 +7,7 @@ import com.zangetsu101.pass.decryption.ciphertextDigest
 import com.zangetsu101.pass.gitsync.EncryptedEdit
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.keymanagement.gpg.GpgKeyStore
 import com.zangetsu101.pass.keymanagement.gpg.PublicKeySource
 import io.mockk.coEvery
@@ -53,15 +54,15 @@ class LoginEntryWriterTest {
             val original = byteArrayOf(1)
             val source = LoginEditSource(EditableLogin("old password"), original.ciphertextDigest())
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
-            coEvery { git.commitEdit(entry.path, any()) } coAnswers {
-                secondArg<(File, ByteArray) -> EncryptedEdit>().invoke(root, original)
+            coEvery { git.commitEdit(entry.path, PasswordSource.Given, any()) } coAnswers {
+                thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(root, original)
                 commit
             }
             coEvery { git.push() } throws IllegalStateException("read-only remote")
             coEvery { store.buildIndex() } returns listOf(entry)
             val writer = LoginEntryWriter(git, store, keyStore, backgroundScope)
 
-            val saved = writer.save(entry, source, "newpassword", "")
+            val saved = writer.save(entry, source, "newpassword", "", PasswordSource.Given)
             withTimeout(1_000) { writer.pushFailures.first() }
 
             assertEquals(commit, saved.commit)
@@ -78,15 +79,15 @@ class LoginEntryWriterTest {
             val git = mockk<GitSync>()
             val entry = PassEntry("alice.gpg", null, "alice", File("repo/alice.gpg"))
             val source = LoginEditSource(EditableLogin("old password"), byteArrayOf(1).ciphertextDigest())
-            coEvery { git.commitEdit(entry.path, any()) } coAnswers {
-                secondArg<(File, ByteArray) -> EncryptedEdit>().invoke(File("repo"), byteArrayOf(2))
+            coEvery { git.commitEdit(entry.path, PasswordSource.Given, any()) } coAnswers {
+                thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(File("repo"), byteArrayOf(2))
                 error("The writer should reject the edit before preparing ciphertext")
             }
             val appScope = CoroutineScope(coroutineContext + SupervisorJob())
             try {
                 val writer = LoginEntryWriter(git, mockk(), mockk(), appScope)
 
-                val error = runCatching { writer.save(entry, source, "newpassword", "") }.exceptionOrNull()
+                val error = runCatching { writer.save(entry, source, "newpassword", "", PasswordSource.Given) }.exceptionOrNull()
 
                 assertEquals("entry changed on disk · reopen it to edit", error?.message)
                 coVerify(exactly = 0) { git.push() }

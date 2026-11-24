@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zangetsu101.pass.generator.typedPasswordStrength
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
@@ -70,6 +71,7 @@ internal fun NewEntryScreen(
     var input by rememberSaveable { mutableStateOf(initialPath) }
     var edited by rememberSaveable { mutableStateOf(false) }
     var notesOpen by rememberSaveable { mutableStateOf(false) }
+    var customizeOpen by rememberSaveable { mutableStateOf(false) }
     var revealed by remember { mutableStateOf(true) }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var replacement by remember { mutableStateOf<EntryReplacement?>(null) }
@@ -96,7 +98,7 @@ internal fun NewEntryScreen(
     val noteLines = if (viewModel.notes.isEmpty()) 0 else viewModel.notes.lineSequence().count()
     val suggestions = remember(options, path) { options.suggestions(path) }
 
-    val changed = input != initialPath || viewModel.password.isNotEmpty() || viewModel.notes.isNotEmpty()
+    val changed = input != initialPath || viewModel.passwordTouched || viewModel.notes.isNotEmpty()
 
     fun leave(
         confirmDiscard: Boolean,
@@ -139,9 +141,15 @@ internal fun NewEntryScreen(
                     },
                 )
                 Spacer(Modifier.height(20.dp))
-                PasswordEditor(
+                PasswordCard(
                     password = viewModel.password,
-                    newEntry = true,
+                    status = if (viewModel.typedPassword) PasswordStatus.Typed else PasswordStatus.Generated,
+                    strength =
+                        if (viewModel.typedPassword) {
+                            typedPasswordStrength(viewModel.password)
+                        } else {
+                            viewModel.generator.strength()
+                        },
                     enabled = enabled,
                     revealed = revealed,
                     onToggleReveal = { revealed = !revealed },
@@ -149,8 +157,20 @@ internal fun NewEntryScreen(
                         edited = true
                         viewModel.updatePassword(it)
                     },
+                    onRegenerate = viewModel::regenerate,
                     onCopy = viewModel::copyPassword,
+                    glow = true,
                 )
+                Spacer(Modifier.height(8.dp))
+                CustomizePanel(
+                    settings = viewModel.generator,
+                    open = customizeOpen,
+                    enabled = enabled,
+                    onToggleOpen = { customizeOpen = !customizeOpen },
+                    onChange = viewModel::updateGenerator,
+                )
+                Spacer(Modifier.height(8.dp))
+                CopyAfterSaveRow(on = viewModel.copyAfterSave, enabled = enabled, onToggle = viewModel::toggleCopyAfterSave)
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border)
                 Spacer(Modifier.height(12.dp))
@@ -173,8 +193,12 @@ internal fun NewEntryScreen(
                 }
             }
             SaveFooter(
-                path = path.value,
-                flags = (if (noteLines > 0) "-m " else "") + (if (exists) "-f " else ""),
+                command =
+                    if (viewModel.typedPassword) {
+                        PassCommand.insert(path.value, multiline = noteLines > 0, force = exists)
+                    } else {
+                        PassCommand.generate(path.value, viewModel.generator, viewModel.copyAfterSave, force = exists)
+                    },
                 lineCount = noteLines,
                 enabled = canSave,
                 saving = viewModel.saving,

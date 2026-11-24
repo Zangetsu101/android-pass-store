@@ -13,6 +13,7 @@ import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.gitsync.FileCommitInfo
 import com.zangetsu101.pass.gitsync.GitSync
+import com.zangetsu101.pass.gitsync.PasswordSource
 import com.zangetsu101.pass.keymanagement.session.BiometricAuthException
 import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
@@ -136,7 +137,15 @@ class EntryDetailViewModelTest {
             val saved = fakeCredentials.copy(password = "newpassword".toCharArray(), notes = "notes")
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
             coEvery {
-                mockWriter.save(fakeEntry, match { it.ciphertextDigest.contentEquals(rawEntry.ciphertextDigest) }, "newpassword", "notes")
+                mockWriter.save(
+                    fakeEntry,
+                    match {
+                        it.ciphertextDigest.contentEquals(rawEntry.ciphertextDigest)
+                    },
+                    "newpassword",
+                    "notes",
+                    PasswordSource.Given,
+                )
             } returns
                 SavedLogin(DecryptedEntry(saved, RawEntry("newpassword\nnotes", byteArrayOf(4))), commit)
             val vm = createViewModel()
@@ -164,6 +173,39 @@ class EntryDetailViewModelTest {
         }
 
     @Test
+    fun `a regenerate in the editor saves with the generated source until the user types`() =
+        runTest {
+            val rawEntry = RawEntry("old password\nnotes", byteArrayOf(1))
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials, rawEntry)
+            val saved = SavedLogin(DecryptedEntry(fakeCredentials, rawEntry), FileCommitInfo("abc1234", Instant.EPOCH))
+            coEvery { mockWriter.save(fakeEntry, any(), any(), "notes", any()) } returns saved
+            val vm = createViewModel()
+            vm.authenticate(mockActivity)
+            runCurrent()
+            vm.startEditing()
+
+            fun draft() = (vm.state.value.mode as EntryDetailMode.EditEntry).draft
+
+            vm.updateEditorGenerator(draft().generator.withLength(32))
+            val generated = draft().password
+            assertEquals(32, generated.length)
+            assertTrue(draft().generated)
+            assertEquals(PasswordSource.Generated, draft().passwordSource)
+
+            vm.updateEditorPassword(generated + "x")
+            assertFalse(draft().generated)
+            assertEquals(PasswordSource.Given, draft().passwordSource)
+
+            vm.regenerateEditorPassword()
+            assertEquals(32, draft().password.length)
+            val regenerated = draft().password
+            vm.saveEditor()
+            runCurrent()
+
+            coVerify { mockWriter.save(fakeEntry, any(), regenerated, "notes", PasswordSource.Generated) }
+        }
+
+    @Test
     fun `the editor requires a password when the original login has one`() =
         runTest {
             val rawEntry = RawEntry("password", byteArrayOf())
@@ -183,7 +225,7 @@ class EntryDetailViewModelTest {
                 "password cannot be empty",
                 (vm.state.value.mode as EntryDetailMode.EditEntry).draft.error,
             )
-            coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any()) }
+            coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any(), any()) }
             vm.discardEditor()
             assertEquals(EntryDetailMode.ViewEntry, vm.state.value.mode)
         }
@@ -197,7 +239,7 @@ class EntryDetailViewModelTest {
             val original = fakeCredentials.copy(password = charArrayOf(), notes = "")
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(original, rawEntry)
             val saved = original.copy(notes = "new notes")
-            coEvery { mockWriter.save(fakeEntry, any(), "", "new notes") } returns
+            coEvery { mockWriter.save(fakeEntry, any(), "", "new notes", PasswordSource.Given) } returns
                 SavedLogin(
                     DecryptedEntry(saved, RawEntry("otpauth://invalid\nnew notes", byteArrayOf(4))),
                     FileCommitInfo("abc1234", Instant.EPOCH),
