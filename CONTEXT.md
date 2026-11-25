@@ -21,6 +21,8 @@ the original line endings and final newline.
 
 **Username Line**: The first Note Field with the key `username`, `login` or `user`, in that order of keys.
 
+**Secret Note Field**: A Note Field whose key names a secret: `pin`, `cvv`, `secret`, `answer`, `recovery`, or a key that contains `password`. The key ignores case. Entry detail blurs its value until the user taps it.
+
 **Given Password**: A password that the user typed or changed by hand. A commit for it uses the `pass insert` or `pass edit` message.
 
 ## OTP Entries

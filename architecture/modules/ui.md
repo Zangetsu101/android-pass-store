@@ -40,7 +40,7 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - Each **Note Field** is a row in a `details` card, with its own copy button. The other lines stay in the `notes` block.
 - A row copy uses the password clipboard rules. The clip is sensitive, and the clipboard clears after the configured timeout.
 - Entry detail marks only the last copied secret as `copied`.
-- The values of secret Note Fields (`pin`, `cvv`, `secret`, `answer`, `recovery`, and each key that contains `password`) stay blurred until the user taps them. This display rule is in the `browser` package.
+- The values of **Secret Note Fields** stay blurred until the user taps them. `NoteField.secret` in the `decryption` package holds the rule, and entry detail only decides how to show it.
 - Copy password/card number to clipboard with configured auto-clear timeout.
 - Shows git metadata where available.
 

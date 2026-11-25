@@ -69,6 +69,22 @@ class EntryNotesTest {
     }
 
     @Test
+    fun `secret keys are pin cvv secret answer recovery and each key with password`() {
+        val secret = listOf("pin", "cvv", "secret", "answer", "recovery", "password", "wifi-password", "PasswordHint", "PIN")
+        val plain = listOf("username", "url", "email", "pins", "pass", "recovery-email", "cardholder")
+
+        assertEquals(secret, secret.filter { NoteField(it, "x").secret })
+        assertEquals(emptyList<String>(), plain.filter { NoteField(it, "x").secret })
+    }
+
+    @Test
+    fun `the line count of the notes skips blank lines`() {
+        assertEquals(0, noteLineCount(""))
+        assertEquals(0, noteLineCount("\n  \n"))
+        assertEquals(2, noteLineCount("username: alice\n\nnote\n"))
+    }
+
+    @Test
     fun `empty notes have no fields and no lines`() {
         assertEquals(EntryNotes(emptyList(), emptyList()), parseEntryNotes(""))
     }

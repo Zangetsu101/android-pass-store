@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zangetsu101.pass.decryption.noteLineCount
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark

@@ -63,6 +63,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.zangetsu101.pass.decryption.noteLineCount
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.ui.components.PassScaffold

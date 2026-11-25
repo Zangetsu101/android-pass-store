@@ -6,8 +6,14 @@ data class NoteField(
     val key: String,
     val value: String,
 ) {
+    /** A Secret Note Field has a key that names a secret, such as `pin` or `wifi-password`. */
+    val secret: Boolean
+        get() = key.lowercase().let { it in secretKeys || "password" in it }
+
     override fun toString(): String = "NoteField($key)"
 }
+
+private val secretKeys = setOf("pin", "cvv", "secret", "answer", "recovery")
 
 /** The notes of an entry, split into its Note Fields and its other lines. */
 data class EntryNotes(
@@ -39,6 +45,9 @@ fun parseEntryNotes(notes: String): EntryNotes {
     }
     return EntryNotes(fields, lines)
 }
+
+/** The number of notes lines that are not blank. */
+fun noteLineCount(notes: String): Int = notes.lines().count { it.isNotBlank() }
 
 /** The key of [line], also when the line has no value yet. A Note Field uses the same rule for its key. */
 fun noteKey(line: String): String? = keyPattern.find(line)?.groupValues?.get(1)
