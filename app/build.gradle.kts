@@ -117,6 +117,9 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(composeBom)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 
     // Navigation 3
     implementation(libs.androidx.navigation3.runtime)
