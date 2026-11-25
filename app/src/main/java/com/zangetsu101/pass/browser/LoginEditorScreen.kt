@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -78,6 +79,7 @@ internal fun LoginEditorScreen(
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
+    val type = editor.type
     val noteLines = noteLineCount(editor.notes)
     var revealed by remember { mutableStateOf(false) }
     var customizeOpen by rememberSaveable { mutableStateOf(false) }
@@ -106,36 +108,40 @@ internal fun LoginEditorScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 12.dp),
             ) {
-                PasswordCard(
-                    password = editor.password,
-                    status =
-                        when {
-                            editor.passwordDraft.generated -> PasswordStatus.Generated
-                            editor.passwordChanged -> PasswordStatus.Typed
-                            else -> null
+                if (type == EntryType.Card) {
+                    CardNumberField(editor.password, enabled = !editor.saving, onChange = viewModel::updateEditorCardNumber)
+                } else {
+                    PasswordCard(
+                        password = editor.password,
+                        status =
+                            when {
+                                editor.passwordDraft.generated -> PasswordStatus.Generated
+                                editor.passwordChanged -> PasswordStatus.Typed
+                                else -> null
+                            },
+                        strength = editor.passwordDraft.strength,
+                        enabled = !editor.saving,
+                        revealed = revealed,
+                        onToggleReveal = { revealed = !revealed },
+                        onPasswordChange = viewModel::updateEditorPassword,
+                        onRegenerate = {
+                            revealed = true
+                            viewModel.regenerateEditorPassword()
                         },
-                    strength = editor.passwordDraft.strength,
-                    enabled = !editor.saving,
-                    revealed = revealed,
-                    onToggleReveal = { revealed = !revealed },
-                    onPasswordChange = viewModel::updateEditorPassword,
-                    onRegenerate = {
-                        revealed = true
-                        viewModel.regenerateEditorPassword()
-                    },
-                    onCopy = viewModel::copyEditorPassword,
-                )
-                Spacer(Modifier.height(8.dp))
-                CustomizePanel(
-                    settings = editor.passwordDraft.settings,
-                    open = customizeOpen,
-                    enabled = !editor.saving,
-                    onToggleOpen = { customizeOpen = !customizeOpen },
-                    onChange = {
-                        revealed = true
-                        viewModel.updateEditorGenerator(it)
-                    },
-                )
+                        onCopy = viewModel::copyEditorPassword,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    CustomizePanel(
+                        settings = editor.passwordDraft.settings,
+                        open = customizeOpen,
+                        enabled = !editor.saving,
+                        onToggleOpen = { customizeOpen = !customizeOpen },
+                        onChange = {
+                            revealed = true
+                            viewModel.updateEditorGenerator(it)
+                        },
+                    )
+                }
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 Spacer(Modifier.height(12.dp))
@@ -143,6 +149,7 @@ internal fun LoginEditorScreen(
                     path = path,
                     notes = editor.notes,
                     lineCount = noteLines,
+                    type = type,
                     enabled = !editor.saving,
                     onNotesChange = viewModel::updateEditorNotes,
                 )
@@ -158,7 +165,7 @@ internal fun LoginEditorScreen(
                     } else {
                         PassCommand.insert(path, multiline = true, force = true)
                     },
-                lineCount = noteLines,
+                lineSummary = saveLineSummary(noteLines, type),
                 enabled = editor.changed && !editor.saving,
                 saving = editor.saving,
                 error = editor.error,
@@ -196,6 +203,7 @@ internal fun EditorTopBar(
     path: String? = null,
     enabled: Boolean,
     onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier =
@@ -217,6 +225,7 @@ internal fun EditorTopBar(
             Text(title, style = PassType.Title)
             if (path != null) Text(path, style = PassType.Caption)
         }
+        actions()
     }
 }
 
@@ -225,11 +234,12 @@ internal fun NotesEditor(
     path: String,
     notes: String,
     lineCount: Int,
+    type: EntryType,
     enabled: Boolean,
     onNotesChange: (String) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.Bottom) {
-        Text("notes", style = PassType.Label)
+        Text(if (type == EntryType.Card) "card details" else "notes", style = PassType.Label)
         if (lineCount > 0) {
             Text(
                 " · $lineCount line${if (lineCount > 1) "s" else ""}",
@@ -238,22 +248,24 @@ internal fun NotesEditor(
         }
     }
     Spacer(Modifier.height(6.dp))
-    NotesField(path, notes, enabled, onNotesChange)
+    NotesField(path, notes, enabled, type, onNotesChange)
 }
 
-/** The notes of a login, with chips that add common `key: ` lines for the entry at [path]. */
+/** The notes of an entry, with chips that add common `key: ` lines for the entry at [path]. */
 @Composable
 internal fun NotesField(
     path: String,
     notes: String,
     enabled: Boolean,
+    type: EntryType,
     onNotesChange: (String) -> Unit,
 ) {
+    val card = type == EntryType.Card
     var typed by remember { mutableStateOf(TextFieldValue(notes)) }
     val value = typed.syncedWith(notes)
     val focusRequester = remember { FocusRequester() }
     NoteChipRow(
-        chips = noteChips(path, notes),
+        chips = noteChips(path, notes, type),
         enabled = enabled,
         onAdd = { key ->
             onNotesChange(addNoteKey(notes, key))
@@ -268,7 +280,7 @@ internal fun NotesField(
                 .background(PassColorsDark.Surface, PassShapes.small)
                 .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
-        // Line 1 of the file is the password above, so the notes editor shows it as locked.
+        // Line 1 of the file is the password or the card number above, so the notes editor shows it as locked.
         Row(
             modifier =
                 Modifier
@@ -282,7 +294,7 @@ internal fun NotesField(
                 style = PassType.Caption.copy(letterSpacing = 0.1.em),
                 modifier = Modifier.weight(1f),
             )
-            Text("line 1 · password", style = PassType.Caption)
+            Text("line 1 · ${type.line1}", style = PassType.Caption)
         }
         BasicTextField(
             value = value,
@@ -306,7 +318,7 @@ internal fun NotesField(
                 Box {
                     if (notes.isEmpty()) {
                         Text(
-                            "tap a chip, or write anything\nrecovery codes, security answers…",
+                            "tap a chip, or write anything" + if (card) "" else "\nrecovery codes, security answers…",
                             style = PassType.Body.copy(color = PassColorsDark.TextFaint),
                         )
                     }
@@ -320,7 +332,7 @@ internal fun NotesField(
 }
 
 /** Returns this value when its text is [text]. When a chip changed the text, returns [text] with the cursor at the end. */
-private fun TextFieldValue.syncedWith(text: String): TextFieldValue {
+internal fun TextFieldValue.syncedWith(text: String): TextFieldValue {
     if (this.text == text) return this
     return TextFieldValue(text, TextRange(text.length))
 }
@@ -375,7 +387,7 @@ private fun OtpKeptRow() {
 @Composable
 internal fun SaveFooter(
     command: PassCommand,
-    lineCount: Int,
+    lineSummary: String?,
     enabled: Boolean,
     saving: Boolean,
     error: String?,
@@ -414,9 +426,7 @@ internal fun SaveFooter(
                     style = PassType.Caption.copy(fontWeight = FontWeight.SemiBold),
                 )
                 val detail = PassType.Caption.copy(color = if (enabled) PassColorsDark.TextDim else PassColorsDark.TextFaint)
-                if (lineCount > 0) {
-                    Text("+ $lineCount line${if (lineCount > 1) "s" else ""} of notes", style = detail)
-                }
+                lineSummary?.let { Text(it, style = detail) }
                 command.charset?.let { Text("charset  $it", style = detail) }
             }
             Spacer(Modifier.width(8.dp))
@@ -428,6 +438,28 @@ internal fun SaveFooter(
                         color = if (enabled) PassColorsDark.Accent else PassColorsDark.TextFaint,
                     ),
             )
+        }
+    }
+}
+
+/** The line below the command in the save button. A card counts line 1 too, because a card always has its number. */
+internal fun saveLineSummary(
+    noteLines: Int,
+    type: EntryType,
+): String? {
+    fun plural(count: Int) = if (count == 1) "" else "s"
+    return when {
+        type == EntryType.Card -> {
+            val details = if (noteLines > 0) " + $noteLines detail${plural(noteLines)}" else ""
+            "${noteLines + 1} line${plural(noteLines + 1)} · number$details"
+        }
+
+        noteLines > 0 -> {
+            "+ $noteLines line${plural(noteLines)} of notes"
+        }
+
+        else -> {
+            null
         }
     }
 }

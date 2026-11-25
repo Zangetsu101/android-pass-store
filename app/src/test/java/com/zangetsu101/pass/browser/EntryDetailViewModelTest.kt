@@ -41,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -290,9 +291,67 @@ class EntryDetailViewModelTest {
         unmockkObject(ClipboardClearReceiver.Companion)
     }
 
-    private fun createViewModel() =
+    private val cardEntry = PassEntry("cards/visa.gpg", null, "visa", File("cards/visa.gpg"), isCard = true)
+
+    private fun TestScope.editCard(plaintext: String): EntryDetailViewModel {
+        val rawEntry = RawEntry(plaintext, byteArrayOf(1))
+        val decrypted = DecryptedEntry(fakeCredentials, rawEntry)
+        coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns decrypted
+        coEvery { mockWriter.save(any(), any(), any(), any(), any()) } returns
+            SavedLogin(decrypted, FileCommitInfo("abc1234", Instant.EPOCH))
+        val vm = createViewModel(cardEntry)
+        vm.authenticate(mockActivity)
+        runCurrent()
+        vm.startEditing()
+        return vm
+    }
+
+    private val EntryDetailViewModel.draft get() = (state.value.mode as EntryDetailMode.EditEntry).draft
+
+    @Test
+    fun `an unchanged card number is written back exactly as it was`() =
+        runTest {
+            val vm = editCard("4111 1111 1111 1111\ncvv: 123")
+            assertEquals(EntryType.Card, vm.draft.type)
+            assertEquals("4111111111111111", vm.draft.password)
+
+            vm.updateEditorCardNumber("4111-1111-1111-1111")
+            assertFalse(vm.draft.changed)
+            vm.updateEditorNotes("cvv: 456")
+            vm.saveEditor()
+            runCurrent()
+
+            coVerify { mockWriter.save(cardEntry, any(), "4111 1111 1111 1111", "cvv: 456", PasswordSource.Given) }
+        }
+
+    @Test
+    fun `a changed card number is saved as digits only`() =
+        runTest {
+            val vm = editCard("4111 1111 1111 1111\ncvv: 123")
+
+            vm.updateEditorCardNumber("4242 4242 4242 4242")
+            assertTrue(vm.draft.changed)
+            vm.saveEditor()
+            runCurrent()
+
+            coVerify { mockWriter.save(cardEntry, any(), "4242424242424242", "cvv: 123", PasswordSource.Given) }
+        }
+
+    @Test
+    fun `the card editor requires a card number`() =
+        runTest {
+            val vm = editCard("4111111111111111")
+
+            vm.updateEditorCardNumber("")
+            vm.saveEditor()
+
+            assertEquals("card number cannot be empty", vm.draft.error)
+            coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any(), any()) }
+        }
+
+    private fun createViewModel(entry: PassEntry = fakeEntry) =
         EntryDetailViewModel(
-            entry = fakeEntry,
+            entry = entry,
             context = mockContext,
             decryption = mockDecryption,
             sessionOperations = mockSessionOperations,

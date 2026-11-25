@@ -21,6 +21,12 @@ class NoteChipsTest {
     }
 
     @Test
+    fun `a card gets the cardholder cvv expiry and pin chips`() {
+        assertEquals(listOf("cardholder", "cvv", "expiry", "pin"), noteChips("cards/visa", "", EntryType.Card).map { it.key })
+        assertEquals(listOf("cardholder", "cvv", "expiry", "pin"), noteChips("visa.com", "", EntryType.Card).map { it.key })
+    }
+
+    @Test
     fun `a chip is used when a line starts with its key`() {
         val chips = noteChips("dev/github.com/alice", "Username: alice\nemail:\nnote about url: here")
 

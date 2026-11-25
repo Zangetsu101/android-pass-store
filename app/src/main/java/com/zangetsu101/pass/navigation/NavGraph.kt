@@ -181,7 +181,10 @@ fun PassAndroidNavHost(
                 }
 
                 entry<NewEntry> {
-                    val vm: NewEntryViewModel = hiltViewModel()
+                    val vm =
+                        hiltViewModel<NewEntryViewModel, NewEntryViewModel.Factory>(
+                            creationCallback = { factory -> factory.create(it.initialPath) },
+                        )
                     val navVm: NavViewModel = hiltViewModel()
                     NewEntryScreen(
                         initialPath = it.initialPath,

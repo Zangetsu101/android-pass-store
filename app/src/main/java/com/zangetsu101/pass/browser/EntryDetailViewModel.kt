@@ -116,10 +116,16 @@ data class LoginEditorState internal constructor(
     val notes: String,
     val saving: Boolean = false,
     val error: String? = null,
+    internal val type: EntryType = EntryType.Login,
 ) {
     val password: String get() = passwordDraft.password
-    val passwordChanged: Boolean get() = password != source.login.password
+    private val card get() = type == EntryType.Card
+    private val originalLine1 get() = source.login.password
+    val passwordChanged: Boolean get() = password != if (card) cardNumberDigits(originalLine1) else originalLine1
     val notesChanged: Boolean get() = notes != source.login.notes
+
+    /** The line 1 that a save writes. An unchanged card number keeps its original form, with any spaces. */
+    internal val line1: String get() = if (card && !passwordChanged) originalLine1 else password
 
     /** `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`. */
     val passwordSource: PasswordSource
@@ -252,12 +258,18 @@ class EntryDetailViewModel
             val original = rawEntry ?: return
             val login = EditableLogin(original.plaintext)
             val source = LoginEditSource(login, original.ciphertextDigest)
-            val draft = LoginEditorState(source, PasswordDraft(login.password), login.notes)
+            val type = if (current.entry.isCard) EntryType.Card else EntryType.Login
+            val line1 = if (type == EntryType.Card) cardNumberDigits(login.password) else login.password
+            val draft = LoginEditorState(source, PasswordDraft(line1), login.notes, type = type)
             _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
         }
 
         fun updateEditorPassword(password: String) {
             updateEditor { it.copy(passwordDraft = it.passwordDraft.type(password), error = null) }
+        }
+
+        fun updateEditorCardNumber(number: String) {
+            updateEditor { it.copy(passwordDraft = it.passwordDraft.type(cardNumberDigits(number)), error = null) }
         }
 
         fun regenerateEditorPassword() {
@@ -298,18 +310,18 @@ class EntryDetailViewModel
         fun saveEditor() {
             val editor = (_state.value.mode as? EntryDetailMode.EditEntry)?.draft ?: return
             if (editor.saving || !editor.changed) return
-            val password = editor.password
-            if (password.isEmpty() &&
+            val line1 = editor.line1
+            if (line1.isEmpty() &&
                 editor.source.login.password
                     .isNotEmpty()
             ) {
-                updateEditor { it.copy(error = "password cannot be empty") }
+                updateEditor { it.copy(error = "${editor.type.line1} cannot be empty") }
                 return
             }
             updateEditor { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val saved = loginWriter.save(entry, editor.source, password, editor.notes, editor.passwordSource)
+                    val saved = loginWriter.save(entry, editor.source, line1, editor.notes, editor.passwordSource)
                     showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled

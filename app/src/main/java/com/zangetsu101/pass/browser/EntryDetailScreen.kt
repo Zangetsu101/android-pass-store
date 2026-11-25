@@ -144,7 +144,7 @@ fun EntryDetailScreen(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 EntryTopBar(
-                    domain = state.entry.domain,
+                    label = headerLabel(state.entry),
                     name = unlockState.headerName(state.entry),
                     isCard = state.entry.isCard,
                     onBack = leaveEntry,
@@ -161,9 +161,9 @@ fun EntryDetailScreen(
                     when (val unlock = unlockState) {
                         is UnlockState.Idle,
                         is UnlockState.Decrypting,
-                        -> PasswordSkeleton()
+                        -> PasswordSkeleton(lineLabel(state.entry))
 
-                        is UnlockState.Decrypted -> DecryptedContent(unlock, state.clipboardTimeoutSeconds, viewModel)
+                        is UnlockState.Decrypted -> DecryptedContent(unlock, state.entry, state.clipboardTimeoutSeconds, viewModel)
 
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
@@ -210,9 +210,15 @@ fun EntryDetailScreen(
 
 // ── Sub-composables ──────────────────────────────────────────────────────────
 
+/** The label of line 1: a Card Entry keeps its card number there. */
+private fun lineLabel(entry: PassEntry) = (if (entry.isCard) EntryType.Card else EntryType.Login).line1
+
+/** The line above the name. A card shows its path, because the domain of a card is only a display label. */
+private fun headerLabel(entry: PassEntry) = if (entry.isCard) entry.path.removeSuffix(".gpg") else entry.domain
+
 @Composable
 private fun EntryTopBar(
-    domain: String?,
+    label: String?,
     name: String,
     isCard: Boolean,
     onBack: () -> Unit,
@@ -234,7 +240,7 @@ private fun EntryTopBar(
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            domain?.let {
+            label?.let {
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
             Text(name, style = PassType.Title)
@@ -246,11 +252,19 @@ private fun EntryTopBar(
 @Composable
 private fun DecryptedContent(
     unlock: UnlockState.Decrypted,
+    entry: PassEntry,
     clipboardTimeoutSeconds: Int,
     viewModel: EntryDetailViewModel,
 ) {
     if (unlock.credentials.password.isNotEmpty()) {
-        PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
+        val line1 = String(unlock.credentials.password)
+        PasswordCard(
+            label = lineLabel(entry),
+            text = if (entry.isCard && isCardDigits(line1)) groupCardNumber(line1) else line1,
+            unlock = unlock,
+            onCopy = viewModel::copyPassword,
+            onToggleReveal = viewModel::toggleReveal,
+        )
         Spacer(Modifier.height(6.dp))
         Text(
             "decrypted in-memory" + if (unlock.copied == Copied.Password) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
@@ -440,11 +454,13 @@ private fun OtpCard(
 
 @Composable
 private fun PasswordCard(
+    label: String,
+    text: String,
     unlock: UnlockState.Decrypted,
     onCopy: () -> Unit,
     onToggleReveal: () -> Unit,
 ) {
-    Text("password", style = PassType.Label)
+    Text(label, style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
         modifier =
@@ -455,7 +471,7 @@ private fun PasswordCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
-            text = String(unlock.credentials.password),
+            text = text,
             style = PassType.Body.copy(color = PassColorsDark.Accent, letterSpacing = 0.1.em),
             modifier = if (!unlock.passwordRevealed) Modifier.blur(5.dp) else Modifier,
         )
@@ -585,9 +601,9 @@ private fun MetaRow(
 }
 
 @Composable
-private fun PasswordSkeleton() {
+private fun PasswordSkeleton(label: String) {
     val bodyHeight = with(LocalDensity.current) { PassType.Body.fontSize.toDp() }
-    Text("password", style = PassType.Label)
+    Text(label, style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
         modifier =

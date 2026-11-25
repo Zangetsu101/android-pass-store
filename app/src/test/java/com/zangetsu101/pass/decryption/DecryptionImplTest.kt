@@ -92,6 +92,17 @@ class DecryptionImplTest {
         }
 
     @Test
+    fun `a Card Entry keeps its original text so that entry detail can edit it`() =
+        runTest {
+            coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey
+            val entry = makeEntry("visa.gpg", "4111 1111 1111 1111\ncvv: 123\n").copy(isCard = true)
+
+            val decrypted = decryption.decryptForEntryDetail(entry, mockk())
+
+            assertEquals("4111 1111 1111 1111\ncvv: 123\n", decrypted.rawEntry?.plaintext)
+        }
+
+    @Test
     fun `decrypt returns password from line 1 of single-line file`() =
         runTest {
             coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey

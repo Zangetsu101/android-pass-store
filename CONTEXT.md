@@ -141,6 +141,8 @@ Relationships:
 
 A **Card Entry** is a pass entry whose path contains a directory segment named exactly the lowercase `cards` or `credit-cards`; that segment marks the root of the card subtree. It is detected at index time from the file path — no decryption required.
 
+**Card Folder**: A folder named exactly `cards` or `credit-cards`, or any folder below it. An entry in a Card Folder is a Card Entry. The new-entry form switches to `card` when the user types a path that enters a Card Folder.
+
 **File format:**
 
 ```
@@ -154,5 +156,7 @@ cardholder: John Smith
 - `cvv`: security code
 - `expiry`: expiry date as `MM/YY`
 - `cardholder`: name as it appears on the card
+
+The app saves a new or changed card number as digits only, with no spaces. An edit that keeps the number writes it back as it was.
 
 Card entries are filled as a unit — selecting one fills all card fields in the target form simultaneously.
