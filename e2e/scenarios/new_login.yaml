@@ -47,12 +47,11 @@ appId: com.zangetsu101.pass
 - takeScreenshot: "26-notes-and-enabled-save"
 - tapOn: "save entry"
 - extendedWaitUntil:
-    visible: "added new/example\\.com/new-login-26"
+    visible:
+      checked: true
+      containsDescendants:
+        - text: "new-login-26"
     timeout: 30000
-- assertVisible:
-    checked: true
-    containsDescendants:
-      - text: "new-login-26"
 - assertNotVisible: "new entry"
 - takeScreenshot: "26-home-tree-selected"
 - extendedWaitUntil:

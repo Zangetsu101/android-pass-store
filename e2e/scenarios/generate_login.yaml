@@ -26,11 +26,10 @@ appId: com.zangetsu101.pass
 - takeScreenshot: "27-customize-32"
 - tapOn: "save entry"
 - extendedWaitUntil:
-    visible: "added new/example\\.com/generated-27"
+    visible:
+      checked: true
+      containsDescendants:
+        - text: "generated-27"
     timeout: 30000
-- assertVisible:
-    checked: true
-    containsDescendants:
-      - text: "generated-27"
 - assertNotVisible: "new entry"
 - takeScreenshot: "27-home-tree-selected"
