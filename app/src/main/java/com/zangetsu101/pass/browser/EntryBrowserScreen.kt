@@ -341,7 +341,7 @@ private fun FlatView(
 }
 
 @Composable
-private fun TreeView(
+internal fun TreeView(
     entries: List<PassEntry>,
     selectedPath: String?,
     collapsedDirs: Set<String>,
@@ -349,7 +349,9 @@ private fun TreeView(
     onEntryClick: (PassEntry) -> Unit,
     enabled: Boolean = true,
 ) {
-    val grouped = remember(entries) { entries.groupBy { it.path.substringBeforeLast('/', "") } }
+    // A list, not a map: Map.equals ignores the order, so a search that only sorts the entries
+    // would keep the old rows and the old scroll position.
+    val grouped = remember(entries) { entries.groupBy { it.path.substringBeforeLast('/', "") }.toList() }
     val rows =
         remember(grouped, collapsedDirs) {
             buildList {
