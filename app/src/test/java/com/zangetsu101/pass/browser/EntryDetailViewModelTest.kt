@@ -83,6 +83,21 @@ class EntryDetailViewModelTest {
             username = "user@example.com",
         )
 
+    private fun givenOtpEntry() {
+        val otp =
+            com.zangetsu101.pass.otp
+                .parseOtp("otpauth://totp/test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
+        coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials.copy(otp = otp))
+    }
+
+    @Test
+    fun `the header name is the file name before decryption and the Username Line after it`() {
+        val credentials = fakeCredentials.copy(username = "alice")
+
+        assertEquals("user@example.com", UnlockState.Idle.headerName(fakeEntry))
+        assertEquals("alice", UnlockState.Decrypted(credentials).headerName(fakeEntry))
+    }
+
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -101,10 +116,7 @@ class EntryDetailViewModelTest {
     @Test
     fun `OTP copy is sensitive uses settings and resets hint without extending lock`() =
         runTest {
-            val otp =
-                com.zangetsu101.pass.otp
-                    .parseOtp("otpauth://totp/test?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
-            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials.copy(otp = otp))
+            givenOtpEntry()
             every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(12)
             val clipboard = mockk<ClipboardManager>(relaxed = true)
             every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboard
@@ -115,10 +127,10 @@ class EntryDetailViewModelTest {
             verify { ClipData.newPlainText("otp", match { it.toString().matches(Regex("[0-9]{6}")) }) }
             verify { clipboard.setPrimaryClip(any()) }
             verify { ClipboardClearReceiver.schedule(mockContext, 12000L) }
-            assertTrue((vm.state.value.unlockState as UnlockState.Decrypted).otpCopied)
+            assertEquals(Copied.OtpCode, (vm.state.value.unlockState as UnlockState.Decrypted).copied)
             advanceTimeBy(1501)
             runCurrent()
-            assertFalse((vm.state.value.unlockState as UnlockState.Decrypted).otpCopied)
+            assertEquals(null, (vm.state.value.unlockState as UnlockState.Decrypted).copied)
             advanceTimeBy(58500)
             runCurrent()
             assertTrue(vm.state.value.unlockState is UnlockState.Idle)
@@ -657,7 +669,7 @@ class EntryDetailViewModelTest {
 
             viewModel.copyPassword()
 
-            assertTrue((viewModel.state.value.unlockState as UnlockState.Decrypted).clipboardCopied)
+            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
 
             advanceTimeBy(delayTimeMillis = timeoutSeconds * 1000L + 1)
             runCurrent()
@@ -665,5 +677,85 @@ class EntryDetailViewModelTest {
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
             verify(exactly = 1) { ClipboardClearReceiver.schedule(mockContext, 90_000L) }
             verify(exactly = 1) { ClipboardClearReceiver.cancel(mockContext) }
+        }
+
+    @Test
+    fun `a field copy is sensitive and takes the copied mark`() =
+        runTest(testDispatcher) {
+            every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(12)
+            val clipboard = mockk<ClipboardManager>(relaxed = true)
+            every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns clipboard
+            val credentials = fakeCredentials.copy(notes = "note\nusername: alice\npin: 4821")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(credentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+            viewModel.copyPassword()
+
+            viewModel.copyField(1)
+
+            verify { ClipData.newPlainText("pin", "4821") }
+            verify(exactly = 2) { clipboard.setPrimaryClip(any()) }
+            verify { ClipboardClearReceiver.schedule(mockContext, 12_000L) }
+            assertEquals(Copied.Field(1), (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+
+            viewModel.copyPassword()
+            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+
+            viewModel.copyField(0)
+            advanceTimeBy(12_001)
+            runCurrent()
+            assertEquals(null, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+        }
+
+    @Test
+    fun `the end of the OTP hint keeps a later copied mark`() =
+        runTest(testDispatcher) {
+            givenOtpEntry()
+            every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns mockk<ClipboardManager>(relaxed = true)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+
+            viewModel.copyOtp()
+            viewModel.copyPassword()
+            advanceTimeBy(1501)
+            runCurrent()
+
+            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+        }
+
+    @Test
+    fun `a tap on a secret field shows its value and a second tap blurs it again`() =
+        runTest(testDispatcher) {
+            val credentials = fakeCredentials.copy(notes = "username: alice\npin: 4821\ncvv: 123")
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(credentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+
+            viewModel.toggleFieldReveal(1)
+            viewModel.toggleFieldReveal(2)
+            assertEquals(setOf(1, 2), (viewModel.state.value.unlockState as UnlockState.Decrypted).revealedFields)
+
+            viewModel.toggleFieldReveal(1)
+            assertEquals(setOf(2), (viewModel.state.value.unlockState as UnlockState.Decrypted).revealedFields)
+        }
+
+    @Test
+    fun `the decrypted state splits the notes into fields and lines`() =
+        runTest(testDispatcher) {
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
+            val viewModel = createViewModel()
+            runCurrent()
+            viewModel.authenticate(mockActivity)
+            runCurrent()
+
+            val notes = (viewModel.state.value.unlockState as UnlockState.Decrypted).notes
+            assertEquals(listOf("cvv"), notes.fields.map { it.key })
+            assertEquals(listOf("private notes"), notes.lines)
         }
 }

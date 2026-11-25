@@ -33,13 +33,22 @@ data class Credentials(
     }
 }
 
-/** Keep the original first-line password position; never promote a note into a password. */
+/**
+ * Keep the original first-line password position; never promote a note into a password.
+ * A username line in the notes wins over [fileUsername], which comes from the entry path.
+ */
 internal fun parseCredentials(
     plaintext: String,
-    username: String,
+    fileUsername: String,
 ): Credentials {
     val lines = plaintext.lines()
     val otpLine = lines.firstOrNull(::isOtpLine)
+    val notes =
+        lines
+            .drop(1)
+            .filterNot(::isOtpLine)
+            .joinToString("\n")
+            .trimEnd()
     return Credentials(
         password =
             lines
@@ -47,13 +56,8 @@ internal fun parseCredentials(
                 ?.takeUnless(::isOtpLine)
                 .orEmpty()
                 .toCharArray(),
-        notes =
-            lines
-                .drop(1)
-                .filterNot(::isOtpLine)
-                .joinToString("\n")
-                .trimEnd(),
-        username = username,
+        notes = notes,
+        username = parseEntryNotes(notes).username ?: fileUsername,
         otp = otpLine?.let(::parseOtp),
     )
 }

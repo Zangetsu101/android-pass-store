@@ -74,6 +74,7 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 ./gradlew e2e -Pflow=edit_login
 ./gradlew e2e -Pflow=new_login
 ./gradlew e2e -Pflow=generate_login
+./gradlew e2e -Pflow=note_fields
 
 # Build, install, and push fixture keys only
 ./gradlew e2eInstall
@@ -109,13 +110,14 @@ can override its location. Set `ANDROID_SERIAL` when several devices are connect
 | `edit_login` | Edit a decrypted login, verify the saved value, and capture synced, unpushed, and sync recovery states |
 | `new_login` | Add a login in a new folder and verify that Home selects it |
 | `generate_login` | Open the form with a generated password, choose length 32, save, and verify that Home selects the entry |
+| `note_fields` | Add `username:` and `pin:` lines with the chips, then open the entry, check its `details` rows and the blurred `pin`, and copy the username |
 
 Every scenario starts with fresh onboarding; suite order does not matter. Add future
 scenarios to `scenarios/` and call `shared/setup_store.yaml` with `KEY_FILE` and
 `USE_GPG_AUTH`. Tests must not rely on another scenario's session or navigation state.
 
 Both SSH paths work in debug builds: the device SSH key uses a fixed seed, and the
-GPG auth key comes from the public fixture. The `edit_login`, `new_login` and `generate_login` scenarios must use `test-key-auth.asc` with `USE_GPG_AUTH`
+GPG auth key comes from the public fixture. The `edit_login`, `new_login`, `generate_login` and `note_fields` scenarios must use `test-key-auth.asc` with `USE_GPG_AUTH`
 enabled. Its SSH auth subkey is a read-only deploy key for the test store, so
 the push fails and the commit stays local. Using `test-key.asc` selects
 `pass-android-e2e-ed25519`, which has write access and would change the shared

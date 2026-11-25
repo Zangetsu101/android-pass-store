@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zangetsu101.pass.decryption.noteLineCount
 import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
@@ -94,7 +95,7 @@ internal fun NewEntryScreen(
     val error = path.error?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
     val canSave = enabled && check != null && error == null && viewModel.password.isNotEmpty()
-    val noteLines = if (viewModel.notes.isEmpty()) 0 else viewModel.notes.lineSequence().count()
+    val noteLines = noteLineCount(viewModel.notes)
     val suggestions = remember(options, path) { options.suggestions(path) }
 
     val changed = input != initialPath || viewModel.passwordChanged || viewModel.notes.isNotEmpty()
@@ -177,6 +178,7 @@ internal fun NewEntryScreen(
                 if (notesOpen) {
                     Spacer(Modifier.height(6.dp))
                     NotesField(
+                        path = path.value,
                         notes = viewModel.notes,
                         enabled = enabled,
                         onNotesChange = {
@@ -191,7 +193,7 @@ internal fun NewEntryScreen(
                     if (viewModel.passwordDraft.generated) {
                         PassCommand.generate(path.value, viewModel.passwordDraft.settings, viewModel.copyAfterSave, force = exists)
                     } else {
-                        PassCommand.insert(path.value, multiline = noteLines > 0, force = exists)
+                        PassCommand.insert(path.value, multiline = viewModel.notes.isNotEmpty(), force = exists)
                     },
                 lineCount = noteLines,
                 enabled = canSave,

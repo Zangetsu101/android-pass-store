@@ -35,8 +35,10 @@ For login entries:
 ```
 line 1  → password
 line 2+ → notes for display
-username → path-derived PassEntry.username
+username → Username Line, else path-derived PassEntry.username
 ```
+
+`parseEntryNotes` splits the notes into **Note Fields** and other lines. A Note Field is a line that matches `key: value`. The key is one word with no space before the colon. At least one space comes after the colon. The other lines keep their order. The **Username Line** is the first Note Field with the key `username`, `login` or `user`, in that order of keys. The match of the key ignores case. `noteKey` gives the key of a line with the same rule, also when the line has no value. The chips of the notes editor use it. `NoteField.secret` marks a **Secret Note Field**, and `noteLineCount` counts the notes lines that are not blank.
 
 Every `otpauth://` line is removed from password/notes; the first is parsed as TOTP or a safe error. OTP-only entries have an empty password and are not returned by external credential surfaces. The OTP module uses RFC 6238 HMAC via `javax.crypto.Mac` (SHA1/SHA256/SHA512, 6–8 digits, positive period). Secrets remain in memory alongside the decrypted credentials and are released on the existing detail lock.
 

@@ -36,6 +36,11 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - Tap entry → decrypt through app UI path.
 - App UI may reuse cached passphrase during an active session.
 - Shows first-line secret and notes.
+- After decryption, the header shows the **Username Line**. Without a Username Line, it shows the file name.
+- Each **Note Field** is a row in a `details` card, with its own copy button. The other lines stay in the `notes` block.
+- A row copy uses the password clipboard rules. The clip is sensitive, and the clipboard clears after the configured timeout.
+- Entry detail marks only the last copied secret as `copied`.
+- The values of **Secret Note Fields** stay blurred until the user taps them. `NoteField.secret` in the `decryption` package holds the rule, and entry detail only decides how to show it.
 - Copy password/card number to clipboard with configured auto-clear timeout.
 - Shows git metadata where available.
 
@@ -45,6 +50,8 @@ SSH setup uses the selected **SSH Auth Source**: generated **Device key** or der
 - The new-entry form opens with a generated password. The edit form keeps the password until the user regenerates or types.
 - The `generator` package makes the password. It is a pure function of the settings and a random source, so JVM tests can reach it.
 - The save button shows the `pass` command that does the same change.
+- Chips above the notes editor add `username:`, `url:` and `email:` lines. A **Flat Store** path gets no `url:` chip. A chip for a key that the notes have already is disabled.
+- The closed notes link and the save button count the notes lines. Blank lines do not count.
 
 **Sync Panel**
 

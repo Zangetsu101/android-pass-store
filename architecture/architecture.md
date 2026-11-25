@@ -119,7 +119,8 @@ User selects candidate
     ▼
 Decryption.decrypt(entry)
     │  password/card number = line 1
-    │  username/card fields = path + notes
+    │  username = username/login/user line, else path
+    │  card fields = notes
     ▼
 Android fills target fields or returns PasswordCredential
 ```

@@ -17,6 +17,12 @@ the original line endings and final newline.
 
 **Generated Password**: A password that the app made with the generator, which the user did not change by hand after that. A commit for it uses the `pass generate` message.
 
+**Note Field**: A line in the notes that matches `key: value`. The key is one word with no space before the colon. Entry detail shows each Note Field as a row with a copy button.
+
+**Username Line**: The first Note Field with the key `username`, `login` or `user`, in that order of keys.
+
+**Secret Note Field**: A Note Field whose key names a secret: `pin`, `cvv`, `secret`, `answer`, `recovery`, or a key that contains `password`. The key ignores case. Entry detail blurs its value until the user taps it.
+
 **Given Password**: A password that the user typed or changed by hand. A commit for it uses the `pass insert` or `pass edit` message.
 
 ## OTP Entries
@@ -35,6 +41,10 @@ Pass entries are `.gpg` files. `domain` and `username` are parsed from the file 
 
 - `username` = filename minus `.gpg` (always the last segment)
 - `domain` = immediate parent directory name (second-to-last segment), or `null` if the file is at the store root
+
+After decryption, a **Username Line** wins over the file name. The app reads the keys `username`, `login` and `user` in that order, and the first key that it finds wins. Autofill fills the Username Line, and the entry detail header shows it. The autofill suggestion list still shows the file name, because the app cannot decrypt before the user picks an entry.
+
+**Flat Store**: A store that keeps each login in one file at the root, with the site as the file name, such as `github.com.gpg`. An entry path with no `/` and with a `.` is a Flat Store path. The path gives the URL, so the notes editor has no `url:` chip for it.
 
 Any path segments above the parent directory are organizational and are discarded. Both of these resolve identically:
 

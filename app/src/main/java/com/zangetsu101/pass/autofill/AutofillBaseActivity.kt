@@ -68,8 +68,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                     Dataset
                         .Builder()
                         .apply {
-                            usernameId?.let { setValue(it, AutofillValue.forText(creds.username), presentation) }
-                            passwordId?.let { setValue(it, AutofillValue.forText(String(creds.password)), presentation) }
+                            loginFill(creds, usernameId, passwordId).forEach { (id, value) -> setValue(id, value, presentation) }
                         }.build()
 
                 if (!entry.isCard) recordFill(entry)

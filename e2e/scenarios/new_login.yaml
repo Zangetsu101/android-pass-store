@@ -42,7 +42,8 @@ appId: com.zangetsu101.pass
 - pressKey: Enter
 - inputText: "research fixture"
 - hideKeyboard
-- assertVisible: ".*3 lines of notes"
+# The blank line does not count.
+- assertVisible: ".*2 lines of notes"
 - takeScreenshot: "26-notes-and-enabled-save"
 - tapOn: "save entry"
 - extendedWaitUntil:

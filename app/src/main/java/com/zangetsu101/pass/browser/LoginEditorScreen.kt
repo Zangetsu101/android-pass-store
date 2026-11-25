@@ -5,8 +5,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -42,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -52,11 +56,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.zangetsu101.pass.decryption.noteLineCount
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.ui.components.PassScaffold
@@ -71,7 +78,7 @@ internal fun LoginEditorScreen(
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
-    val noteLines = editor.notes.lines().count { it.isNotBlank() }
+    val noteLines = noteLineCount(editor.notes)
     var revealed by remember { mutableStateOf(false) }
     var customizeOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -133,6 +140,7 @@ internal fun LoginEditorScreen(
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
                 Spacer(Modifier.height(12.dp))
                 NotesEditor(
+                    path = path,
                     notes = editor.notes,
                     lineCount = noteLines,
                     enabled = !editor.saving,
@@ -214,6 +222,7 @@ internal fun EditorTopBar(
 
 @Composable
 internal fun NotesEditor(
+    path: String,
     notes: String,
     lineCount: Int,
     enabled: Boolean,
@@ -229,15 +238,29 @@ internal fun NotesEditor(
         }
     }
     Spacer(Modifier.height(6.dp))
-    NotesField(notes, enabled, onNotesChange)
+    NotesField(path, notes, enabled, onNotesChange)
 }
 
+/** The notes of a login, with chips that add common `key: ` lines for the entry at [path]. */
 @Composable
 internal fun NotesField(
+    path: String,
     notes: String,
     enabled: Boolean,
     onNotesChange: (String) -> Unit,
 ) {
+    var typed by remember { mutableStateOf(TextFieldValue(notes)) }
+    val value = typed.syncedWith(notes)
+    val focusRequester = remember { FocusRequester() }
+    NoteChipRow(
+        chips = noteChips(path, notes),
+        enabled = enabled,
+        onAdd = { key ->
+            onNotesChange(addNoteKey(notes, key))
+            focusRequester.requestFocus()
+        },
+    )
+    Spacer(Modifier.height(6.dp))
     Column(
         modifier =
             Modifier
@@ -262,8 +285,11 @@ internal fun NotesField(
             Text("line 1 · password", style = PassType.Caption)
         }
         BasicTextField(
-            value = notes,
-            onValueChange = onNotesChange,
+            value = value,
+            onValueChange = {
+                typed = it
+                if (it.text != notes) onNotesChange(it.text)
+            },
             enabled = enabled,
             singleLine = false,
             minLines = 3,
@@ -273,13 +299,14 @@ internal fun NotesField(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .padding(horizontal = 10.dp, vertical = 8.dp)
                     .semantics { contentDescription = "edit notes" },
             decorationBox = { innerTextField ->
                 Box {
                     if (notes.isEmpty()) {
                         Text(
-                            "write anything\nrecovery codes, security answers…",
+                            "tap a chip, or write anything\nrecovery codes, security answers…",
                             style = PassType.Body.copy(color = PassColorsDark.TextFaint),
                         )
                     }
@@ -289,7 +316,47 @@ internal fun NotesField(
         )
     }
     Spacer(Modifier.height(6.dp))
-    Text("saved as typed", style = PassType.Caption)
+    Text("saved as typed · key: value lines get their own copy row", style = PassType.Caption)
+}
+
+/** Returns this value when its text is [text]. When a chip changed the text, returns [text] with the cursor at the end. */
+private fun TextFieldValue.syncedWith(text: String): TextFieldValue {
+    if (this.text == text) return this
+    return TextFieldValue(text, TextRange(text.length))
+}
+
+private class ChipLook(
+    val mark: String,
+    val text: Color,
+    val background: Color,
+    val border: Color,
+)
+
+private val unusedChip = ChipLook("+ ", PassColorsDark.Accent, PassColorsDark.Surface, PassColorsDark.AccentMid)
+private val usedChip = ChipLook("✓ ", PassColorsDark.TextDim, Color.Transparent, PassColorsDark.Border)
+
+@Composable
+private fun NoteChipRow(
+    chips: List<NoteChip>,
+    enabled: Boolean,
+    onAdd: (String) -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        chips.forEach { chip ->
+            val look = if (chip.used) usedChip else unusedChip
+            Text(
+                look.mark + chip.key + ":",
+                style = PassType.Caption.copy(color = look.text),
+                modifier =
+                    Modifier
+                        .clip(PassShapes.extraSmall)
+                        .background(look.background)
+                        .border(1.dp, look.border, PassShapes.extraSmall)
+                        .clickable(enabled = enabled && !chip.used, role = Role.Button) { onAdd(chip.key) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
 }
 
 @Composable
