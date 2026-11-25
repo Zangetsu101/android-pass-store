@@ -12,6 +12,9 @@ local.properties
 
 claude.local.md
 
+# Machine-specific agent instructions
+AGENTS.local.md
+
 # Release signing — never commit
 keystore.properties
 *.keystore

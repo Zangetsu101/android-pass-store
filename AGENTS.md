@@ -8,7 +8,7 @@ Do not guess. Look it up first.
 
 ## Environment
 
-WSL setup. Emulator runs on Windows side via `android emulator` command (not inside WSL). ADB connects to it over TCP. Build happens in WSL; deploy/run targets the Windows-hosted emulator.
+Read `AGENTS.local.md` if it is present, before you use the emulator or run e2e tests.
 
 ## App labels
 
