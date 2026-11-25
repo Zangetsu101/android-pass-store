@@ -23,7 +23,10 @@ appId: com.zangetsu101.pass
 - takeScreenshot: "28-notes-chips"
 - tapOn: "save entry"
 - extendedWaitUntil:
-    visible: "added new/example\\.com/notes-28"
+    visible:
+      checked: true
+      containsDescendants:
+        - text: "notes-28"
     timeout: 30000
 - tapOn: "notes-28"
 - tapOn:
