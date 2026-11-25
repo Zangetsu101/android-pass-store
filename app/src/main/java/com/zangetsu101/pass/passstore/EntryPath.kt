@@ -13,6 +13,9 @@ internal class EntryPath(
     private val parents = segments.dropLast(1)
     val filePath get() = "$value.gpg"
 
+    /** A Flat Store path has no `/` and has a `.`, such as `github.com`. */
+    val flatStore get() = '/' !in value && '.' in value
+
     val error: String? =
         when {
             value.isEmpty() -> "enter an entry path"
