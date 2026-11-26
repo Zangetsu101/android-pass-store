@@ -363,6 +363,21 @@ class EntryDetailViewModelTest {
             assertFalse(vm.draft.changed)
         }
 
+    @Test
+    fun `a copied card number has the card number label`() =
+        runTest {
+            every { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) } returns mockk<ClipboardManager>(relaxed = true)
+            coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns
+                DecryptedEntry(fakeCredentials.copy(secret = "4111111111111111".toCharArray()))
+            val vm = createViewModel(cardEntry)
+            vm.authenticate(mockActivity)
+            runCurrent()
+
+            vm.copySecret()
+
+            verify { ClipData.newPlainText("card number", "4111111111111111") }
+        }
+
     private fun createViewModel(entry: PassEntry = fakeEntry) =
         EntryDetailViewModel(
             entry = entry,

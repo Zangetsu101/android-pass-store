@@ -389,7 +389,7 @@ class EntryDetailViewModel
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             if (current.credentials.secret.isEmpty()) return
-            copyToClipboard("password", String(current.credentials.secret))
+            copyToClipboard(entry.type.secretLabel, String(current.credentials.secret))
             _state.update { it.copy(unlockState = current.copy(copied = Copied.Secret)) }
         }
 
