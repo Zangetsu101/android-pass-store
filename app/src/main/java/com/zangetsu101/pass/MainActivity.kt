@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.zangetsu101.pass.navigation.PassAndroidNavHost
-import com.zangetsu101.pass.passstore.LoginEntryWriter
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.preferences.AppPreferences
 import com.zangetsu101.pass.ui.theme.PassTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,7 +28,7 @@ import javax.inject.Inject
 class MainActivity : FragmentActivity() {
     @Inject lateinit var appPreferences: AppPreferences
 
-    @Inject lateinit var loginWriter: LoginEntryWriter
+    @Inject lateinit var entryWriter: EntryWriter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,8 +38,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             PassTheme {
                 val snackbar = remember { SnackbarHostState() }
-                LaunchedEffect(loginWriter) {
-                    loginWriter.pushFailures.collect {
+                LaunchedEffect(entryWriter) {
+                    entryWriter.pushFailures.collect {
                         snackbar.showSnackbar("saved locally · push failed")
                     }
                 }

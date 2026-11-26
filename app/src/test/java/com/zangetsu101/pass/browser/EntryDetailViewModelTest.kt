@@ -18,10 +18,10 @@ import com.zangetsu101.pass.keymanagement.session.EndReason
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
-import com.zangetsu101.pass.passstore.LoginEntryWriter
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PasswordSource
-import com.zangetsu101.pass.passstore.SavedLogin
+import com.zangetsu101.pass.passstore.SavedEntry
 import com.zangetsu101.pass.preferences.AppPreferences
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -64,7 +64,7 @@ class EntryDetailViewModelTest {
     private val mockDecryption = mockk<Decryption>()
     private val mockGitSync = mockk<GitSync>()
     private val mockSessionOperations = mockk<SessionOperations>()
-    private val mockWriter = mockk<LoginEntryWriter>()
+    private val mockWriter = mockk<EntryWriter>()
     private val mockAppPreferences = mockk<AppPreferences>()
     private val mockContext = mockk<Context>(relaxed = true)
     private val mockActivity = mockk<FragmentActivity>(relaxed = true)
@@ -79,7 +79,7 @@ class EntryDetailViewModelTest {
 
     private val fakeCredentials =
         Credentials(
-            password = "p4ssw0rd".toCharArray(),
+            secret = "p4ssw0rd".toCharArray(),
             notes = "private notes\ncvv: 123",
             username = "user@example.com",
         )
@@ -147,7 +147,7 @@ class EntryDetailViewModelTest {
             val rawEntry = RawEntry("old password\nnotes", byteArrayOf(1, 2, 3))
             val original = DecryptedEntry(fakeCredentials, rawEntry)
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns original
-            val saved = fakeCredentials.copy(password = "newpassword".toCharArray(), notes = "notes")
+            val saved = fakeCredentials.copy(secret = "newpassword".toCharArray(), notes = "notes")
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
             coEvery {
                 mockWriter.save(
@@ -160,7 +160,7 @@ class EntryDetailViewModelTest {
                     PasswordSource.Given,
                 )
             } returns
-                SavedLogin(DecryptedEntry(saved, RawEntry("newpassword\nnotes", byteArrayOf(4))), commit)
+                SavedEntry(DecryptedEntry(saved, RawEntry("newpassword\nnotes", byteArrayOf(4))), commit)
             val vm = createViewModel()
 
             vm.authenticate(mockActivity)
@@ -172,7 +172,7 @@ class EntryDetailViewModelTest {
             runCurrent()
             assertEquals(
                 "newpassword",
-                (vm.state.value.mode as EntryDetailMode.EditEntry).draft.password,
+                (vm.state.value.mode as EntryDetailMode.EditEntry).draft.secret,
             )
 
             vm.saveEditor()
@@ -190,7 +190,7 @@ class EntryDetailViewModelTest {
         runTest {
             val rawEntry = RawEntry("old password\nnotes", byteArrayOf(1))
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials, rawEntry)
-            val saved = SavedLogin(DecryptedEntry(fakeCredentials, rawEntry), FileCommitInfo("abc1234", Instant.EPOCH))
+            val saved = SavedEntry(DecryptedEntry(fakeCredentials, rawEntry), FileCommitInfo("abc1234", Instant.EPOCH))
             coEvery { mockWriter.save(fakeEntry, any(), any(), "notes", any()) } returns saved
             val vm = createViewModel()
             vm.authenticate(mockActivity)
@@ -199,22 +199,22 @@ class EntryDetailViewModelTest {
 
             fun draft() = (vm.state.value.mode as EntryDetailMode.EditEntry).draft
 
-            vm.updateEditorGenerator(draft().passwordDraft.settings.withLength(32))
-            val generated = draft().password
+            vm.updateEditorGenerator(draft().passwordDraft().settings.withLength(32))
+            val generated = draft().secret
             assertEquals(32, generated.length)
-            assertTrue(draft().passwordDraft.generated)
+            assertTrue(draft().passwordDraft().generated)
             assertEquals(PasswordSource.Generated, draft().passwordSource)
 
             vm.updateEditorPassword(generated + "x")
-            assertFalse(draft().passwordDraft.generated)
+            assertFalse(draft().passwordDraft().generated)
             assertEquals(PasswordSource.Given, draft().passwordSource)
 
             vm.regenerateEditorPassword()
             vm.updateEditorNotes("new notes")
             assertEquals(PasswordSource.Given, draft().passwordSource)
             vm.updateEditorNotes("notes")
-            assertEquals(32, draft().password.length)
-            val regenerated = draft().password
+            assertEquals(32, draft().secret.length)
+            val regenerated = draft().secret
             vm.saveEditor()
             runCurrent()
 
@@ -252,11 +252,11 @@ class EntryDetailViewModelTest {
             val session = MutableStateFlow<SessionState>(SessionState.Active)
             every { mockSessionOperations.sessionState } returns session
             val rawEntry = RawEntry("otpauth://invalid", byteArrayOf())
-            val original = fakeCredentials.copy(password = charArrayOf(), notes = "")
+            val original = fakeCredentials.copy(secret = charArrayOf(), notes = "")
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(original, rawEntry)
             val saved = original.copy(notes = "new notes")
             coEvery { mockWriter.save(fakeEntry, any(), "", "new notes", PasswordSource.Given) } returns
-                SavedLogin(
+                SavedEntry(
                     DecryptedEntry(saved, RawEntry("otpauth://invalid\nnew notes", byteArrayOf(4))),
                     FileCommitInfo("abc1234", Instant.EPOCH),
                 )
@@ -298,7 +298,7 @@ class EntryDetailViewModelTest {
         val decrypted = DecryptedEntry(fakeCredentials, rawEntry)
         coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns decrypted
         coEvery { mockWriter.save(any(), any(), any(), any(), any()) } returns
-            SavedLogin(decrypted, FileCommitInfo("abc1234", Instant.EPOCH))
+            SavedEntry(decrypted, FileCommitInfo("abc1234", Instant.EPOCH))
         val vm = createViewModel(cardEntry)
         vm.authenticate(mockActivity)
         runCurrent()
@@ -308,12 +308,14 @@ class EntryDetailViewModelTest {
 
     private val EntryDetailViewModel.draft get() = (state.value.mode as EntryDetailMode.EditEntry).draft
 
+    private fun EntryEditorState.passwordDraft() = (secretDraft as SecretDraft.Password).draft
+
     @Test
     fun `an unchanged card number is written back exactly as it was`() =
         runTest {
             val vm = editCard("4111 1111 1111 1111\ncvv: 123")
             assertEquals(EntryType.Card, vm.draft.type)
-            assertEquals("4111111111111111", vm.draft.password)
+            assertEquals("4111111111111111", vm.draft.secret)
 
             vm.updateEditorCardNumber("4111-1111-1111-1111")
             assertFalse(vm.draft.changed)
@@ -349,6 +351,18 @@ class EntryDetailViewModelTest {
             coVerify(exactly = 0) { mockWriter.save(any(), any(), any(), any(), any()) }
         }
 
+    @Test
+    fun `the password generator does not change a card number`() =
+        runTest {
+            val vm = editCard("4111111111111111")
+
+            vm.regenerateEditorPassword()
+            vm.updateEditorPassword("hunter2")
+
+            assertEquals("4111111111111111", vm.draft.secret)
+            assertFalse(vm.draft.changed)
+        }
+
     private fun createViewModel(entry: PassEntry = fakeEntry) =
         EntryDetailViewModel(
             entry = entry,
@@ -357,7 +371,7 @@ class EntryDetailViewModelTest {
             sessionOperations = mockSessionOperations,
             gitSync = mockGitSync,
             appPreferences = mockAppPreferences,
-            loginWriter = mockWriter,
+            entryWriter = mockWriter,
         )
 
     @Test
@@ -402,7 +416,7 @@ class EntryDetailViewModelTest {
             viewModel.onScreenDisposed(changingConfigurations = true)
             viewModel.onScreenEntered(mockActivity)
             runCurrent()
-            assertTrue((viewModel.state.value.unlockState as UnlockState.Decrypted).passwordRevealed)
+            assertTrue((viewModel.state.value.unlockState as UnlockState.Decrypted).secretRevealed)
             advanceTimeBy(10_000)
             runCurrent()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
@@ -490,7 +504,7 @@ class EntryDetailViewModelTest {
             runCurrent()
             advanceTimeBy(50_000)
             viewModel.toggleReveal()
-            viewModel.copyPassword()
+            viewModel.copySecret()
             advanceTimeBy(10_000)
             runCurrent()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
@@ -521,7 +535,7 @@ class EntryDetailViewModelTest {
             viewModel.authenticate(mockActivity)
             runCurrent()
             every { SystemClock.elapsedRealtime() } returns 60_000L
-            viewModel.copyPassword()
+            viewModel.copySecret()
             viewModel.toggleReveal()
             assertEquals(UnlockState.Idle, viewModel.state.value.unlockState)
             verify(exactly = 0) { mockContext.getSystemService(Context.CLIPBOARD_SERVICE) }
@@ -695,7 +709,7 @@ class EntryDetailViewModelTest {
         }
 
     @Test
-    fun `toggleReveal when Decrypted toggles passwordRevealed`() =
+    fun `toggleReveal when Decrypted toggles secretRevealed`() =
         runTest(testDispatcher) {
             coEvery { mockDecryption.decryptForEntryDetail(any(), any()) } returns DecryptedEntry(fakeCredentials)
             val viewModel = createViewModel()
@@ -703,17 +717,17 @@ class EntryDetailViewModelTest {
             viewModel.authenticate(mockActivity)
             runCurrent()
 
-            assertFalse((viewModel.state.value.unlockState as UnlockState.Decrypted).passwordRevealed)
+            assertFalse((viewModel.state.value.unlockState as UnlockState.Decrypted).secretRevealed)
 
             viewModel.toggleReveal()
-            assertTrue((viewModel.state.value.unlockState as UnlockState.Decrypted).passwordRevealed)
+            assertTrue((viewModel.state.value.unlockState as UnlockState.Decrypted).secretRevealed)
 
             viewModel.toggleReveal()
-            assertFalse((viewModel.state.value.unlockState as UnlockState.Decrypted).passwordRevealed)
+            assertFalse((viewModel.state.value.unlockState as UnlockState.Decrypted).secretRevealed)
         }
 
     @Test
-    fun `copyPassword keeps clipboard alarm independent of entry expiry`() =
+    fun `copySecret keeps clipboard alarm independent of entry expiry`() =
         runTest(testDispatcher) {
             val timeoutSeconds = 90
             every { mockAppPreferences.clipboardTimeoutSeconds } returns flowOf(timeoutSeconds)
@@ -726,9 +740,9 @@ class EntryDetailViewModelTest {
             viewModel.authenticate(mockActivity)
             runCurrent()
 
-            viewModel.copyPassword()
+            viewModel.copySecret()
 
-            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+            assertEquals(Copied.Secret, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
 
             advanceTimeBy(delayTimeMillis = timeoutSeconds * 1000L + 1)
             runCurrent()
@@ -750,7 +764,7 @@ class EntryDetailViewModelTest {
             runCurrent()
             viewModel.authenticate(mockActivity)
             runCurrent()
-            viewModel.copyPassword()
+            viewModel.copySecret()
 
             viewModel.copyField(1)
 
@@ -759,8 +773,8 @@ class EntryDetailViewModelTest {
             verify { ClipboardClearReceiver.schedule(mockContext, 12_000L) }
             assertEquals(Copied.Field(1), (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
 
-            viewModel.copyPassword()
-            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+            viewModel.copySecret()
+            assertEquals(Copied.Secret, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
 
             viewModel.copyField(0)
             advanceTimeBy(12_001)
@@ -779,11 +793,11 @@ class EntryDetailViewModelTest {
             runCurrent()
 
             viewModel.copyOtp()
-            viewModel.copyPassword()
+            viewModel.copySecret()
             advanceTimeBy(1501)
             runCurrent()
 
-            assertEquals(Copied.Password, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
+            assertEquals(Copied.Secret, (viewModel.state.value.unlockState as UnlockState.Decrypted).copied)
         }
 
     @Test

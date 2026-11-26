@@ -51,7 +51,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@AutofillBaseActivity)
-                if (creds.password.isEmpty()) {
+                if (creds.secret.isEmpty()) {
                     cancelAndFinish()
                     return@launch
                 }
@@ -95,12 +95,12 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@AutofillBaseActivity)
-                if (creds.password.isEmpty()) {
+                if (creds.secret.isEmpty()) {
                     cancelAndFinish()
                     return@launch
                 }
 
-                val cardNumber = String(creds.password)
+                val cardNumber = String(creds.secret)
                 val notes = parseNotes(creds.notes)
                 val cvv = notes["cvv"]
                 val expiryRaw = notes["expiry"]

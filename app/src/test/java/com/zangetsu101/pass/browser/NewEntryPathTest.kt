@@ -43,7 +43,7 @@ class NewEntryPathTest {
     }
 
     @Test
-    fun `a path is in a card folder when a folder in it is named cards or credit-cards`() {
+    fun `a path is in a Card Folder when a folder in it is named cards or credit-cards`() {
         val inCardFolder = listOf("cards/visa", "credit-cards/visa", "finance/cards/visa/daily", "cards/cards/visa")
         val outside = listOf("cards", "credit-cards", "Cards/visa", "my-cards/visa", "dev/github.com/alice", "card/visa")
         for (path in inCardFolder) assertTrue(path, EntryPath(path).inCardFolder)

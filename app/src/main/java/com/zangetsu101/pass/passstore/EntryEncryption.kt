@@ -13,7 +13,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 
-internal class LoginEncryption(
+internal class EntryEncryption(
     private val key: PublicKeySource,
 ) {
     private val certificate = OpenPGPCertificate(key.certificate)
@@ -32,7 +32,7 @@ internal class LoginEncryption(
                 ?.get(1)
                 ?.trim()
                 .orEmpty()
-        if (name.isEmpty() || identity == null) throw LoginSaveError("first GPG user ID needs a name and email")
+        if (name.isEmpty() || identity == null) throw EntrySaveError("first GPG user ID needs a name and email")
         return PersonIdent(name, identity.groupValues[2])
     }
 
@@ -58,9 +58,9 @@ internal class LoginEncryption(
             generateSequence(File(root, path).parentFile) {
                 if (it == root) null else it.parentFile
             }.map { File(it, ".gpg-id") }.firstOrNull { Files.exists(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
-                ?: throw LoginSaveError("missing .gpg-id · cannot encrypt")
+                ?: throw EntrySaveError("missing .gpg-id · cannot encrypt")
         if (!recipientFile.isFile || recipientFile != recipientFile.canonicalFile) {
-            throw LoginSaveError("cannot read .gpg-id")
+            throw EntrySaveError("cannot read .gpg-id")
         }
         val recipients =
             recipientFile
@@ -68,7 +68,7 @@ internal class LoginEncryption(
                 .map(String::trim)
                 .filter { it.isNotEmpty() && !it.startsWith("#") }
                 .distinct()
-        if (recipients.isEmpty()) throw LoginSaveError("empty .gpg-id · cannot encrypt")
+        if (recipients.isEmpty()) throw EntrySaveError("empty .gpg-id · cannot encrypt")
         val unknown =
             recipients.count { recipient ->
                 val hex = recipient.replaceFirst(Regex("^0x", RegexOption.IGNORE_CASE), "")
@@ -79,7 +79,7 @@ internal class LoginEncryption(
             val folder = recipientFile.parentFile!!.relativeTo(root).invariantSeparatorsPath
             val label = if (folder.isEmpty()) "store" else "$folder/"
             val count = if (unknown == 1) "1 other key" else "$unknown other keys"
-            throw LoginSaveError("$label is shared with $count · can't encrypt for them yet")
+            throw EntrySaveError("$label is shared with $count · can't encrypt for them yet")
         }
     }
 

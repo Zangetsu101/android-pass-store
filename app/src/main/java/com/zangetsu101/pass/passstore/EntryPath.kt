@@ -13,7 +13,7 @@ internal class EntryPath(
     private val parents = segments.dropLast(1)
     val filePath get() = "$value.gpg"
 
-    /** A path in a card folder is the path of a Card Entry. */
+    /** A path in a Card Folder is the path of a Card Entry. */
     val inCardFolder get() = cardFolderIndex(parents) >= 0
 
     /** A Flat Store path has no `/` and has a `.`, such as `github.com`. */

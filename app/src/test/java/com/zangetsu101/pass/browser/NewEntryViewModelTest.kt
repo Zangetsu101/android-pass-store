@@ -7,7 +7,7 @@ import android.content.Context
 import com.zangetsu101.pass.generator.CharacterSet
 import com.zangetsu101.pass.generator.GeneratorSettings
 import com.zangetsu101.pass.passstore.EntryPath
-import com.zangetsu101.pass.passstore.LoginEntryWriter
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -42,7 +42,7 @@ class NewEntryViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val context = mockk<Context>(relaxed = true)
     private val clipboard = mockk<ClipboardManager>(relaxed = true)
-    private val writer = mockk<LoginEntryWriter>()
+    private val writer = mockk<EntryWriter>()
     private val preferences = mockk<AppPreferences>()
     private val path = EntryPath("dev/github.com")
 
@@ -140,7 +140,7 @@ class NewEntryViewModelTest {
         }
 
     @Test
-    fun `the form starts as a card when the start path is in a card folder`() {
+    fun `the form starts as a card when the start path is in a Card Folder`() {
         assertEquals(EntryType.Login, createViewModel("dev/").type)
         assertFalse(createViewModel("dev/").notesOpen)
         val card = createViewModel("finance/credit-cards/")
@@ -149,7 +149,7 @@ class NewEntryViewModelTest {
     }
 
     @Test
-    fun `a path that enters a card folder switches the type to card and the type never switches back by itself`() {
+    fun `a path that enters a Card Folder switches the type to card and the type never switches back by itself`() {
         val vm = createViewModel()
         vm.updatePath(EntryPath("finance/cards"))
         assertEquals(EntryType.Login, vm.type)
@@ -217,7 +217,7 @@ class NewEntryViewModelTest {
         }
 
     @Test
-    fun `the warning shows only for a card outside a card folder`() {
+    fun `the warning shows only for a card outside a Card Folder`() {
         val vm = createViewModel()
         assertFalse(vm.cardFolderWarning(EntryPath("finance/visa")))
         vm.selectType(EntryType.Card)
@@ -227,7 +227,7 @@ class NewEntryViewModelTest {
     }
 
     @Test
-    fun `a login cannot be saved in a card folder`() =
+    fun `a login cannot be saved in a Card Folder`() =
         runTest(testDispatcher) {
             val vm = createViewModel()
             val card = EntryPath("cards/visa")

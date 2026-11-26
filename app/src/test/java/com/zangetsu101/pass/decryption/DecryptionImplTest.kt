@@ -111,7 +111,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("s3cr3t".toCharArray(), creds.password)
+            assertArrayEquals("s3cr3t".toCharArray(), creds.secret)
         }
 
     @Test
@@ -123,7 +123,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("password123".toCharArray(), creds.password)
+            assertArrayEquals("password123".toCharArray(), creds.secret)
             assertTrue(creds.notes.contains("username: bob"))
         }
 
@@ -136,7 +136,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("autofillpass".toCharArray(), creds.password)
+            assertArrayEquals("autofillpass".toCharArray(), creds.secret)
             assertEquals("carol", creds.username)
         }
 

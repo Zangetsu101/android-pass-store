@@ -93,7 +93,7 @@ internal fun NewEntryScreen(
         }
     val error = viewModel.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
-    val canSave = enabled && check != null && error == null && viewModel.line1.isNotEmpty()
+    val canSave = enabled && check != null && error == null && viewModel.secret.isNotEmpty()
     val noteLines = noteLineCount(viewModel.notes)
     val suggestions = remember(options, path) { options.suggestions(path) }
     val card = viewModel.type == EntryType.Card
@@ -340,7 +340,6 @@ private fun EntryPathField(
     onPick: (PathSuggestion) -> Unit,
     onChange: (String) -> Unit,
 ) {
-    // A pick or `add cards/` changes the path from outside the field, so the cursor moves to the end.
     var typed by remember { mutableStateOf(TextFieldValue(input)) }
     val value = typed.syncedWith(input)
     val color =

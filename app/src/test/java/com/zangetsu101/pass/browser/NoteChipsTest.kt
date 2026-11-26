@@ -9,15 +9,15 @@ class NoteChipsTest {
     fun `a login in a folder gets the username url and email chips`() {
         assertEquals(
             listOf(NoteChip("username", false), NoteChip("url", false), NoteChip("email", false)),
-            noteChips("dev/github.com/alice", ""),
+            noteChips("dev/github.com/alice", "", EntryType.Login),
         )
     }
 
     @Test
     fun `a flat store path with a dot has no url chip`() {
-        assertEquals(listOf("username", "email"), noteChips("github.com", "").map { it.key })
-        assertEquals(listOf("username", "url", "email"), noteChips("github", "").map { it.key })
-        assertEquals(listOf("username", "url", "email"), noteChips("web/github.com", "").map { it.key })
+        assertEquals(listOf("username", "email"), noteChips("github.com", "", EntryType.Login).map { it.key })
+        assertEquals(listOf("username", "url", "email"), noteChips("github", "", EntryType.Login).map { it.key })
+        assertEquals(listOf("username", "url", "email"), noteChips("web/github.com", "", EntryType.Login).map { it.key })
     }
 
     @Test
@@ -28,7 +28,7 @@ class NoteChipsTest {
 
     @Test
     fun `a chip is used when a line starts with its key`() {
-        val chips = noteChips("dev/github.com/alice", "Username: alice\nemail:\nnote about url: here")
+        val chips = noteChips("dev/github.com/alice", "Username: alice\nemail:\nnote about url: here", EntryType.Login)
 
         assertEquals(listOf(true, false, true), chips.map { it.used })
     }

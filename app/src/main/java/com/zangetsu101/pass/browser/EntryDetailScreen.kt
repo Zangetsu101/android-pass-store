@@ -113,16 +113,16 @@ fun EntryDetailScreen(
     }
 
     val mode = state.mode
-    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedLogin) {
+    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedEntry) {
         if (sessionActive) {
             viewModel.onScreenEntered(activity)
-        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedLogin) {
+        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedEntry) {
             onSessionRequired()
         }
     }
 
     if (mode is EntryDetailMode.EditEntry) {
-        LoginEditorScreen(state.entry, mode.draft, viewModel)
+        EntryEditorScreen(state.entry, mode.draft, viewModel)
         return
     }
     BackHandler(onBack = leaveEntry)
@@ -161,7 +161,7 @@ fun EntryDetailScreen(
                     when (val unlock = unlockState) {
                         is UnlockState.Idle,
                         is UnlockState.Decrypting,
-                        -> PasswordSkeleton(lineLabel(state.entry))
+                        -> SecretSkeleton(state.entry.type.secretLabel)
 
                         is UnlockState.Decrypted -> DecryptedContent(unlock, state.entry, state.clipboardTimeoutSeconds, viewModel)
 
@@ -210,9 +210,6 @@ fun EntryDetailScreen(
 
 // ── Sub-composables ──────────────────────────────────────────────────────────
 
-/** The label of line 1: a Card Entry keeps its card number there. */
-private fun lineLabel(entry: PassEntry) = (if (entry.isCard) EntryType.Card else EntryType.Login).line1
-
 /** The line above the name. A card shows its path, because the domain of a card is only a display label. */
 private fun headerLabel(entry: PassEntry) = if (entry.isCard) entry.path.removeSuffix(".gpg") else entry.domain
 
@@ -256,18 +253,18 @@ private fun DecryptedContent(
     clipboardTimeoutSeconds: Int,
     viewModel: EntryDetailViewModel,
 ) {
-    if (unlock.credentials.password.isNotEmpty()) {
-        val line1 = String(unlock.credentials.password)
-        PasswordCard(
-            label = lineLabel(entry),
-            text = if (entry.isCard && isCardDigits(line1)) groupCardNumber(line1) else line1,
+    if (unlock.credentials.secret.isNotEmpty()) {
+        val secret = String(unlock.credentials.secret)
+        SecretCard(
+            label = entry.type.secretLabel,
+            text = if (entry.isCard && isCardDigits(secret)) groupCardNumber(secret) else secret,
             unlock = unlock,
-            onCopy = viewModel::copyPassword,
+            onCopy = viewModel::copySecret,
             onToggleReveal = viewModel::toggleReveal,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "decrypted in-memory" + if (unlock.copied == Copied.Password) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
+            "decrypted in-memory" + if (unlock.copied == Copied.Secret) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
             style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
         )
         Spacer(Modifier.height(20.dp))
@@ -453,7 +450,7 @@ private fun OtpCard(
 }
 
 @Composable
-private fun PasswordCard(
+private fun SecretCard(
     label: String,
     text: String,
     unlock: UnlockState.Decrypted,
@@ -473,7 +470,7 @@ private fun PasswordCard(
         Text(
             text = text,
             style = PassType.Body.copy(color = PassColorsDark.Accent, letterSpacing = 0.1.em),
-            modifier = if (!unlock.passwordRevealed) Modifier.blur(5.dp) else Modifier,
+            modifier = if (!unlock.secretRevealed) Modifier.blur(5.dp) else Modifier,
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -490,7 +487,7 @@ private fun PasswordCard(
             ) {
                 Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(if (unlock.copied == Copied.Password) "copied" else "copy", style = PassType.Body)
+                Text(if (unlock.copied == Copied.Secret) "copied" else "copy", style = PassType.Body)
             }
             OutlinedButton(
                 onClick = onToggleReveal,
@@ -504,7 +501,7 @@ private fun PasswordCard(
                 modifier = Modifier.weight(1f).height(40.dp),
             ) {
                 Text(
-                    if (unlock.passwordRevealed) "hide" else "reveal",
+                    if (unlock.secretRevealed) "hide" else "reveal",
                     style = PassType.Body.copy(color = PassColorsDark.TextDim),
                 )
             }
@@ -601,7 +598,7 @@ private fun MetaRow(
 }
 
 @Composable
-private fun PasswordSkeleton(label: String) {
+private fun SecretSkeleton(label: String) {
     val bodyHeight = with(LocalDensity.current) { PassType.Body.fontSize.toDp() }
     Text(label, style = PassType.Label)
     Spacer(Modifier.height(6.dp))

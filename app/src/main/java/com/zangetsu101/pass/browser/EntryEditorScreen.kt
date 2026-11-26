@@ -73,9 +73,9 @@ import com.zangetsu101.pass.ui.theme.PassShapes
 import com.zangetsu101.pass.ui.theme.PassType
 
 @Composable
-internal fun LoginEditorScreen(
+internal fun EntryEditorScreen(
     entry: PassEntry,
-    editor: LoginEditorState,
+    editor: EntryEditorState,
     viewModel: EntryDetailViewModel,
 ) {
     val path = entry.path.removeSuffix(".gpg")
@@ -108,39 +108,43 @@ internal fun LoginEditorScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 12.dp),
             ) {
-                if (type == EntryType.Card) {
-                    CardNumberField(editor.password, enabled = !editor.saving, onChange = viewModel::updateEditorCardNumber)
-                } else {
-                    PasswordCard(
-                        password = editor.password,
-                        status =
-                            when {
-                                editor.passwordDraft.generated -> PasswordStatus.Generated
-                                editor.passwordChanged -> PasswordStatus.Typed
-                                else -> null
+                when (val secret = editor.secretDraft) {
+                    is SecretDraft.CardNumber -> {
+                        CardNumberField(secret.digits, enabled = !editor.saving, onChange = viewModel::updateEditorCardNumber)
+                    }
+
+                    is SecretDraft.Password -> {
+                        PasswordCard(
+                            password = secret.draft.password,
+                            status =
+                                when {
+                                    secret.draft.generated -> PasswordStatus.Generated
+                                    editor.secretChanged -> PasswordStatus.Typed
+                                    else -> null
+                                },
+                            strength = secret.draft.strength,
+                            enabled = !editor.saving,
+                            revealed = revealed,
+                            onToggleReveal = { revealed = !revealed },
+                            onPasswordChange = viewModel::updateEditorPassword,
+                            onRegenerate = {
+                                revealed = true
+                                viewModel.regenerateEditorPassword()
                             },
-                        strength = editor.passwordDraft.strength,
-                        enabled = !editor.saving,
-                        revealed = revealed,
-                        onToggleReveal = { revealed = !revealed },
-                        onPasswordChange = viewModel::updateEditorPassword,
-                        onRegenerate = {
-                            revealed = true
-                            viewModel.regenerateEditorPassword()
-                        },
-                        onCopy = viewModel::copyEditorPassword,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    CustomizePanel(
-                        settings = editor.passwordDraft.settings,
-                        open = customizeOpen,
-                        enabled = !editor.saving,
-                        onToggleOpen = { customizeOpen = !customizeOpen },
-                        onChange = {
-                            revealed = true
-                            viewModel.updateEditorGenerator(it)
-                        },
-                    )
+                            onCopy = viewModel::copyEditorPassword,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        CustomizePanel(
+                            settings = secret.draft.settings,
+                            open = customizeOpen,
+                            enabled = !editor.saving,
+                            onToggleOpen = { customizeOpen = !customizeOpen },
+                            onChange = {
+                                revealed = true
+                                viewModel.updateEditorGenerator(it)
+                            },
+                        )
+                    }
                 }
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border, thickness = 1.dp)
@@ -160,10 +164,14 @@ internal fun LoginEditorScreen(
             }
             SaveFooter(
                 command =
-                    if (editor.passwordSource == PasswordSource.Generated) {
-                        PassCommand.generateInPlace(path, editor.passwordDraft.settings)
-                    } else {
-                        PassCommand.insert(path, multiline = true, force = true)
+                    when (val secret = editor.secretDraft) {
+                        is SecretDraft.Password if editor.passwordSource == PasswordSource.Generated -> {
+                            PassCommand.generateInPlace(path, secret.draft.settings)
+                        }
+
+                        else -> {
+                            PassCommand.insert(path, multiline = true, force = true)
+                        }
                     },
                 lineSummary = saveLineSummary(noteLines, type),
                 enabled = editor.changed && !editor.saving,
@@ -280,7 +288,7 @@ internal fun NotesField(
                 .background(PassColorsDark.Surface, PassShapes.small)
                 .border(1.dp, PassColorsDark.Border2, PassShapes.small),
     ) {
-        // Line 1 of the file is the password or the card number above, so the notes editor shows it as locked.
+        // Line 1 of the file is the secret above, so the notes editor shows it as locked.
         Row(
             modifier =
                 Modifier
@@ -294,7 +302,7 @@ internal fun NotesField(
                 style = PassType.Caption.copy(letterSpacing = 0.1.em),
                 modifier = Modifier.weight(1f),
             )
-            Text("line 1 · ${type.line1}", style = PassType.Caption)
+            Text("line 1 · ${type.secretLabel}", style = PassType.Caption)
         }
         BasicTextField(
             value = value,

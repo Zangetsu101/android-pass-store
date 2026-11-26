@@ -12,14 +12,14 @@ import org.pgpainless.decryption_verification.ConsumerOptions
 import java.io.File
 import java.nio.file.Files
 
-class LoginEncryptionTest {
+class EntryEncryptionTest {
     @TempDir lateinit var root: File
 
     private val pgp = PGPainless.getInstance()
     private val key = pgp.generateKey().modernKeyRing("Alice Example <alice@example.com>")
     private val ring = key.pgpSecretKeyRing
     private val encryption =
-        LoginEncryption(
+        EntryEncryption(
             PublicKeySource(
                 PGPPublicKeyRing(ring.publicKeys.asSequence().toList()),
                 ring.map { it.publicKey.keyID }.toSet(),
@@ -59,13 +59,13 @@ class LoginEncryptionTest {
         recipients("", "alice@example.com")
         recipients("team", "alice@example.com\nbob@example.com\ncarol@example.com")
 
-        val failure = assertThrows(LoginSaveError::class.java) { encryption.encrypt(root, path, "password") }
+        val failure = assertThrows(EntrySaveError::class.java) { encryption.encrypt(root, path, "password") }
         assertEquals("team/ is shared with 2 other keys · can't encrypt for them yet", failure.message)
     }
 
     @Test
     fun `missing recipients block encryption`() {
-        val failure = assertThrows(LoginSaveError::class.java) { encryption.encrypt(root, path, "password") }
+        val failure = assertThrows(EntrySaveError::class.java) { encryption.encrypt(root, path, "password") }
         assertEquals("missing .gpg-id · cannot encrypt", failure.message)
     }
 
@@ -73,7 +73,7 @@ class LoginEncryptionTest {
     fun `one unknown recipient is named in the rejection`() {
         recipients("", "alice@example.com\nbob@example.com")
 
-        val failure = assertThrows(LoginSaveError::class.java) { encryption.encrypt(root, path, "password") }
+        val failure = assertThrows(EntrySaveError::class.java) { encryption.encrypt(root, path, "password") }
         assertEquals("store is shared with 1 other key · can't encrypt for them yet", failure.message)
     }
 
@@ -81,13 +81,13 @@ class LoginEncryptionTest {
     fun `an empty or linked recipient file blocks the save instead of falling back`() {
         recipients("", "alice@example.com")
         recipients("team", "")
-        val empty = assertThrows(LoginSaveError::class.java) { encryption.encrypt(root, path, "password") }
+        val empty = assertThrows(EntrySaveError::class.java) { encryption.encrypt(root, path, "password") }
         assertEquals("empty .gpg-id · cannot encrypt", empty.message)
 
         val nearest = File(root, "team/.gpg-id").toPath()
         Files.delete(nearest)
         Files.createSymbolicLink(nearest, File(root, ".gpg-id").toPath())
-        val linked = assertThrows(LoginSaveError::class.java) { encryption.encrypt(root, path, "password") }
+        val linked = assertThrows(EntrySaveError::class.java) { encryption.encrypt(root, path, "password") }
         assertEquals("cannot read .gpg-id", linked.message)
     }
 

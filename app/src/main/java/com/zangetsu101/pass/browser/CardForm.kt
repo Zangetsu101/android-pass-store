@@ -141,7 +141,7 @@ private object CardNumberGroups : VisualTransformation {
     }
 }
 
-/** The warning below the path of a card that is outside a card folder. The save is allowed. */
+/** The warning below the path of a card that is outside a Card Folder. The save is allowed. */
 @Composable
 internal fun CardFolderWarning(
     enabled: Boolean,

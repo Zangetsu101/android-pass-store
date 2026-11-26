@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.zangetsu101.pass.passstore
 
-import com.zangetsu101.pass.decryption.EditableLogin
-import com.zangetsu101.pass.decryption.LoginEditSource
+import com.zangetsu101.pass.decryption.EditableEntry
+import com.zangetsu101.pass.decryption.EntryEditSource
 import com.zangetsu101.pass.decryption.ciphertextDigest
 import com.zangetsu101.pass.gitsync.EncryptedEdit
 import com.zangetsu101.pass.gitsync.FileCommitInfo
@@ -27,7 +27,7 @@ import org.pgpainless.PGPainless
 import java.io.File
 import java.time.Instant
 
-class LoginEntryWriterTest {
+class EntryWriterTest {
     @TempDir lateinit var root: File
 
     @Test
@@ -51,7 +51,7 @@ class LoginEntryWriterTest {
             val store = mockk<PassStore>()
             val entry = PassEntry("alice.gpg", null, "alice", File(root, "alice.gpg"))
             val original = byteArrayOf(1)
-            val source = LoginEditSource(EditableLogin("old password"), original.ciphertextDigest())
+            val source = EntryEditSource(EditableEntry("old password"), original.ciphertextDigest())
             val commit = FileCommitInfo("abc1234", Instant.EPOCH)
             coEvery { git.commitEdit(entry.path, "Edit password for alice using editor.", any()) } coAnswers {
                 thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(root, original)
@@ -59,7 +59,7 @@ class LoginEntryWriterTest {
             }
             coEvery { git.push() } throws IllegalStateException("read-only remote")
             coEvery { store.buildIndex() } returns listOf(entry)
-            val writer = LoginEntryWriter(git, store, keyStore, backgroundScope)
+            val writer = EntryWriter(git, store, keyStore, backgroundScope)
 
             val saved = writer.save(entry, source, "newpassword", "", PasswordSource.Given)
             withTimeout(1_000) { writer.pushFailures.first() }
@@ -67,7 +67,7 @@ class LoginEntryWriterTest {
             assertEquals(commit, saved.commit)
             assertEquals(
                 "newpassword",
-                saved.entry.credentials.password
+                saved.entry.credentials.secret
                     .concatToString(),
             )
         }
@@ -80,7 +80,7 @@ class LoginEntryWriterTest {
             coEvery { git.commitInsert(any(), any(), any()) } returns FileCommitInfo("abc1234", Instant.EPOCH)
             coEvery { git.push() } returns Unit
             coEvery { store.buildIndex() } returns emptyList()
-            val writer = LoginEntryWriter(git, store, mockk(), backgroundScope)
+            val writer = EntryWriter(git, store, mockk(), backgroundScope)
 
             writer.insert(EntryPath("dev/github"), null, "password", "", PasswordSource.Generated)
 
@@ -92,14 +92,14 @@ class LoginEntryWriterTest {
         runTest {
             val git = mockk<GitSync>()
             val entry = PassEntry("alice.gpg", null, "alice", File("repo/alice.gpg"))
-            val source = LoginEditSource(EditableLogin("old password"), byteArrayOf(1).ciphertextDigest())
+            val source = EntryEditSource(EditableEntry("old password"), byteArrayOf(1).ciphertextDigest())
             coEvery { git.commitEdit(entry.path, "Edit password for alice using editor.", any()) } coAnswers {
                 thirdArg<(File, ByteArray) -> EncryptedEdit>().invoke(File("repo"), byteArrayOf(2))
                 error("The writer should reject the edit before preparing ciphertext")
             }
             val appScope = CoroutineScope(coroutineContext + SupervisorJob())
             try {
-                val writer = LoginEntryWriter(git, mockk(), mockk(), appScope)
+                val writer = EntryWriter(git, mockk(), mockk(), appScope)
 
                 val error = runCatching { writer.save(entry, source, "newpassword", "", PasswordSource.Given) }.exceptionOrNull()
 

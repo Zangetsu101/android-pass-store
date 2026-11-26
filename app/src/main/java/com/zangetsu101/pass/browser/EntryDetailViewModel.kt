@@ -10,9 +10,9 @@ import com.zangetsu101.pass.decryption.Credentials
 import com.zangetsu101.pass.decryption.DecryptedEntry
 import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
-import com.zangetsu101.pass.decryption.EditableLogin
+import com.zangetsu101.pass.decryption.EditableEntry
+import com.zangetsu101.pass.decryption.EntryEditSource
 import com.zangetsu101.pass.decryption.EntryNotes
-import com.zangetsu101.pass.decryption.LoginEditSource
 import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.decryption.parseEntryNotes
 import com.zangetsu101.pass.generator.GeneratorSettings
@@ -26,8 +26,8 @@ import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.keymanagement.session.SessionOperations
 import com.zangetsu101.pass.keymanagement.session.SessionState
 import com.zangetsu101.pass.otp.Otp
-import com.zangetsu101.pass.passstore.LoginEntryWriter
-import com.zangetsu101.pass.passstore.LoginSaveError
+import com.zangetsu101.pass.passstore.EntrySaveError
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassEntry
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -55,7 +55,7 @@ sealed class UnlockState {
 
     data class Decrypted(
         val credentials: Credentials,
-        val passwordRevealed: Boolean = false,
+        val secretRevealed: Boolean = false,
         val copied: Copied? = null,
         val canEdit: Boolean = false,
         val revealedFields: Set<Int> = emptySet(),
@@ -73,7 +73,7 @@ fun UnlockState.headerName(entry: PassEntry): String = (this as? UnlockState.Dec
 
 /** The secret that the user copied last from entry detail. Entry detail marks only this one as copied. */
 sealed interface Copied {
-    data object Password : Copied
+    data object Secret : Copied
 
     data object OtpCode : Copied
 
@@ -98,42 +98,49 @@ data class EntryDetailUiState(
     val gitStatus: GitStatus = GitStatus.Loading,
     val clipboardTimeoutSeconds: Int = 45,
     val mode: EntryDetailMode = EntryDetailMode.ViewEntry,
-    val showingSavedLogin: Boolean = false,
+    val showingSavedEntry: Boolean = false,
 )
 
 sealed interface EntryDetailMode {
     data object ViewEntry : EntryDetailMode
 
     data class EditEntry(
-        val draft: LoginEditorState,
+        val draft: EntryEditorState,
     ) : EntryDetailMode
 }
 
 @ConsistentCopyVisibility
-data class LoginEditorState internal constructor(
-    internal val source: LoginEditSource,
-    internal val passwordDraft: PasswordDraft,
+data class EntryEditorState internal constructor(
+    internal val source: EntryEditSource,
+    internal val secretDraft: SecretDraft,
     val notes: String,
     val saving: Boolean = false,
     val error: String? = null,
-    internal val type: EntryType = EntryType.Login,
 ) {
-    val password: String get() = passwordDraft.password
-    private val card get() = type == EntryType.Card
-    private val originalLine1 get() = source.login.password
-    val passwordChanged: Boolean get() = password != if (card) cardNumberDigits(originalLine1) else originalLine1
-    val notesChanged: Boolean get() = notes != source.login.notes
+    val secret: String get() = secretDraft.secret
+    internal val type
+        get() =
+            when (secretDraft) {
+                is SecretDraft.Password -> EntryType.Login
+                is SecretDraft.CardNumber -> EntryType.Card
+            }
+    private val originalSecret get() = source.entry.secret
+    val secretChanged: Boolean get() = secret != if (type == EntryType.Card) cardNumberDigits(originalSecret) else originalSecret
+    val notesChanged: Boolean get() = notes != source.entry.notes
 
-    /** The line 1 that a save writes. An unchanged card number keeps its original form, with any spaces. */
-    internal val line1: String get() = if (card && !passwordChanged) originalLine1 else password
+    /** The secret that a save writes. An unchanged secret keeps its original form, such as a card number with spaces. */
+    internal val secretToSave: String get() = if (secretChanged) secret else originalSecret
 
     /** `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`. */
     val passwordSource: PasswordSource
-        get() = if (passwordDraft.generated && passwordChanged && !notesChanged) PasswordSource.Generated else PasswordSource.Given
-    val changed: Boolean get() = passwordChanged || notesChanged
-    val hasOtp: Boolean get() = source.login.hasOtp
+        get() {
+            val generated = (secretDraft as? SecretDraft.Password)?.draft?.generated == true
+            return if (generated && secretChanged && !notesChanged) PasswordSource.Generated else PasswordSource.Given
+        }
+    val changed: Boolean get() = secretChanged || notesChanged
+    val hasOtp: Boolean get() = source.entry.hasOtp
 
-    override fun toString(): String = "LoginEditorState"
+    override fun toString(): String = "EntryEditorState"
 }
 
 @HiltViewModel(assistedFactory = EntryDetailViewModel.Factory::class)
@@ -146,7 +153,7 @@ class EntryDetailViewModel
         private val sessionOperations: SessionOperations,
         private val gitSync: GitSync,
         private val appPreferences: AppPreferences,
-        private val loginWriter: LoginEntryWriter,
+        private val entryWriter: EntryWriter,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
@@ -185,7 +192,7 @@ class EntryDetailViewModel
             autoLockJob?.cancel()
             lockDeadline = null
             rawEntry = null
-            _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
+            _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedEntry = false) }
         }
 
         // Read-only guard for collected snapshots; never refresh or extend the deadline here.
@@ -215,7 +222,7 @@ class EntryDetailViewModel
                 sessionOperations.sessionState.collect { sessionState ->
                     if (sessionState is SessionState.Inactive &&
                         _state.value.unlockState is UnlockState.Decrypted &&
-                        !(_state.value.showingSavedLogin && sessionState.reason == EndReason.TIMEOUT)
+                        !(_state.value.showingSavedEntry && sessionState.reason == EndReason.TIMEOUT)
                     ) {
                         lock()
                         _state.update {
@@ -239,7 +246,7 @@ class EntryDetailViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: BiometricAuthException) {
-                        _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedLogin = false) }
+                        _state.update { it.copy(unlockState = UnlockState.Idle, showingSavedEntry = false) }
                     } catch (e: SessionError.NoActiveSession) {
                         _state.update { it.copy(unlockState = UnlockState.Failed("Session expired — return to home and unlock")) }
                     } catch (e: DecryptionError) {
@@ -256,35 +263,42 @@ class EntryDetailViewModel
             if (current.mode != EntryDetailMode.ViewEntry || sessionOperations.sessionState.value !is SessionState.Active) return
             if (current.unlockState !is UnlockState.Decrypted) return
             val original = rawEntry ?: return
-            val login = EditableLogin(original.plaintext)
-            val source = LoginEditSource(login, original.ciphertextDigest)
-            val type = if (current.entry.isCard) EntryType.Card else EntryType.Login
-            val line1 = if (type == EntryType.Card) cardNumberDigits(login.password) else login.password
-            val draft = LoginEditorState(source, PasswordDraft(line1), login.notes, type = type)
-            _state.update { it.copy(mode = EntryDetailMode.EditEntry(draft)) }
+            val editable = EditableEntry(original.plaintext)
+            val source = EntryEditSource(editable, original.ciphertextDigest)
+            val secret =
+                if (current.entry.type == EntryType.Card) {
+                    SecretDraft.CardNumber(cardNumberDigits(editable.secret))
+                } else {
+                    SecretDraft.Password(PasswordDraft(editable.secret))
+                }
+            _state.update { it.copy(mode = EntryDetailMode.EditEntry(EntryEditorState(source, secret, editable.notes))) }
         }
 
-        fun updateEditorPassword(password: String) {
-            updateEditor { it.copy(passwordDraft = it.passwordDraft.type(password), error = null) }
-        }
+        fun updateEditorPassword(password: String) = updateEditorPasswordDraft { it.type(password) }
 
         fun updateEditorCardNumber(number: String) {
-            updateEditor { it.copy(passwordDraft = it.passwordDraft.type(cardNumberDigits(number)), error = null) }
+            updateEditor { editor ->
+                if (editor.secretDraft !is SecretDraft.CardNumber) return@updateEditor editor
+                editor.copy(secretDraft = SecretDraft.CardNumber(cardNumberDigits(number)), error = null)
+            }
         }
 
-        fun regenerateEditorPassword() {
-            updateEditor { it.copy(passwordDraft = it.passwordDraft.regenerate(random), error = null) }
-        }
+        fun regenerateEditorPassword() = updateEditorPasswordDraft { it.regenerate(random) }
 
-        internal fun updateEditorGenerator(settings: GeneratorSettings) {
-            updateEditor { it.copy(passwordDraft = it.passwordDraft.withSettings(settings, random), error = null) }
+        internal fun updateEditorGenerator(settings: GeneratorSettings) = updateEditorPasswordDraft { it.withSettings(settings, random) }
+
+        private fun updateEditorPasswordDraft(update: (PasswordDraft) -> PasswordDraft) {
+            updateEditor { editor ->
+                val secret = editor.secretDraft as? SecretDraft.Password ?: return@updateEditor editor
+                editor.copy(secretDraft = SecretDraft.Password(update(secret.draft)), error = null)
+            }
         }
 
         fun updateEditorNotes(notes: String) {
             updateEditor { it.copy(notes = notes, error = null) }
         }
 
-        private fun updateEditor(update: (LoginEditorState) -> LoginEditorState) {
+        private fun updateEditor(update: (EntryEditorState) -> EntryEditorState) {
             _state.update { state ->
                 val editor = (state.mode as? EntryDetailMode.EditEntry)?.draft ?: return@update state
                 if (editor.saving) state else state.copy(mode = EntryDetailMode.EditEntry(update(editor)))
@@ -299,36 +313,36 @@ class EntryDetailViewModel
         }
 
         fun copyEditorPassword() {
-            val password =
+            val secret =
                 (_state.value.mode as? EntryDetailMode.EditEntry)
                     ?.draft
-                    ?.password
+                    ?.secret
                     .orEmpty()
-            if (password.isNotEmpty()) copySecret("password", password)
+            if (secret.isNotEmpty()) copyToClipboard("password", secret)
         }
 
         fun saveEditor() {
             val editor = (_state.value.mode as? EntryDetailMode.EditEntry)?.draft ?: return
             if (editor.saving || !editor.changed) return
-            val line1 = editor.line1
-            if (line1.isEmpty() &&
-                editor.source.login.password
+            val secret = editor.secretToSave
+            if (secret.isEmpty() &&
+                editor.source.entry.secret
                     .isNotEmpty()
             ) {
-                updateEditor { it.copy(error = "${editor.type.line1} cannot be empty") }
+                updateEditor { it.copy(error = "${editor.type.secretLabel} cannot be empty") }
                 return
             }
             updateEditor { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val saved = loginWriter.save(entry, editor.source, line1, editor.notes, editor.passwordSource)
+                    val saved = entryWriter.save(entry, editor.source, secret, editor.notes, editor.passwordSource)
                     showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     val message =
                         when (error) {
-                            is LoginSaveError, is SyncError.EditRejected -> error.message
+                            is EntrySaveError, is SyncError.EditRejected -> error.message
                             else -> "couldn't save entry"
                         }
                     _state.update { it.copy(mode = EntryDetailMode.EditEntry(editor.copy(error = message))) }
@@ -355,7 +369,7 @@ class EntryDetailViewModel
                     unlockState = UnlockState.Decrypted(decrypted.credentials, canEdit = rawEntry != null),
                     gitStatus = saved?.let(GitStatus::Tracked) ?: it.gitStatus,
                     mode = if (saved != null) EntryDetailMode.ViewEntry else it.mode,
-                    showingSavedLogin = savedAfterTimeout,
+                    showingSavedEntry = savedAfterTimeout,
                 )
             }
             autoLockJob =
@@ -368,16 +382,15 @@ class EntryDetailViewModel
         fun toggleReveal() {
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
-            _state.update { it.copy(unlockState = current.copy(passwordRevealed = !current.passwordRevealed)) }
+            _state.update { it.copy(unlockState = current.copy(secretRevealed = !current.secretRevealed)) }
         }
 
-        fun copyPassword() {
+        fun copySecret() {
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
-            if (current.credentials.password.isEmpty()) return
-            val password = String(current.credentials.password)
-            copySecret("password", password)
-            _state.update { it.copy(unlockState = current.copy(copied = Copied.Password)) }
+            if (current.credentials.secret.isEmpty()) return
+            copyToClipboard("password", String(current.credentials.secret))
+            _state.update { it.copy(unlockState = current.copy(copied = Copied.Secret)) }
         }
 
         fun toggleFieldReveal(index: Int) {
@@ -391,7 +404,7 @@ class EntryDetailViewModel
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             val field = current.notes.fields.getOrNull(index) ?: return
-            copySecret(field.key, field.value)
+            copyToClipboard(field.key, field.value)
             _state.update { it.copy(unlockState = current.copy(copied = Copied.Field(index))) }
         }
 
@@ -399,7 +412,7 @@ class EntryDetailViewModel
             refreshLock()
             val current = _state.value.unlockState as? UnlockState.Decrypted ?: return
             val otp = current.credentials.otp as? Otp.Totp ?: return
-            copySecret("otp", otp.code(System.currentTimeMillis() / 1000))
+            copyToClipboard("otp", otp.code(System.currentTimeMillis() / 1000))
             _state.update { it.copy(unlockState = current.copy(copied = Copied.OtpCode)) }
             otpHintJob?.cancel()
             otpHintJob =
@@ -413,7 +426,7 @@ class EntryDetailViewModel
                 }
         }
 
-        private fun copySecret(
+        private fun copyToClipboard(
             label: String,
             value: String,
         ) {

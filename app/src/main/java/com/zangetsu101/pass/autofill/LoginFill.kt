@@ -13,5 +13,5 @@ internal fun loginFill(
 ): List<Pair<AutofillId, AutofillValue>> =
     listOfNotNull(
         usernameId?.let { it to AutofillValue.forText(credentials.username) },
-        passwordId?.let { it to AutofillValue.forText(String(credentials.password)) },
+        passwordId?.let { it to AutofillValue.forText(String(credentials.secret)) },
     )

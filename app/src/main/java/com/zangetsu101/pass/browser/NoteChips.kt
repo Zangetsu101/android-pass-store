@@ -14,7 +14,7 @@ internal data class NoteChip(
 internal fun noteChips(
     path: String,
     notes: String,
-    type: EntryType = EntryType.Login,
+    type: EntryType,
 ): List<NoteChip> {
     val keys =
         when {
