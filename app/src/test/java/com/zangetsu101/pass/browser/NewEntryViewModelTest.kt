@@ -7,7 +7,7 @@ import android.content.Context
 import com.zangetsu101.pass.generator.CharacterSet
 import com.zangetsu101.pass.generator.GeneratorSettings
 import com.zangetsu101.pass.passstore.EntryPath
-import com.zangetsu101.pass.passstore.LoginEntryWriter
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
@@ -42,7 +42,7 @@ class NewEntryViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val context = mockk<Context>(relaxed = true)
     private val clipboard = mockk<ClipboardManager>(relaxed = true)
-    private val writer = mockk<LoginEntryWriter>()
+    private val writer = mockk<EntryWriter>()
     private val preferences = mockk<AppPreferences>()
     private val path = EntryPath("dev/github.com")
 
@@ -66,7 +66,8 @@ class NewEntryViewModelTest {
         unmockkObject(ClipboardClearReceiver.Companion)
     }
 
-    private fun createViewModel() = NewEntryViewModel(context, writer, mockk<PassStore>(relaxed = true), preferences)
+    private fun createViewModel(initialPath: String = "") =
+        NewEntryViewModel(initialPath, context, writer, mockk<PassStore>(relaxed = true), preferences)
 
     @Test
     fun `the form opens with a default generated password and copies it after the save`() =
@@ -136,5 +137,107 @@ class NewEntryViewModelTest {
             assertTrue(vm.passwordChanged)
             assertEquals(32, vm.password.length)
             assertTrue(vm.password.all { it.isLetterOrDigit() })
+        }
+
+    @Test
+    fun `the form starts as a card when the start path is in a Card Folder`() {
+        assertEquals(EntryType.Login, createViewModel("dev/").type)
+        assertFalse(createViewModel("dev/").notesOpen)
+        val card = createViewModel("finance/credit-cards/")
+        assertEquals(EntryType.Card, card.type)
+        assertTrue(card.notesOpen)
+    }
+
+    @Test
+    fun `a path that enters a Card Folder switches the type to card and the type never switches back by itself`() {
+        val vm = createViewModel()
+        vm.updatePath(EntryPath("finance/cards"))
+        assertEquals(EntryType.Login, vm.type)
+
+        vm.updatePath(EntryPath("finance/cards/"))
+        assertEquals(EntryType.Card, vm.type)
+        assertTrue(vm.notesOpen)
+
+        vm.updatePath(EntryPath("dev/github.com"))
+        assertEquals(EntryType.Card, vm.type)
+
+        vm.selectType(EntryType.Login)
+        vm.updatePath(EntryPath("credit-cards/visa"))
+        assertEquals(EntryType.Card, vm.type)
+
+        vm.selectType(EntryType.Login)
+        vm.updatePath(EntryPath("credit-cards/visa-gold"))
+        assertEquals(EntryType.Login, vm.type)
+    }
+
+    @Test
+    fun `a switch to card opens the notes and keeps them`() {
+        val vm = createViewModel()
+        vm.updateNotes("cvv: 123")
+        vm.selectType(EntryType.Card)
+
+        assertTrue(vm.notesOpen)
+        assertEquals("cvv: 123", vm.notes)
+    }
+
+    @Test
+    fun `the form keeps the password and the card number across a switch and saves only the visible one`() =
+        runTest(testDispatcher) {
+            val vm = createViewModel()
+            val password = vm.password
+            vm.selectType(EntryType.Card)
+            vm.updateCardNumber("4111 1111-1111 1111")
+            vm.selectType(EntryType.Login)
+            assertEquals(password, vm.password)
+            vm.selectType(EntryType.Card)
+            assertEquals("4111111111111111", vm.cardNumber)
+            val card = EntryPath("cards/visa")
+
+            vm.save(card, expectedDigest = null)
+            runCurrent()
+
+            coVerify { writer.insert(card, null, "4111111111111111", "", PasswordSource.Given) }
+            verify(exactly = 0) { clipboard.setPrimaryClip(any()) }
+            assertEquals("", vm.cardNumber)
+        }
+
+    @Test
+    fun `a card cannot be saved without a number but a failed checksum does not block the save`() =
+        runTest(testDispatcher) {
+            val vm = createViewModel("cards/")
+            val card = EntryPath("cards/visa")
+            vm.save(card, expectedDigest = null)
+            runCurrent()
+            coVerify(exactly = 0) { writer.insert(any(), any(), any(), any(), any()) }
+
+            vm.updateCardNumber("4111111111111112")
+            vm.save(card, expectedDigest = null)
+            runCurrent()
+            coVerify { writer.insert(card, null, "4111111111111112", "", PasswordSource.Given) }
+        }
+
+    @Test
+    fun `the warning shows only for a card outside a Card Folder`() {
+        val vm = createViewModel()
+        assertFalse(vm.cardFolderWarning(EntryPath("finance/visa")))
+        vm.selectType(EntryType.Card)
+        assertTrue(vm.cardFolderWarning(EntryPath("finance/visa")))
+        assertFalse(vm.cardFolderWarning(EntryPath("finance/cards/visa")))
+        assertFalse(vm.cardFolderWarning(EntryPath("")))
+    }
+
+    @Test
+    fun `a login cannot be saved in a Card Folder`() =
+        runTest(testDispatcher) {
+            val vm = createViewModel()
+            val card = EntryPath("cards/visa")
+            assertEquals("choose a folder for login entries", vm.pathError(card))
+
+            vm.save(card, expectedDigest = null)
+            runCurrent()
+
+            coVerify(exactly = 0) { writer.insert(any(), any(), any(), any(), any()) }
+            vm.selectType(EntryType.Card)
+            assertEquals(null, vm.pathError(card))
         }
 }

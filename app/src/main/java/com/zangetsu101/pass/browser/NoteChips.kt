@@ -14,8 +14,14 @@ internal data class NoteChip(
 internal fun noteChips(
     path: String,
     notes: String,
+    type: EntryType,
 ): List<NoteChip> {
-    val keys = if (EntryPath(path).flatStore) listOf("username", "email") else listOf("username", "url", "email")
+    val keys =
+        when {
+            type == EntryType.Card -> listOf("cardholder", "cvv", "expiry", "pin")
+            EntryPath(path).flatStore -> listOf("username", "email")
+            else -> listOf("username", "url", "email")
+        }
     val lines = notes.lines()
     return keys.map { key -> NoteChip(key, lines.any { noteKey(it).equals(key, ignoreCase = true) }) }
 }

@@ -3,7 +3,7 @@ package com.zangetsu101.pass.passstore
 
 import android.util.Log
 import com.zangetsu101.pass.decryption.DecryptedEntry
-import com.zangetsu101.pass.decryption.LoginEditSource
+import com.zangetsu101.pass.decryption.EntryEditSource
 import com.zangetsu101.pass.decryption.RawEntry
 import com.zangetsu101.pass.decryption.ciphertextDigest
 import com.zangetsu101.pass.decryption.parseCredentials
@@ -24,7 +24,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class LoginEntryWriter
+class EntryWriter
     @Inject
     constructor(
         private val gitSync: GitSync,
@@ -37,27 +37,27 @@ class LoginEntryWriter
 
         internal suspend fun save(
             entry: PassEntry,
-            source: LoginEditSource,
-            password: String,
+            source: EntryEditSource,
+            secret: String,
             notes: String,
             passwordSource: PasswordSource,
         ) = scope
             .async {
-                val plaintext = source.login.render(password, notes)
+                val plaintext = source.entry.render(secret, notes)
                 lateinit var rawEntry: RawEntry
                 val commit =
                     gitSync.commitEdit(entry.path, editCommitMessage(entry.path.removeSuffix(".gpg"), passwordSource)) { root, original ->
                         if (!source.ciphertextDigest.contentEquals(original.ciphertextDigest())) {
-                            throw LoginSaveError("entry changed on disk · reopen it to edit")
+                            throw EntrySaveError("entry changed on disk · reopen it to edit")
                         }
-                        val encryption = LoginEncryption(keyStore.publicKeySource())
+                        val encryption = EntryEncryption(keyStore.publicKeySource())
                         val ciphertext = encryption.encrypt(root, entry.path, plaintext)
                         rawEntry = RawEntry(plaintext, ciphertext.ciphertextDigest())
                         EncryptedEdit(ciphertext, encryption.author())
                     }
                 pushInBackground(reportFailure = true)
                 scope.launch { refreshIndex() }
-                SavedLogin(DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry), commit)
+                SavedEntry(DecryptedEntry(parseCredentials(plaintext, entry.username), rawEntry), commit)
             }.await()
 
         internal fun checkInsertPath(
@@ -66,30 +66,30 @@ class LoginEntryWriter
         ): ByteArray? {
             val file = File(root, path.filePath)
             if (file != file.canonicalFile || (file.exists() && !file.isFile)) {
-                throw LoginSaveError("path is already in use")
+                throw EntrySaveError("path is already in use")
             }
-            root.caseConflictMessage(path.filePath)?.let { throw LoginSaveError(it) }
-            LoginEncryption(keyStore.publicKeySource()).checkRecipients(root, path.filePath)
+            root.caseConflictMessage(path.filePath)?.let { throw EntrySaveError(it) }
+            EntryEncryption(keyStore.publicKeySource()).checkRecipients(root, path.filePath)
             return if (file.isFile) file.readBytes().ciphertextDigest() else null
         }
 
         internal suspend fun insert(
             path: EntryPath,
             expectedDigest: ByteArray?,
-            password: String,
+            secret: String,
             notes: String,
             passwordSource: PasswordSource,
         ) = scope
             .async {
-                path.error?.let { throw LoginSaveError(it) }
-                if (password.isEmpty() || password.any(Char::isWhitespace)) throw LoginSaveError("enter a password")
-                val plaintext = "$password\n$notes"
+                path.error?.let { throw EntrySaveError(it) }
+                if (secret.isEmpty() || secret.any(Char::isWhitespace)) throw EntrySaveError("enter a password")
+                val plaintext = "$secret\n$notes"
                 gitSync.commitInsert(path.filePath, insertCommitMessage(path.value, passwordSource)) { root, original ->
                     val actualDigest = original?.ciphertextDigest()
                     if (!expectedDigest.contentEquals(actualDigest)) {
-                        throw LoginSaveError("entry changed on disk · check the path and try again")
+                        throw EntrySaveError("entry changed on disk · check the path and try again")
                     }
-                    val encryption = LoginEncryption(keyStore.publicKeySource())
+                    val encryption = EntryEncryption(keyStore.publicKeySource())
                     EncryptedEdit(encryption.encrypt(root, path.filePath, plaintext), encryption.author())
                 }
                 pushInBackground(reportFailure = false)
@@ -114,16 +114,16 @@ class LoginEntryWriter
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                Log.w("LoginEntryWriter", "Could not refresh the entry index after saving", error)
+                Log.w("EntryWriter", "Could not refresh the entry index after saving", error)
             }
         }
     }
 
-internal class SavedLogin(
+internal class SavedEntry(
     val entry: DecryptedEntry,
     val commit: FileCommitInfo,
 )
 
-internal class LoginSaveError(
+internal class EntrySaveError(
     override val message: String,
 ) : Exception(message)

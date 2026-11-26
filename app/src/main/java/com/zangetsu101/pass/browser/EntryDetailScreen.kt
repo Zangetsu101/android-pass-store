@@ -113,16 +113,16 @@ fun EntryDetailScreen(
     }
 
     val mode = state.mode
-    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedLogin) {
+    LaunchedEffect(viewModel, activity, sessionActive, mode is EntryDetailMode.ViewEntry, state.showingSavedEntry) {
         if (sessionActive) {
             viewModel.onScreenEntered(activity)
-        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedLogin) {
+        } else if (mode is EntryDetailMode.ViewEntry && !state.showingSavedEntry) {
             onSessionRequired()
         }
     }
 
     if (mode is EntryDetailMode.EditEntry) {
-        LoginEditorScreen(state.entry, mode.draft, viewModel)
+        EntryEditorScreen(state.entry, mode.draft, viewModel)
         return
     }
     BackHandler(onBack = leaveEntry)
@@ -144,7 +144,7 @@ fun EntryDetailScreen(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 EntryTopBar(
-                    domain = state.entry.domain,
+                    label = headerLabel(state.entry),
                     name = unlockState.headerName(state.entry),
                     isCard = state.entry.isCard,
                     onBack = leaveEntry,
@@ -161,9 +161,9 @@ fun EntryDetailScreen(
                     when (val unlock = unlockState) {
                         is UnlockState.Idle,
                         is UnlockState.Decrypting,
-                        -> PasswordSkeleton()
+                        -> SecretSkeleton(state.entry.type.secretLabel)
 
-                        is UnlockState.Decrypted -> DecryptedContent(unlock, state.clipboardTimeoutSeconds, viewModel)
+                        is UnlockState.Decrypted -> DecryptedContent(unlock, state.entry, state.clipboardTimeoutSeconds, viewModel)
 
                         is UnlockState.Failed -> ErrorMessage(unlock.message)
                     }
@@ -210,9 +210,12 @@ fun EntryDetailScreen(
 
 // ── Sub-composables ──────────────────────────────────────────────────────────
 
+/** The line above the name. A card shows its path, because the domain of a card is only a display label. */
+private fun headerLabel(entry: PassEntry) = if (entry.isCard) entry.path.removeSuffix(".gpg") else entry.domain
+
 @Composable
 private fun EntryTopBar(
-    domain: String?,
+    label: String?,
     name: String,
     isCard: Boolean,
     onBack: () -> Unit,
@@ -234,7 +237,7 @@ private fun EntryTopBar(
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            domain?.let {
+            label?.let {
                 Text(it, style = PassType.Caption.copy(color = PassColorsDark.TextDim))
             }
             Text(name, style = PassType.Title)
@@ -246,14 +249,22 @@ private fun EntryTopBar(
 @Composable
 private fun DecryptedContent(
     unlock: UnlockState.Decrypted,
+    entry: PassEntry,
     clipboardTimeoutSeconds: Int,
     viewModel: EntryDetailViewModel,
 ) {
-    if (unlock.credentials.password.isNotEmpty()) {
-        PasswordCard(unlock = unlock, onCopy = viewModel::copyPassword, onToggleReveal = viewModel::toggleReveal)
+    if (unlock.credentials.secret.isNotEmpty()) {
+        val secret = String(unlock.credentials.secret)
+        SecretCard(
+            label = entry.type.secretLabel,
+            text = if (entry.isCard && isCardDigits(secret)) groupCardNumber(secret) else secret,
+            unlock = unlock,
+            onCopy = viewModel::copySecret,
+            onToggleReveal = viewModel::toggleReveal,
+        )
         Spacer(Modifier.height(6.dp))
         Text(
-            "decrypted in-memory" + if (unlock.copied == Copied.Password) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
+            "decrypted in-memory" + if (unlock.copied == Copied.Secret) " · clipboard clears in ${clipboardTimeoutSeconds}s" else "",
             style = PassType.Caption.copy(color = PassColorsDark.TextFaint),
         )
         Spacer(Modifier.height(20.dp))
@@ -439,12 +450,14 @@ private fun OtpCard(
 }
 
 @Composable
-private fun PasswordCard(
+private fun SecretCard(
+    label: String,
+    text: String,
     unlock: UnlockState.Decrypted,
     onCopy: () -> Unit,
     onToggleReveal: () -> Unit,
 ) {
-    Text("password", style = PassType.Label)
+    Text(label, style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
         modifier =
@@ -455,9 +468,9 @@ private fun PasswordCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
-            text = String(unlock.credentials.password),
+            text = text,
             style = PassType.Body.copy(color = PassColorsDark.Accent, letterSpacing = 0.1.em),
-            modifier = if (!unlock.passwordRevealed) Modifier.blur(5.dp) else Modifier,
+            modifier = if (!unlock.secretRevealed) Modifier.blur(5.dp) else Modifier,
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -474,7 +487,7 @@ private fun PasswordCard(
             ) {
                 Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(if (unlock.copied == Copied.Password) "copied" else "copy", style = PassType.Body)
+                Text(if (unlock.copied == Copied.Secret) "copied" else "copy", style = PassType.Body)
             }
             OutlinedButton(
                 onClick = onToggleReveal,
@@ -488,7 +501,7 @@ private fun PasswordCard(
                 modifier = Modifier.weight(1f).height(40.dp),
             ) {
                 Text(
-                    if (unlock.passwordRevealed) "hide" else "reveal",
+                    if (unlock.secretRevealed) "hide" else "reveal",
                     style = PassType.Body.copy(color = PassColorsDark.TextDim),
                 )
             }
@@ -585,9 +598,9 @@ private fun MetaRow(
 }
 
 @Composable
-private fun PasswordSkeleton() {
+private fun SecretSkeleton(label: String) {
     val bodyHeight = with(LocalDensity.current) { PassType.Body.fontSize.toDp() }
-    Text("password", style = PassType.Label)
+    Text(label, style = PassType.Label)
     Spacer(Modifier.height(6.dp))
     Column(
         modifier =

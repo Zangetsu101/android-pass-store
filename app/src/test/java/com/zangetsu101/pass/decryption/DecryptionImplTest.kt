@@ -92,6 +92,17 @@ class DecryptionImplTest {
         }
 
     @Test
+    fun `a Card Entry keeps its original text so that entry detail can edit it`() =
+        runTest {
+            coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey
+            val entry = makeEntry("visa.gpg", "4111 1111 1111 1111\ncvv: 123\n").copy(isCard = true)
+
+            val decrypted = decryption.decryptForEntryDetail(entry, mockk())
+
+            assertEquals("4111 1111 1111 1111\ncvv: 123\n", decrypted.rawEntry?.plaintext)
+        }
+
+    @Test
     fun `decrypt returns password from line 1 of single-line file`() =
         runTest {
             coEvery { gpgKeyProvider.getGpgKey(any()) } returns testKey
@@ -100,7 +111,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("s3cr3t".toCharArray(), creds.password)
+            assertArrayEquals("s3cr3t".toCharArray(), creds.secret)
         }
 
     @Test
@@ -112,7 +123,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("password123".toCharArray(), creds.password)
+            assertArrayEquals("password123".toCharArray(), creds.secret)
             assertTrue(creds.notes.contains("username: bob"))
         }
 
@@ -125,7 +136,7 @@ class DecryptionImplTest {
 
             val creds = decryption.decrypt(entry, activity)
 
-            assertArrayEquals("autofillpass".toCharArray(), creds.password)
+            assertArrayEquals("autofillpass".toCharArray(), creds.secret)
             assertEquals("carol", creds.username)
         }
 

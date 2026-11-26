@@ -1,0 +1,68 @@
+appId: com.zangetsu101.pass
+---
+# The GPG auth key can clone the fixture store. It cannot push to it.
+- runFlow:
+    file: ../shared/setup_store.yaml
+    env:
+      KEY_FILE: test-key-auth.asc
+      USE_GPG_AUTH: "true"
+- tapOn: "add entry"
+- tapOn: "entry path"
+- inputText: "finance/visa-29"
+- hideKeyboard
+- tapOn: "card"
+- assertVisible: "card number"
+- assertVisible: "type or paste the number"
+- assertVisible: "no cards/ folder · .*"
+- takeScreenshot: "29-card-outside-cards"
+- tapOn: "add cards/"
+- assertNotVisible: "no cards/ folder · .*"
+- tapOn: "edit card number"
+- inputText: "4111111111111111"
+- hideKeyboard
+- assertVisible: "16 digits · checksum ok"
+# A switch to card opens the card details with the card chips.
+- tapOn: "\\+ cvv:"
+- inputText: "737"
+- tapOn: "\\+ expiry:"
+- inputText: "08/29"
+- hideKeyboard
+- assertVisible: "✓ cvv:"
+- assertVisible: "\\+ cardholder:"
+- assertVisible: "3 lines · number \\+ 2 details"
+- takeScreenshot: "29-new-card"
+- tapOn: "save entry"
+- extendedWaitUntil:
+    visible:
+      checked: true
+      containsDescendants:
+        - text: "visa-29"
+    timeout: 30000
+- tapOn: "visa-29"
+- tapOn:
+    text: "Allow"
+    optional: true
+- extendedWaitUntil:
+    visible: "start session"
+    timeout: 5000
+- tapOn: "enter passphrase"
+- inputText: "testpass"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "details"
+    timeout: 60000
+- assertVisible: "card number"
+- assertVisible: "cards/finance/visa-29"
+- assertVisible: "08/29"
+- assertVisible: "reveal cvv"
+- tapOn: "reveal"
+- assertVisible: "4111 1111 1111 1111"
+- scrollUntilVisible:
+    element: "edit"
+    direction: DOWN
+    timeout: 10000
+# The app bar tag and the metadata row both show `card`.
+- assertVisible:
+    text: "card"
+    index: 1
+- takeScreenshot: "29-card-detail"

@@ -58,12 +58,12 @@ class CredentialAuthActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 val creds = decryption.decrypt(entry, this@CredentialAuthActivity)
-                if (creds.password.isEmpty()) {
+                if (creds.secret.isEmpty()) {
                     setResult(RESULT_CANCELED)
                     finish()
                     return@launch
                 }
-                val credential = PasswordCredential(creds.username, String(creds.password))
+                val credential = PasswordCredential(creds.username, String(creds.secret))
 
                 val resultData = Intent()
                 PendingIntentHandler.setGetCredentialResponse(

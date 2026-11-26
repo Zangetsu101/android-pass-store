@@ -13,11 +13,11 @@ class CredentialsParsingTest {
     @Test
     fun `indented OTP lines are recognized removed and first wins`() {
         val creds = parseCredentials(" \t $uri\nnotes: retained\n\totpauth://bad", "alice")
-        assertTrue(creds.password.isEmpty())
+        assertTrue(creds.secret.isEmpty())
         assertEquals("notes: retained", creds.notes)
         assertTrue(creds.otp is Otp.Totp)
         val withPassword = parseCredentials("password\n \t $uri\n\totpauth://bad", "alice")
-        assertEquals("password", String(withPassword.password))
+        assertEquals("password", String(withPassword.secret))
         assertEquals("", withPassword.notes)
         assertTrue(withPassword.otp is Otp.Totp)
     }
@@ -25,7 +25,7 @@ class CredentialsParsingTest {
     @Test
     fun `password plus OTP strips every URI and first wins`() {
         val creds = parseCredentials("password\r\n$uri\r\nurl: example.com\r\notpauth://bad\r\n", "alice")
-        assertEquals("password", String(creds.password))
+        assertEquals("password", String(creds.secret))
         assertEquals("url: example.com", creds.notes)
         assertTrue(creds.otp is Otp.Totp)
         assertEquals("alice", creds.username)
@@ -34,7 +34,7 @@ class CredentialsParsingTest {
     @Test
     fun `OTP only has no password or notes`() {
         val creds = parseCredentials("$uri\n", "alice")
-        assertTrue(creds.password.isEmpty())
+        assertTrue(creds.secret.isEmpty())
         assertEquals("", creds.notes)
         assertTrue(creds.otp is Otp.Totp)
     }
@@ -42,7 +42,7 @@ class CredentialsParsingTest {
     @Test
     fun `invalid first URI wins and no note becomes password`() {
         val creds = parseCredentials("otpauth://bad\nnotes: retained\n$uri", "alice")
-        assertTrue(creds.password.isEmpty())
+        assertTrue(creds.secret.isEmpty())
         assertEquals("notes: retained", creds.notes)
         assertTrue(creds.otp is Otp.Invalid)
     }
@@ -68,7 +68,7 @@ class CredentialsParsingTest {
     @Test
     fun `ordinary entries retain original splitting`() {
         val creds = parseCredentials("password\nusername: bob\n", "alice")
-        assertEquals("password", String(creds.password))
+        assertEquals("password", String(creds.secret))
         assertEquals("username: bob", creds.notes)
         assertNull(creds.otp)
     }

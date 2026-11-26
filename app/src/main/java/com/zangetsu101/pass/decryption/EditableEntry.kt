@@ -6,14 +6,14 @@ import org.eclipse.jgit.diff.RawText
 import org.eclipse.jgit.diff.RawTextComparator
 import java.security.MessageDigest
 
-internal class LoginEditSource(
-    internal val login: EditableLogin,
+internal class EntryEditSource(
+    internal val entry: EditableEntry,
     internal val ciphertextDigest: ByteArray,
 )
 
 internal fun ByteArray.ciphertextDigest(): ByteArray = MessageDigest.getInstance("SHA-256").digest(this)
 
-internal class EditableLogin(
+internal class EditableEntry(
     plaintext: String,
 ) {
     private class Line(
@@ -31,20 +31,20 @@ internal class EditableLogin(
     private val defaultEnding = lines.firstOrNull { it.ending.isNotEmpty() }?.ending ?: "\n"
     private val firstIsOtp = lines.firstOrNull()?.let { isOtpLine(it.text) } == true
     private val finalEnding = lines.lastOrNull()?.ending.orEmpty()
-    val password = if (firstIsOtp) "" else lines.firstOrNull()?.text.orEmpty()
+    val secret = if (firstIsOtp) "" else lines.firstOrNull()?.text.orEmpty()
     private val noteLines = lines.drop(1).filterNot { isOtpLine(it.text) }
     val notes = noteLines.joinToString("\n") { it.text }
     val hasOtp = lines.any { isOtpLine(it.text) }
 
     fun render(
-        password: String,
+        secret: String,
         notes: String,
     ): String {
         val noteEdits = if (notes == this.notes) null else editNotes(notes)
         val result =
             buildList {
-                if (!firstIsOtp || password.isNotEmpty()) {
-                    add(Line(password, if (firstIsOtp) defaultEnding else lines.firstOrNull()?.ending.orEmpty()))
+                if (!firstIsOtp || secret.isNotEmpty()) {
+                    add(Line(secret, if (firstIsOtp) defaultEnding else lines.firstOrNull()?.ending.orEmpty()))
                 }
                 var noteIndex = 0
                 for (line in lines.drop(if (firstIsOtp) 0 else 1)) {

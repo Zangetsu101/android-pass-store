@@ -13,6 +13,9 @@ internal class EntryPath(
     private val parents = segments.dropLast(1)
     val filePath get() = "$value.gpg"
 
+    /** A path in a Card Folder is the path of a Card Entry. */
+    val inCardFolder get() = cardFolderIndex(parents) >= 0
+
     /** A Flat Store path has no `/` and has a `.`, such as `github.com`. */
     val flatStore get() = '/' !in value && '.' in value
 
@@ -25,7 +28,9 @@ internal class EntryPath(
             value.any { it in "\\:*?\"<>|" || it.isISOControl() } -> "path has an invalid character"
             segments.any { windowsDeviceName.matches(it.substringBefore('.').trimEnd()) } -> "path uses a name reserved by Windows"
             parents.any { it.endsWith(' ') || it.endsWith('.') } -> "a folder name cannot end with a space or dot"
-            parents.any { it == "cards" || it == "credit-cards" } -> "choose a folder for login entries"
             else -> null
         }
 }
+
+/** The index of the first folder named exactly `cards` or `credit-cards`, or -1. That folder is the root of the card subtree. */
+internal fun cardFolderIndex(folders: List<String>) = folders.indexOfFirst { it == "cards" || it == "credit-cards" }

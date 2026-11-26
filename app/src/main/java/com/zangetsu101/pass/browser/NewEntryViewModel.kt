@@ -12,11 +12,14 @@ import com.zangetsu101.pass.generator.PasswordDraft
 import com.zangetsu101.pass.gitsync.SyncError
 import com.zangetsu101.pass.gitsync.repositoryDirectory
 import com.zangetsu101.pass.passstore.EntryPath
-import com.zangetsu101.pass.passstore.LoginEntryWriter
-import com.zangetsu101.pass.passstore.LoginSaveError
+import com.zangetsu101.pass.passstore.EntrySaveError
+import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassStore
 import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -25,17 +28,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.SecureRandom
-import javax.inject.Inject
 
-@HiltViewModel
+@HiltViewModel(assistedFactory = NewEntryViewModel.Factory::class)
 internal class NewEntryViewModel
-    @Inject
+    @AssistedInject
     constructor(
+        @Assisted initialPath: String,
         @ApplicationContext private val context: Context,
-        private val writer: LoginEntryWriter,
+        private val writer: EntryWriter,
         passStore: PassStore,
         private val preferences: AppPreferences,
     ) : ViewModel() {
+        @AssistedFactory
+        interface Factory {
+            fun create(initialPath: String): NewEntryViewModel
+        }
+
         val entries = passStore.index
         val folders = passStore.folders
         private val random = SecureRandom()
@@ -49,12 +57,52 @@ internal class NewEntryViewModel
             private set
         var notes by mutableStateOf("")
             private set
+
+        private var inCardFolder = EntryPath(initialPath).inCardFolder
+        var type by mutableStateOf(if (inCardFolder) EntryType.Card else EntryType.Login)
+            private set
+
+        // Neither the password nor the card number goes into saved state.
+        var cardNumber by mutableStateOf("")
+            private set
+        var notesOpen by mutableStateOf(type == EntryType.Card)
+            private set
+
+        /** The secret that a save writes on line 1: the field of the type that the form shows. */
+        val secret get() = if (type == EntryType.Card) cardNumber else password
         var saving by mutableStateOf(false)
             private set
         var error by mutableStateOf<String?>(null)
             private set
         var savedPath by mutableStateOf<String?>(null)
             private set
+
+        fun selectType(value: EntryType) {
+            type = value
+            if (value == EntryType.Card) notesOpen = true
+            error = null
+        }
+
+        /** A path that enters a Card Folder switches the type to card. Nothing switches it back to login by itself. */
+        fun updatePath(path: EntryPath) {
+            if (path.inCardFolder && !inCardFolder) selectType(EntryType.Card)
+            inCardFolder = path.inCardFolder
+        }
+
+        fun pathError(path: EntryPath): String? =
+            path.error ?: "choose a folder for login entries".takeIf { type == EntryType.Login && path.inCardFolder }
+
+        /** A card outside a Card Folder saves as a login, so the form warns about it. */
+        fun cardFolderWarning(path: EntryPath) = type == EntryType.Card && !path.inCardFolder && path.value.isNotEmpty()
+
+        fun updateCardNumber(value: String) {
+            cardNumber = cardNumberDigits(value)
+            error = null
+        }
+
+        fun toggleNotes() {
+            notesOpen = !notesOpen
+        }
 
         fun updatePassword(value: String) {
             passwordDraft = passwordDraft.type(value)
@@ -93,7 +141,7 @@ internal class NewEntryViewModel
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    InsertPathCheck.Unavailable(if (failure is LoginSaveError) failure.message else "couldn't check the entry path")
+                    InsertPathCheck.Unavailable(if (failure is EntrySaveError) failure.message else "couldn't check the entry path")
                 }
             }
 
@@ -113,16 +161,17 @@ internal class NewEntryViewModel
             path: EntryPath,
             expectedDigest: ByteArray?,
         ) {
-            if (saving || savedPath != null || path.error != null || password.isEmpty()) return
+            if (saving || savedPath != null || pathError(path) != null || secret.isEmpty()) return
             saving = true
             error = null
             viewModelScope.launch {
                 try {
-                    val password = password
-                    val source = if (passwordDraft.generated) PasswordSource.Generated else PasswordSource.Given
-                    writer.insert(path, expectedDigest, password, notes, source)
-                    if (copyAfterSave) copySecret(password)
+                    val login = type == EntryType.Login
+                    val source = if (login && passwordDraft.generated) PasswordSource.Generated else PasswordSource.Given
+                    writer.insert(path, expectedDigest, secret, notes, source)
+                    if (login && copyAfterSave) copySecret(secret)
                     passwordDraft = passwordDraft.type("")
+                    cardNumber = ""
                     notes = ""
                     savedPath = path.value
                 } catch (cancelled: CancellationException) {
@@ -130,7 +179,7 @@ internal class NewEntryViewModel
                 } catch (failure: Exception) {
                     error =
                         when (failure) {
-                            is LoginSaveError, is SyncError.EditRejected -> failure.message
+                            is EntrySaveError, is SyncError.EditRejected -> failure.message
                             else -> "couldn't save entry"
                         }
                 } finally {

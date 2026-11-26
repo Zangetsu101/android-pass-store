@@ -73,4 +73,14 @@ class PassCommandTest {
             PassCommand.generateInPlace("dev/github", default.toggle(CharacterSet.Lower)).charset,
         )
     }
+
+    @Test
+    fun `the line count counts the notes of a login and the number and details of a card`() {
+        assertEquals(null, saveLineSummary(0, EntryType.Login))
+        assertEquals("+ 1 line of notes", saveLineSummary(1, EntryType.Login))
+        assertEquals("+ 2 lines of notes", saveLineSummary(2, EntryType.Login))
+        assertEquals("1 line · number", saveLineSummary(0, EntryType.Card))
+        assertEquals("2 lines · number + 1 detail", saveLineSummary(1, EntryType.Card))
+        assertEquals("4 lines · number + 3 details", saveLineSummary(3, EntryType.Card))
+    }
 }

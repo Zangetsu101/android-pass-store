@@ -3,8 +3,10 @@ package com.zangetsu101.pass.browser
 
 import com.zangetsu101.pass.passstore.EntryPath
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NewEntryPathTest {
@@ -29,7 +31,6 @@ class NewEntryPathTest {
                 ".hidden",
                 "email/.hidden",
                 "email.gpg",
-                "cards/alice",
                 "NUL",
                 "work/com1.txt",
                 "work/LPT¹",
@@ -39,6 +40,15 @@ class NewEntryPathTest {
         for (path in invalid + "\\:*?\"<>|".map { "email${it}gmail" }) {
             assertNotNull(path, EntryPath(path).error)
         }
+    }
+
+    @Test
+    fun `a path is in a Card Folder when a folder in it is named cards or credit-cards`() {
+        val inCardFolder = listOf("cards/visa", "credit-cards/visa", "finance/cards/visa/daily", "cards/cards/visa")
+        val outside = listOf("cards", "credit-cards", "Cards/visa", "my-cards/visa", "dev/github.com/alice", "card/visa")
+        for (path in inCardFolder) assertTrue(path, EntryPath(path).inCardFolder)
+        for (path in outside) assertFalse(path, EntryPath(path).inCardFolder)
+        assertNull(EntryPath("cards/visa").error)
     }
 
     @Test

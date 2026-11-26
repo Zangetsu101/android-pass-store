@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -70,8 +71,6 @@ internal fun NewEntryScreen(
 ) {
     var input by rememberSaveable { mutableStateOf(initialPath) }
     var edited by rememberSaveable { mutableStateOf(false) }
-    var notesOpen by rememberSaveable { mutableStateOf(false) }
-    var customizeOpen by rememberSaveable { mutableStateOf(false) }
     var revealed by remember { mutableStateOf(true) }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var replacement by remember { mutableStateOf<EntryReplacement?>(null) }
@@ -92,13 +91,21 @@ internal fun NewEntryScreen(
             InsertPathCheck.Available -> false
             else -> entries.any { it.path == path.filePath }
         }
-    val error = path.error?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
+    val error = viewModel.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
-    val canSave = enabled && check != null && error == null && viewModel.password.isNotEmpty()
+    val canSave = enabled && check != null && error == null && viewModel.secret.isNotEmpty()
     val noteLines = noteLineCount(viewModel.notes)
     val suggestions = remember(options, path) { options.suggestions(path) }
+    val card = viewModel.type == EntryType.Card
 
-    val changed = input != initialPath || viewModel.passwordChanged || viewModel.notes.isNotEmpty()
+    val changed =
+        input != initialPath || viewModel.passwordChanged || viewModel.cardNumber.isNotEmpty() || viewModel.notes.isNotEmpty()
+
+    fun changeInput(value: String) {
+        input = value
+        viewModel.updatePath(EntryPath(value))
+        viewModel.clearError()
+    }
 
     fun leave(
         confirmDiscard: Boolean,
@@ -114,7 +121,9 @@ internal fun NewEntryScreen(
 
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
-            EditorTopBar(title = "new entry", enabled = enabled, onBack = back)
+            EditorTopBar(title = "new entry", enabled = enabled, onBack = back) {
+                EntryTypeToggle(viewModel.type, enabled, viewModel::selectType)
+            }
             HorizontalDivider(color = PassColorsDark.Border)
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 14.dp),
@@ -126,61 +135,50 @@ internal fun NewEntryScreen(
                     exists = exists,
                     enabled = enabled,
                     suggestions = suggestions,
+                    cardWarning = viewModel.cardFolderWarning(path),
+                    onAddCardFolder = { changeInput("cards/${path.value}") },
                     onPick = { suggestion ->
                         if (suggestion.folder) {
-                            input = "${suggestion.path}/"
-                            viewModel.clearError()
+                            changeInput("${suggestion.path}/")
                         } else {
                             leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
                         }
                     },
                     onChange = {
                         edited = true
-                        input = it
-                        viewModel.clearError()
+                        changeInput(it)
                     },
                 )
                 Spacer(Modifier.height(20.dp))
-                PasswordCard(
-                    password = viewModel.password,
-                    status = if (viewModel.passwordDraft.generated) PasswordStatus.Generated else PasswordStatus.Typed,
-                    strength = viewModel.passwordDraft.strength,
-                    enabled = enabled,
-                    revealed = revealed,
-                    onToggleReveal = { revealed = !revealed },
-                    onPasswordChange = {
-                        edited = true
-                        viewModel.updatePassword(it)
-                    },
-                    onRegenerate = viewModel::regenerate,
-                    onCopy = viewModel::copyPassword,
-                    glow = true,
-                )
-                Spacer(Modifier.height(8.dp))
-                CustomizePanel(
-                    settings = viewModel.passwordDraft.settings,
-                    open = customizeOpen,
-                    enabled = enabled,
-                    onToggleOpen = { customizeOpen = !customizeOpen },
-                    onChange = viewModel::updateGenerator,
-                )
-                Spacer(Modifier.height(8.dp))
-                CopyAfterSaveRow(on = viewModel.copyAfterSave, enabled = enabled, onToggle = viewModel::toggleCopyAfterSave)
+                if (card) {
+                    CardNumberField(
+                        digits = viewModel.cardNumber,
+                        enabled = enabled,
+                        onChange = {
+                            edited = true
+                            viewModel.updateCardNumber(it)
+                        },
+                    )
+                } else {
+                    LoginPasswordFields(viewModel, enabled, revealed, onToggleReveal = { revealed = !revealed }, onEdit = { edited = true })
+                }
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = PassColorsDark.Border)
                 Spacer(Modifier.height(12.dp))
                 NotesToggle(
-                    open = notesOpen,
+                    open = viewModel.notesOpen,
                     lineCount = noteLines,
+                    type = viewModel.type,
                     enabled = enabled,
-                    onToggle = { notesOpen = !notesOpen },
+                    onToggle = viewModel::toggleNotes,
                 )
-                if (notesOpen) {
+                if (viewModel.notesOpen) {
                     Spacer(Modifier.height(6.dp))
                     NotesField(
                         path = path.value,
                         notes = viewModel.notes,
                         enabled = enabled,
+                        type = viewModel.type,
                         onNotesChange = {
                             edited = true
                             viewModel.updateNotes(it)
@@ -190,12 +188,20 @@ internal fun NewEntryScreen(
             }
             SaveFooter(
                 command =
-                    if (viewModel.passwordDraft.generated) {
-                        PassCommand.generate(path.value, viewModel.passwordDraft.settings, viewModel.copyAfterSave, force = exists)
-                    } else {
-                        PassCommand.insert(path.value, multiline = viewModel.notes.isNotEmpty(), force = exists)
+                    when {
+                        card -> {
+                            PassCommand.insert(path.value, multiline = true, force = exists)
+                        }
+
+                        viewModel.passwordDraft.generated -> {
+                            PassCommand.generate(path.value, viewModel.passwordDraft.settings, viewModel.copyAfterSave, force = exists)
+                        }
+
+                        else -> {
+                            PassCommand.insert(path.value, multiline = viewModel.notes.isNotEmpty(), force = exists)
+                        }
                     },
-                lineCount = noteLines,
+                lineSummary = saveLineSummary(noteLines, viewModel.type),
                 enabled = canSave,
                 saving = viewModel.saving,
                 error = viewModel.error,
@@ -241,6 +247,43 @@ internal fun NewEntryScreen(
     }
 }
 
+/** The password of a login, with the generator and the copy toggle. A card has none of them. */
+@Composable
+private fun LoginPasswordFields(
+    viewModel: NewEntryViewModel,
+    enabled: Boolean,
+    revealed: Boolean,
+    onToggleReveal: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    var customizeOpen by rememberSaveable { mutableStateOf(false) }
+    PasswordCard(
+        password = viewModel.password,
+        status = if (viewModel.passwordDraft.generated) PasswordStatus.Generated else PasswordStatus.Typed,
+        strength = viewModel.passwordDraft.strength,
+        enabled = enabled,
+        revealed = revealed,
+        onToggleReveal = onToggleReveal,
+        onPasswordChange = {
+            onEdit()
+            viewModel.updatePassword(it)
+        },
+        onRegenerate = viewModel::regenerate,
+        onCopy = viewModel::copyPassword,
+        glow = true,
+    )
+    Spacer(Modifier.height(8.dp))
+    CustomizePanel(
+        settings = viewModel.passwordDraft.settings,
+        open = customizeOpen,
+        enabled = enabled,
+        onToggleOpen = { customizeOpen = !customizeOpen },
+        onChange = viewModel::updateGenerator,
+    )
+    Spacer(Modifier.height(8.dp))
+    CopyAfterSaveRow(on = viewModel.copyAfterSave, enabled = enabled, onToggle = viewModel::toggleCopyAfterSave)
+}
+
 private class EntryReplacement(
     val path: EntryPath,
     val digest: ByteArray,
@@ -250,13 +293,20 @@ private class EntryReplacement(
 private fun NotesToggle(
     open: Boolean,
     lineCount: Int,
+    type: EntryType,
     enabled: Boolean,
     onToggle: () -> Unit,
 ) {
     Text(
         buildAnnotatedString {
             append(if (open) "− " else "+ ")
-            append(if (open || lineCount > 0) "notes" else "notes / username")
+            append(
+                when {
+                    type == EntryType.Card -> "card details"
+                    open || lineCount > 0 -> "notes"
+                    else -> "notes / username"
+                },
+            )
             if (lineCount > 0) {
                 withStyle(SpanStyle(color = PassColorsDark.Accent)) {
                     append(" · $lineCount line")
@@ -285,9 +335,13 @@ private fun EntryPathField(
     exists: Boolean,
     enabled: Boolean,
     suggestions: List<PathSuggestion>,
+    cardWarning: Boolean,
+    onAddCardFolder: () -> Unit,
     onPick: (PathSuggestion) -> Unit,
     onChange: (String) -> Unit,
 ) {
+    var typed by remember { mutableStateOf(TextFieldValue(input)) }
+    val value = typed.syncedWith(input)
     val color =
         when {
             error != null -> PassColorsDark.Danger
@@ -303,8 +357,11 @@ private fun EntryPathField(
             .border(1.dp, color, PassShapes.small),
     ) {
         BasicTextField(
-            value = input,
-            onValueChange = onChange,
+            value = value,
+            onValueChange = {
+                typed = it
+                if (it.text != input) onChange(it.text)
+            },
             enabled = enabled,
             singleLine = true,
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
@@ -348,6 +405,7 @@ private fun EntryPathField(
             modifier = Modifier.padding(top = 6.dp),
         )
     }
+    if (cardWarning) CardFolderWarning(enabled, onAddCardFolder)
 }
 
 @Composable
