@@ -41,6 +41,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -387,7 +388,7 @@ private fun OtpCard(
     clipboardTimeoutSeconds: Int,
     onCopy: () -> Unit,
 ) {
-    var now by remember(otp) { mutableStateOf(System.currentTimeMillis() / 1000) }
+    var now by remember(otp) { mutableLongStateOf(System.currentTimeMillis() / 1000) }
     LaunchedEffect(otp) {
         if (otp is Otp.Totp) {
             while (true) {
