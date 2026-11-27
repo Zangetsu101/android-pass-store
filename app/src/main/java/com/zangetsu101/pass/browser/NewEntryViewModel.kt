@@ -15,7 +15,6 @@ import com.zangetsu101.pass.passstore.EntryPath
 import com.zangetsu101.pass.passstore.EntrySaveError
 import com.zangetsu101.pass.passstore.EntryWriter
 import com.zangetsu101.pass.passstore.PassStore
-import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.preferences.AppPreferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -47,29 +46,10 @@ internal class NewEntryViewModel
         val entries = passStore.index
         val folders = passStore.folders
         private val random = SecureRandom()
-        var passwordDraft by mutableStateOf(PasswordDraft.generate(random))
-            private set
-        val password get() = passwordDraft.password
 
-        private val firstPassword = passwordDraft.password
-        val passwordChanged get() = password != firstPassword
-        var copyAfterSave by mutableStateOf(true)
-            private set
-        var notes by mutableStateOf("")
+        var draft by mutableStateOf(NewEntryDraft(initialPath, PasswordDraft.generate(random)))
             private set
 
-        private var inCardFolder = EntryPath(initialPath).inCardFolder
-        var type by mutableStateOf(if (inCardFolder) EntryType.Card else EntryType.Login)
-            private set
-
-        // Neither the password nor the card number goes into saved state.
-        var cardNumber by mutableStateOf("")
-            private set
-        var notesOpen by mutableStateOf(type == EntryType.Card)
-            private set
-
-        /** The secret that a save writes on line 1: the field of the type that the form shows. */
-        val secret get() = if (type == EntryType.Card) cardNumber else password
         var saving by mutableStateOf(false)
             private set
         var error by mutableStateOf<String?>(null)
@@ -78,57 +58,45 @@ internal class NewEntryViewModel
             private set
 
         fun selectType(value: EntryType) {
-            type = value
-            if (value == EntryType.Card) notesOpen = true
+            draft = draft.selectType(value)
             error = null
         }
 
-        /** A path that enters a Card Folder switches the type to card. Nothing switches it back to login by itself. */
         fun updatePath(path: EntryPath) {
-            if (path.inCardFolder && !inCardFolder) selectType(EntryType.Card)
-            inCardFolder = path.inCardFolder
+            draft = draft.updatePath(path)
+            error = null
         }
-
-        fun pathError(path: EntryPath): String? =
-            path.error ?: "choose a folder for login entries".takeIf { type == EntryType.Login && path.inCardFolder }
-
-        /** A card outside a Card Folder saves as a login, so the form warns about it. */
-        fun cardFolderWarning(path: EntryPath) = type == EntryType.Card && !path.inCardFolder && path.value.isNotEmpty()
 
         fun updateCardNumber(value: String) {
-            cardNumber = cardNumberDigits(value)
+            draft = draft.updateCardNumber(value)
             error = null
-        }
-
-        fun toggleNotes() {
-            notesOpen = !notesOpen
         }
 
         fun updatePassword(value: String) {
-            passwordDraft = passwordDraft.type(value)
+            draft = draft.updatePassword { it.type(value) }
             error = null
         }
 
         fun regenerate() {
-            passwordDraft = passwordDraft.regenerate(random)
+            draft = draft.updatePassword { it.regenerate(random) }
             error = null
         }
 
         fun updateGenerator(settings: GeneratorSettings) {
-            passwordDraft = passwordDraft.withSettings(settings, random)
+            draft = draft.updatePassword { it.withSettings(settings, random) }
             error = null
+        }
+
+        fun toggleNotes() {
+            draft = draft.toggleNotes()
         }
 
         fun toggleCopyAfterSave() {
-            copyAfterSave = !copyAfterSave
+            draft = draft.toggleCopyAfterSave()
         }
 
         fun updateNotes(value: String) {
-            notes = value
-            error = null
-        }
-
-        fun clearError() {
+            draft = draft.updateNotes(value)
             error = null
         }
 
@@ -146,7 +114,7 @@ internal class NewEntryViewModel
             }
 
         fun copyPassword() {
-            copySecret(password)
+            copySecret(draft.passwordDraft.password)
         }
 
         private fun copySecret(value: String) {
@@ -161,18 +129,16 @@ internal class NewEntryViewModel
             path: EntryPath,
             expectedDigest: ByteArray?,
         ) {
-            if (saving || savedPath != null || pathError(path) != null || secret.isEmpty()) return
+            val current = draft
+            if (saving || savedPath != null || !current.canSave(path)) return
+            val plan = current.plan(path, exists = expectedDigest != null)
             saving = true
             error = null
             viewModelScope.launch {
                 try {
-                    val login = type == EntryType.Login
-                    val source = if (login && passwordDraft.generated) PasswordSource.Generated else PasswordSource.Given
-                    writer.insert(path, expectedDigest, secret, notes, source)
-                    if (login && copyAfterSave) copySecret(secret)
-                    passwordDraft = passwordDraft.type("")
-                    cardNumber = ""
-                    notes = ""
+                    writer.insert(path, expectedDigest, plan.secret, current.notes, plan.passwordSource)
+                    if (current.type == EntryType.Login && current.copyAfterSave) copySecret(plan.secret)
+                    draft = draft.cleared()
                     savedPath = path.value
                 } catch (cancelled: CancellationException) {
                     throw cancelled
