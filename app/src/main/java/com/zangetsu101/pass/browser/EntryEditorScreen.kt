@@ -65,8 +65,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.zangetsu101.pass.decryption.noteLineCount
-import com.zangetsu101.pass.passstore.PassEntry
-import com.zangetsu101.pass.passstore.PasswordSource
 import com.zangetsu101.pass.ui.components.PassScaffold
 import com.zangetsu101.pass.ui.theme.PassColorsDark
 import com.zangetsu101.pass.ui.theme.PassShapes
@@ -74,11 +72,10 @@ import com.zangetsu101.pass.ui.theme.PassType
 
 @Composable
 internal fun EntryEditorScreen(
-    entry: PassEntry,
     editor: EntryEditorState,
     viewModel: EntryDetailViewModel,
 ) {
-    val path = entry.path.removeSuffix(".gpg")
+    val path = editor.path
     val type = editor.type
     val noteLines = noteLineCount(editor.notes)
     var revealed by remember { mutableStateOf(false) }
@@ -163,16 +160,7 @@ internal fun EntryEditorScreen(
                 }
             }
             SaveFooter(
-                command =
-                    when (val secret = editor.secretDraft) {
-                        is SecretDraft.Password if editor.passwordSource == PasswordSource.Generated -> {
-                            PassCommand.generateInPlace(path, secret.draft.settings)
-                        }
-
-                        else -> {
-                            PassCommand.insert(path, multiline = true, force = true)
-                        }
-                    },
+                command = editor.plan.command,
                 lineSummary = saveLineSummary(noteLines, type),
                 enabled = editor.changed && !editor.saving,
                 saving = editor.saving,

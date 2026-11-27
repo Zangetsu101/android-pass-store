@@ -203,15 +203,15 @@ class EntryDetailViewModelTest {
             val generated = draft().secret
             assertEquals(32, generated.length)
             assertTrue(draft().passwordDraft().generated)
-            assertEquals(PasswordSource.Generated, draft().passwordSource)
+            assertEquals(PasswordSource.Generated, draft().plan.passwordSource)
 
             vm.updateEditorPassword(generated + "x")
             assertFalse(draft().passwordDraft().generated)
-            assertEquals(PasswordSource.Given, draft().passwordSource)
+            assertEquals(PasswordSource.Given, draft().plan.passwordSource)
 
             vm.regenerateEditorPassword()
             vm.updateEditorNotes("new notes")
-            assertEquals(PasswordSource.Given, draft().passwordSource)
+            assertEquals(PasswordSource.Given, draft().plan.passwordSource)
             vm.updateEditorNotes("notes")
             assertEquals(32, draft().secret.length)
             val regenerated = draft().secret

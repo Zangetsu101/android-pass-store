@@ -111,6 +111,7 @@ sealed interface EntryDetailMode {
 
 @ConsistentCopyVisibility
 data class EntryEditorState internal constructor(
+    internal val path: String,
     internal val source: EntryEditSource,
     internal val secretDraft: SecretDraft,
     val notes: String,
@@ -128,15 +129,19 @@ data class EntryEditorState internal constructor(
     val secretChanged: Boolean get() = secret != if (type == EntryType.Card) cardNumberDigits(originalSecret) else originalSecret
     val notesChanged: Boolean get() = notes != source.entry.notes
 
-    /** The secret that a save writes. An unchanged secret keeps its original form, such as a card number with spaces. */
-    internal val secretToSave: String get() = if (secretChanged) secret else originalSecret
-
-    /** `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`. */
-    val passwordSource: PasswordSource
+    internal val plan: SavePlan
         get() {
-            val generated = (secretDraft as? SecretDraft.Password)?.draft?.generated == true
-            return if (generated && secretChanged && !notesChanged) PasswordSource.Generated else PasswordSource.Given
+            val password = (secretDraft as? SecretDraft.Password)?.draft
+            // An unchanged secret keeps its original form, such as a card number with spaces.
+            val secretToSave = if (secretChanged) secret else originalSecret
+            // `pass generate -i` changes only line 1, so a save that also changes the notes is a `pass edit`.
+            return if (password != null && password.generated && secretChanged && !notesChanged) {
+                SavePlan(PassCommand.generateInPlace(path, password.settings), PasswordSource.Generated, secretToSave)
+            } else {
+                SavePlan(PassCommand.insert(path, multiline = true, force = true), PasswordSource.Given, secretToSave)
+            }
         }
+
     val changed: Boolean get() = secretChanged || notesChanged
     val hasOtp: Boolean get() = source.entry.hasOtp
 
@@ -271,7 +276,8 @@ class EntryDetailViewModel
                 } else {
                     SecretDraft.Password(PasswordDraft(editable.secret))
                 }
-            _state.update { it.copy(mode = EntryDetailMode.EditEntry(EntryEditorState(source, secret, editable.notes))) }
+            val editor = EntryEditorState(entry.path.removeSuffix(".gpg"), source, secret, editable.notes)
+            _state.update { it.copy(mode = EntryDetailMode.EditEntry(editor)) }
         }
 
         fun updateEditorPassword(password: String) = updateEditorPasswordDraft { it.type(password) }
@@ -324,8 +330,8 @@ class EntryDetailViewModel
         fun saveEditor() {
             val editor = (_state.value.mode as? EntryDetailMode.EditEntry)?.draft ?: return
             if (editor.saving || !editor.changed) return
-            val secret = editor.secretToSave
-            if (secret.isEmpty() &&
+            val plan = editor.plan
+            if (plan.secret.isEmpty() &&
                 editor.source.entry.secret
                     .isNotEmpty()
             ) {
@@ -335,7 +341,7 @@ class EntryDetailViewModel
             updateEditor { it.copy(saving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val saved = entryWriter.save(entry, editor.source, secret, editor.notes, editor.passwordSource)
+                    val saved = entryWriter.save(entry, editor.source, plan.secret, editor.notes, plan.passwordSource)
                     showCredentials(saved.entry, saved = saved.commit)
                 } catch (cancelled: CancellationException) {
                     throw cancelled

@@ -91,20 +91,19 @@ internal fun NewEntryScreen(
             InsertPathCheck.Available -> false
             else -> entries.any { it.path == path.filePath }
         }
-    val error = viewModel.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
+    val draft = viewModel.draft
+    val error = draft.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
-    val canSave = enabled && check != null && error == null && viewModel.secret.isNotEmpty()
-    val noteLines = noteLineCount(viewModel.notes)
+    val canSave = enabled && (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path)
+    val noteLines = noteLineCount(draft.notes)
     val suggestions = remember(options, path) { options.suggestions(path) }
-    val card = viewModel.type == EntryType.Card
+    val card = draft.type == EntryType.Card
 
-    val changed =
-        input != initialPath || viewModel.passwordChanged || viewModel.cardNumber.isNotEmpty() || viewModel.notes.isNotEmpty()
+    val changed = draft.changed(input)
 
     fun changeInput(value: String) {
         input = value
         viewModel.updatePath(EntryPath(value))
-        viewModel.clearError()
     }
 
     fun leave(
@@ -122,7 +121,7 @@ internal fun NewEntryScreen(
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
             EditorTopBar(title = "new entry", enabled = enabled, onBack = back) {
-                EntryTypeToggle(viewModel.type, enabled, viewModel::selectType)
+                EntryTypeToggle(draft.type, enabled, viewModel::selectType)
             }
             HorizontalDivider(color = PassColorsDark.Border)
             Column(
@@ -135,7 +134,7 @@ internal fun NewEntryScreen(
                     exists = exists,
                     enabled = enabled,
                     suggestions = suggestions,
-                    cardWarning = viewModel.cardFolderWarning(path),
+                    cardWarning = draft.cardFolderWarning(path),
                     onAddCardFolder = { changeInput("cards/${path.value}") },
                     onPick = { suggestion ->
                         if (suggestion.folder) {
@@ -152,7 +151,7 @@ internal fun NewEntryScreen(
                 Spacer(Modifier.height(20.dp))
                 if (card) {
                     CardNumberField(
-                        digits = viewModel.cardNumber,
+                        digits = draft.cardNumber,
                         enabled = enabled,
                         onChange = {
                             edited = true
@@ -166,19 +165,19 @@ internal fun NewEntryScreen(
                 HorizontalDivider(color = PassColorsDark.Border)
                 Spacer(Modifier.height(12.dp))
                 NotesToggle(
-                    open = viewModel.notesOpen,
+                    open = draft.notesOpen,
                     lineCount = noteLines,
-                    type = viewModel.type,
+                    type = draft.type,
                     enabled = enabled,
                     onToggle = viewModel::toggleNotes,
                 )
-                if (viewModel.notesOpen) {
+                if (draft.notesOpen) {
                     Spacer(Modifier.height(6.dp))
                     NotesField(
                         path = path.value,
-                        notes = viewModel.notes,
+                        notes = draft.notes,
                         enabled = enabled,
-                        type = viewModel.type,
+                        type = draft.type,
                         onNotesChange = {
                             edited = true
                             viewModel.updateNotes(it)
@@ -187,21 +186,8 @@ internal fun NewEntryScreen(
                 }
             }
             SaveFooter(
-                command =
-                    when {
-                        card -> {
-                            PassCommand.insert(path.value, multiline = true, force = exists)
-                        }
-
-                        viewModel.passwordDraft.generated -> {
-                            PassCommand.generate(path.value, viewModel.passwordDraft.settings, viewModel.copyAfterSave, force = exists)
-                        }
-
-                        else -> {
-                            PassCommand.insert(path.value, multiline = viewModel.notes.isNotEmpty(), force = exists)
-                        }
-                    },
-                lineSummary = saveLineSummary(noteLines, viewModel.type),
+                command = draft.plan(path, exists).command,
+                lineSummary = saveLineSummary(noteLines, draft.type),
                 enabled = canSave,
                 saving = viewModel.saving,
                 error = viewModel.error,
@@ -257,10 +243,11 @@ private fun LoginPasswordFields(
     onEdit: () -> Unit,
 ) {
     var customizeOpen by rememberSaveable { mutableStateOf(false) }
+    val passwordDraft = viewModel.draft.passwordDraft
     PasswordCard(
-        password = viewModel.password,
-        status = if (viewModel.passwordDraft.generated) PasswordStatus.Generated else PasswordStatus.Typed,
-        strength = viewModel.passwordDraft.strength,
+        password = passwordDraft.password,
+        status = if (passwordDraft.generated) PasswordStatus.Generated else PasswordStatus.Typed,
+        strength = passwordDraft.strength,
         enabled = enabled,
         revealed = revealed,
         onToggleReveal = onToggleReveal,
@@ -274,14 +261,14 @@ private fun LoginPasswordFields(
     )
     Spacer(Modifier.height(8.dp))
     CustomizePanel(
-        settings = viewModel.passwordDraft.settings,
+        settings = passwordDraft.settings,
         open = customizeOpen,
         enabled = enabled,
         onToggleOpen = { customizeOpen = !customizeOpen },
         onChange = viewModel::updateGenerator,
     )
     Spacer(Modifier.height(8.dp))
-    CopyAfterSaveRow(on = viewModel.copyAfterSave, enabled = enabled, onToggle = viewModel::toggleCopyAfterSave)
+    CopyAfterSaveRow(on = viewModel.draft.copyAfterSave, enabled = enabled, onToggle = viewModel::toggleCopyAfterSave)
 }
 
 private class EntryReplacement(
