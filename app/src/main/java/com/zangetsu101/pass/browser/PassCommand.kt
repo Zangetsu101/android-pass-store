@@ -11,7 +11,8 @@ internal data class CommandPart(
 )
 
 /** The `pass` command that does the same thing as a save. [charset] is the character set that no flag can express. */
-internal class PassCommand private constructor(
+@ConsistentCopyVisibility
+internal data class PassCommand private constructor(
     val parts: List<CommandPart>,
     val charset: String? = null,
 ) {

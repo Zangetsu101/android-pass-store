@@ -122,7 +122,7 @@ fun EntryDetailScreen(
     }
 
     if (mode is EntryDetailMode.EditEntry) {
-        EntryEditorScreen(state.entry, mode.draft, viewModel)
+        EntryEditorScreen(mode.draft, viewModel)
         return
     }
     BackHandler(onBack = leaveEntry)
