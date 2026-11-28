@@ -124,7 +124,9 @@ class NewEntryDraftTest {
     @Test
     fun `a login created from autofill stays a login and starts with copy after save off`() {
         val cardPath = EntryPath("cards/visa")
-        val login = NewEntryDraft("github.com/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Login)).updatePath(cardPath)
+        val login =
+            NewEntryDraft("github.com/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Login))
+                .updatePath(cardPath)
         assertEquals(EntryType.Login, login.type)
         assertFalse(login.canSave(cardPath))
         assertFalse(login.copyAfterSave)
@@ -133,7 +135,9 @@ class NewEntryDraftTest {
     @Test
     fun `a card created from autofill requires a Card Folder`() {
         val cardPath = EntryPath("cards/visa")
-        val card = NewEntryDraft("cards/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Card)).updateCardNumber("4111111111111111")
+        val card =
+            NewEntryDraft("cards/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Card))
+                .updateCardNumber("4111111111111111")
         assertTrue(card.canSave(cardPath))
         assertFalse(card.updatePath(path).canSave(path))
     }

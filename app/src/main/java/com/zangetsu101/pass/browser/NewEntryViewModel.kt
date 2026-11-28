@@ -41,7 +41,10 @@ internal class NewEntryViewModel
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
-            fun create(initialPath: String, origin: NewEntryOrigin): NewEntryViewModel
+            fun create(
+                initialPath: String,
+                origin: NewEntryOrigin,
+            ): NewEntryViewModel
         }
 
         val entries = passStore.index

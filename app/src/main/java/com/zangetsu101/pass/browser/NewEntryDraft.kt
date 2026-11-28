@@ -36,8 +36,10 @@ internal data class NewEntryDraft(
     fun changed(input: String) =
         input != initialPath || passwordDraft.password != firstPassword || cardNumber.isNotEmpty() || notes.isNotEmpty()
 
-    fun canSave(path: EntryPath, exists: Boolean = false) =
-        pathError(path, exists) == null && notesError == null && secret.isNotEmpty()
+    fun canSave(
+        path: EntryPath,
+        exists: Boolean = false,
+    ) = pathError(path, exists) == null && notesError == null && secret.isNotEmpty()
 
     val notesError: String?
         get() =
@@ -55,7 +57,10 @@ internal data class NewEntryDraft(
         return if (entered) moved.selectType(EntryType.Card) else moved
     }
 
-    fun pathError(path: EntryPath, exists: Boolean = false): String? =
+    fun pathError(
+        path: EntryPath,
+        exists: Boolean = false,
+    ): String? =
         path.error ?: when {
             type == EntryType.Login && path.inCardFolder -> "choose a folder for login entries"
             origin is NewEntryOrigin.Autofill && type == EntryType.Card && !path.inCardFolder -> "choose a card folder"
