@@ -66,7 +66,7 @@ class NewEntryViewModelTest {
     }
 
     private fun createViewModel(initialPath: String = "") =
-        NewEntryViewModel(initialPath, context, writer, mockk<PassStore>(relaxed = true), preferences)
+        NewEntryViewModel(initialPath, context, writer, mockk<PassStore>(relaxed = true), preferences, NewEntryOrigin.Browser)
 
     @Test
     fun `the form opens with a default generated password and copies it after the save`() =

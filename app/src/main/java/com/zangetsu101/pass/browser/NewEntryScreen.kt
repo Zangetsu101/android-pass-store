@@ -92,19 +92,18 @@ internal fun NewEntryScreen(
             else -> entries.any { it.path == path.filePath }
         }
     val draft = viewModel.draft
-    val replacementBlocked = viewModel.autofillType != null && exists
+    val fromBrowser = draft.origin == NewEntryOrigin.Browser
     val error =
-        draft.pathError(path)?.takeIf { path.value.isNotEmpty() }
+        draft.pathError(path, exists)?.takeIf { path.value.isNotEmpty() }
             ?: (check as? InsertPathCheck.Unavailable)?.message
-            ?: "entry already exists".takeIf { replacementBlocked }
     val enabled = !viewModel.saving && viewModel.savedPath == null
     val canSave =
-        enabled && !replacementBlocked &&
-            (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path)
+        enabled &&
+            (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path, exists)
     val noteLines = noteLineCount(draft.notes)
     val suggestions =
-        remember(options, path, onOpenEntry != null) {
-            options.suggestions(path).filter { it.folder || onOpenEntry != null }
+        remember(options, path, fromBrowser) {
+            options.suggestions(path).filter { it.folder || fromBrowser }
         }
     val card = draft.type == EntryType.Card
 
@@ -130,7 +129,7 @@ internal fun NewEntryScreen(
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
             EditorTopBar(title = "new entry", enabled = enabled, onBack = back) {
-                if (viewModel.autofillType == null) EntryTypeToggle(draft.type, enabled, viewModel::selectType)
+                if (fromBrowser) EntryTypeToggle(draft.type, enabled, viewModel::selectType)
             }
             HorizontalDivider(color = PassColorsDark.Border)
             Column(
@@ -199,7 +198,7 @@ internal fun NewEntryScreen(
                 lineSummary = saveLineSummary(noteLines, draft.type),
                 enabled = canSave,
                 saving = viewModel.saving,
-                error = viewModel.error,
+                error = viewModel.error ?: draft.notesError,
                 showGlow = true,
                 onSave = {
                     val digest = (check as? InsertPathCheck.Existing)?.digest

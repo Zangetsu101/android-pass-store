@@ -7,6 +7,8 @@ interface PassStore {
     val index: StateFlow<List<PassEntry>>
     val folders: StateFlow<Set<String>>
 
+    suspend fun readEntry(filePath: String): PassEntry?
+
     suspend fun buildIndex(): List<PassEntry>
 
     fun search(query: String): List<PassEntry>

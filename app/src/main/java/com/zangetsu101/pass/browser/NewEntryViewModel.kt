@@ -37,18 +37,18 @@ internal class NewEntryViewModel
         private val writer: EntryWriter,
         passStore: PassStore,
         private val preferences: AppPreferences,
-        @Assisted val autofillType: EntryType? = null,
+        @Assisted origin: NewEntryOrigin,
     ) : ViewModel() {
         @AssistedFactory
         interface Factory {
-            fun create(initialPath: String, autofillType: EntryType?): NewEntryViewModel
+            fun create(initialPath: String, origin: NewEntryOrigin): NewEntryViewModel
         }
 
         val entries = passStore.index
         val folders = passStore.folders
         private val random = SecureRandom()
 
-        var draft by mutableStateOf(NewEntryDraft(initialPath, PasswordDraft.generate(random), autofillType = autofillType))
+        var draft by mutableStateOf(NewEntryDraft(initialPath, PasswordDraft.generate(random), origin = origin))
             private set
 
         var saving by mutableStateOf(false)
@@ -131,8 +131,7 @@ internal class NewEntryViewModel
             expectedDigest: ByteArray?,
         ) {
             val current = draft
-            if (saving || savedPath != null || !current.canSave(path)) return
-            if (autofillType != null && expectedDigest != null) return
+            if (saving || savedPath != null || !current.canSave(path, exists = expectedDigest != null)) return
             val plan = current.plan(path, exists = expectedDigest != null)
             saving = true
             error = null

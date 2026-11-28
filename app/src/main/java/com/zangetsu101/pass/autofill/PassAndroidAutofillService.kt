@@ -103,7 +103,7 @@ class PassAndroidAutofillService : AutofillService() {
 
         if (usernameId == null && passwordId == null) return null
 
-        if (passStore.index.value.isEmpty()) passStore.buildIndex()
+        loadIndexIfEmpty()
 
         val loginTarget = if (webDomain != null) "web:$webDomain" else "app:$packageName"
         val candidates =
@@ -123,14 +123,10 @@ class PassAndroidAutofillService : AutofillService() {
         val createDataset =
             if (candidates.isEmpty()) {
                 val folder = webDomain ?: packageName.split('.').asReversed().joinToString(".")
-                val intent =
-                    Intent(this, AutofillCreateActivity::class.java).apply {
-                        putExtra(AutofillCreateActivity.EXTRA_INITIAL_PATH, "$folder/")
-                        putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, loginTarget)
-                        usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
-                        passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
-                    }
-                buildCreateDataset(intent, listOfNotNull(usernameId, passwordId), inlineSpecs.firstOrNull())
+                buildCreateDataset("$folder/", loginTarget, listOfNotNull(usernameId, passwordId), inlineSpecs.firstOrNull()) {
+                    usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
+                    passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
+                }
             } else {
                 null
             }
@@ -159,23 +155,14 @@ class PassAndroidAutofillService : AutofillService() {
         fillTarget: String,
         inlineSpecs: List<InlinePresentationSpec>,
         fields: CardFormFields,
-    ): FillResponse? {
-        if (passStore.index.value.isEmpty()) passStore.buildIndex()
+    ): FillResponse {
+        loadIndexIfEmpty()
 
         val candidates = autofillHistory.rank(fillTarget, passStore.index.value.filter { it.isCard })
 
         if (candidates.isEmpty()) {
-            if (fields.numberId == null) return null
-            val intent =
-                Intent(this, AutofillCreateActivity::class.java).apply {
-                    putExtra(AutofillCreateActivity.EXTRA_INITIAL_PATH, "cards/")
-                    putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
-                    fields.putInto(this)
-                }
-            return FillResponse
-                .Builder()
-                .addDataset(buildCreateDataset(intent, fields.ids, inlineSpecs.firstOrNull()))
-                .build()
+            val dataset = buildCreateDataset("cards/", fillTarget, fields.ids, inlineSpecs.firstOrNull()) { fields.putInto(this) }
+            return FillResponse.Builder().addDataset(dataset).build()
         }
 
         val datasets =
@@ -250,13 +237,25 @@ class PassAndroidAutofillService : AutofillService() {
         return buildDataset("search...", listOfNotNull(usernameId, passwordId), sender, inlineSpec)
     }
 
+    private suspend fun loadIndexIfEmpty() {
+        if (passStore.index.value.isEmpty()) passStore.buildIndex()
+    }
+
     private fun buildCreateDataset(
-        intent: Intent,
+        initialPath: String,
+        fillTarget: String,
         ids: List<AutofillId>,
         inlineSpec: InlinePresentationSpec?,
+        putFields: Intent.() -> Unit,
     ): android.service.autofill.Dataset {
-        // PendingIntent identity ignores extras, which contain the field IDs for this request.
-        intent.action = UUID.randomUUID().toString()
+        val intent =
+            Intent(this, AutofillCreateActivity::class.java).apply {
+                // PendingIntent identity ignores extras, which contain the field IDs for this request.
+                action = UUID.randomUUID().toString()
+                putExtra(AutofillCreateActivity.EXTRA_INITIAL_PATH, initialPath)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
+                putFields()
+            }
         val sender = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE)
         return buildDataset("create entry", ids, sender, inlineSpec, filter = matchAnyText)
     }
@@ -281,6 +280,7 @@ class PassAndroidAutofillService : AutofillService() {
         return android.service.autofill.Dataset
             .Builder()
             .apply {
+                // Field replaces these overloads in API 33. This app also supports earlier versions.
                 @Suppress("DEPRECATION")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
                     ids.forEach {

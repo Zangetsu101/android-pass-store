@@ -28,6 +28,16 @@ class PassStoreImpl
 
         private val levenshtein = LevenshteinDistance.getDefaultInstance()
 
+        override suspend fun readEntry(filePath: String): PassEntry? =
+            withContext(Dispatchers.IO) {
+                val path = EntryPath(filePath.removeSuffix(".gpg"))
+                if (path.error != null || path.filePath != filePath) return@withContext null
+                val root = context.repositoryDirectory().canonicalFile
+                val file = File(root, filePath)
+                if (!file.isFile || file != file.canonicalFile) return@withContext null
+                parseEntry(filePath, file)
+            }
+
         override suspend fun buildIndex(): List<PassEntry> =
             withContext(Dispatchers.IO) {
                 val repoDir = context.repositoryDirectory()

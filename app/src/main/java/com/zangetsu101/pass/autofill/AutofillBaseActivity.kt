@@ -16,6 +16,7 @@ import com.zangetsu101.pass.decryption.Decryption
 import com.zangetsu101.pass.decryption.DecryptionError
 import com.zangetsu101.pass.keymanagement.session.SessionError
 import com.zangetsu101.pass.passstore.PassEntry
+import com.zangetsu101.pass.passstore.parseCardNotes
 import com.zangetsu101.pass.session.SessionStartScreen
 import com.zangetsu101.pass.session.SessionStartViewModel
 import com.zangetsu101.pass.ui.theme.PassTheme
@@ -101,7 +102,7 @@ abstract class AutofillBaseActivity : FragmentActivity() {
                 }
 
                 val cardNumber = String(creds.secret)
-                val notes = parseNotes(creds.notes)
+                val notes = parseCardNotes(creds.notes)
                 val cvv = notes["cvv"]
                 val expiryRaw = notes["expiry"]
                 val expiry = expiryRaw?.let(::parseCardExpiry)
@@ -156,14 +157,6 @@ abstract class AutofillBaseActivity : FragmentActivity() {
         setResult(RESULT_CANCELED)
         finish()
     }
-
-    private fun parseNotes(notes: String): Map<String, String> =
-        notes
-            .lines()
-            .mapNotNull { line ->
-                val idx = line.indexOf(':')
-                if (idx < 0) null else line.substring(0, idx).trim().lowercase() to line.substring(idx + 1).trim()
-            }.toMap()
 
     companion object {
         const val EXTRA_FILL_TARGET = "fill_target"
