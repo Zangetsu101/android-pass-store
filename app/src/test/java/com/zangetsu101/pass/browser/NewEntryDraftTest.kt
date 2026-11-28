@@ -122,6 +122,45 @@ class NewEntryDraftTest {
     }
 
     @Test
+    fun `a login created from autofill stays a login and starts with copy after save off`() {
+        val cardPath = EntryPath("cards/visa")
+        val login =
+            NewEntryDraft("github.com/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Login))
+                .updatePath(cardPath)
+        assertEquals(EntryType.Login, login.type)
+        assertFalse(login.canSave(cardPath))
+        assertFalse(login.copyAfterSave)
+    }
+
+    @Test
+    fun `a card created from autofill requires a Card Folder`() {
+        val cardPath = EntryPath("cards/visa")
+        val card =
+            NewEntryDraft("cards/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Card))
+                .updateCardNumber("4111111111111111")
+        assertTrue(card.canSave(cardPath))
+        assertFalse(card.updatePath(path).canSave(path))
+    }
+
+    @Test
+    fun `a cvv-only form needs a security code before the entry can be saved`() {
+        val cardPath = EntryPath("cards/visa")
+        val card =
+            NewEntryDraft("cards/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Card, requiresSecurityCode = true))
+                .updateCardNumber("4111111111111111")
+        assertFalse(card.canSave(cardPath))
+        assertTrue(card.updateNotes("CVV: 123").canSave(cardPath))
+        assertFalse(card.updateNotes("CVV: 123\ncvv: ").canSave(cardPath))
+    }
+
+    @Test
+    fun `autofill cannot save over an existing entry`() {
+        val login = NewEntryDraft("github.com/", draft.passwordDraft, origin = NewEntryOrigin.Autofill(EntryType.Login))
+        assertFalse(login.canSave(path, exists = true))
+        assertTrue(draft.canSave(path, exists = true))
+    }
+
+    @Test
     fun `a switch back to login keeps the notes open and the user can close them`() {
         val login = draft.selectType(EntryType.Card).selectType(EntryType.Login)
         assertTrue(login.notesOpen)

@@ -29,6 +29,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.util.UUID
+import java.util.regex.Pattern
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -96,10 +98,12 @@ class PassAndroidAutofillService : AutofillService() {
             )
         }
 
-        val usernameNode = findNode(structure, ::isUsernameNode)
-        val passwordNode = findNode(structure, ::isPasswordNode)
+        val usernameId = findNode(structure, ::isUsernameNode)?.autofillId
+        val passwordId = findNode(structure, ::isPasswordNode)?.autofillId
 
-        if (usernameNode == null && passwordNode == null) return null
+        if (usernameId == null && passwordId == null) return null
+
+        loadIndexIfEmpty()
 
         val loginTarget = if (webDomain != null) "web:$webDomain" else "app:$packageName"
         val candidates =
@@ -113,24 +117,29 @@ class PassAndroidAutofillService : AutofillService() {
         val datasets =
             candidates.mapIndexed { i, entry ->
                 val spec = inlineSpecs.getOrNull(i) ?: inlineSpecs.lastOrNull()
-                buildLockedDataset(loginTarget, entry, usernameNode?.autofillId, passwordNode?.autofillId, i, spec)
+                buildLockedDataset(loginTarget, entry, usernameId, passwordId, i, spec)
             }
 
-        val searchSpec = inlineSpecs.getOrNull(candidates.size) ?: inlineSpecs.lastOrNull()
-        val searchDataset =
-            buildLoginSearchDataset(
-                usernameNode?.autofillId,
-                passwordNode?.autofillId,
-                candidates.size,
-                searchSpec,
-                loginTarget,
-                fillTarget,
-            )
+        val createDataset =
+            if (candidates.isEmpty()) {
+                val folder = webDomain ?: packageName.split('.').asReversed().joinToString(".")
+                buildCreateDataset("$folder/", loginTarget, listOfNotNull(usernameId, passwordId), inlineSpecs.firstOrNull()) {
+                    usernameId?.let { putExtra(AutofillAuthActivity.EXTRA_USERNAME_ID, it) }
+                    passwordId?.let { putExtra(AutofillAuthActivity.EXTRA_PASSWORD_ID, it) }
+                }
+            } else {
+                null
+            }
+
+        val searchIndex = if (createDataset == null) datasets.size else 1
+        val searchSpec = inlineSpecs.getOrNull(searchIndex) ?: inlineSpecs.lastOrNull()
+        val searchDataset = buildLoginSearchDataset(usernameId, passwordId, searchIndex, searchSpec, loginTarget, fillTarget)
 
         return FillResponse
             .Builder()
             .apply {
                 datasets.forEach { addDataset(it) }
+                createDataset?.let { addDataset(it) }
                 addDataset(searchDataset)
             }.build()
     }
@@ -147,9 +156,14 @@ class PassAndroidAutofillService : AutofillService() {
         inlineSpecs: List<InlinePresentationSpec>,
         fields: CardFormFields,
     ): FillResponse {
+        loadIndexIfEmpty()
+
         val candidates = autofillHistory.rank(fillTarget, passStore.index.value.filter { it.isCard })
 
-        if (candidates.isEmpty()) return FillResponse.Builder().build()
+        if (candidates.isEmpty()) {
+            val dataset = buildCreateDataset("cards/", fillTarget, fields.ids, inlineSpecs.firstOrNull()) { fields.putInto(this) }
+            return FillResponse.Builder().addDataset(dataset).build()
+        }
 
         val datasets =
             candidates.mapIndexed { i, entry ->
@@ -220,7 +234,30 @@ class PassAndroidAutofillService : AutofillService() {
             }
         val sender =
             PendingIntent.getActivity(this, requestCode, searchIntent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return buildDataset("Search...", listOfNotNull(usernameId, passwordId), sender, inlineSpec)
+        return buildDataset("search...", listOfNotNull(usernameId, passwordId), sender, inlineSpec)
+    }
+
+    private suspend fun loadIndexIfEmpty() {
+        if (passStore.index.value.isEmpty()) passStore.buildIndex()
+    }
+
+    private fun buildCreateDataset(
+        initialPath: String,
+        fillTarget: String,
+        ids: List<AutofillId>,
+        inlineSpec: InlinePresentationSpec?,
+        putFields: Intent.() -> Unit,
+    ): android.service.autofill.Dataset {
+        val intent =
+            Intent(this, AutofillCreateActivity::class.java).apply {
+                // PendingIntent identity ignores extras, which contain the field IDs for this request.
+                action = UUID.randomUUID().toString()
+                putExtra(AutofillCreateActivity.EXTRA_INITIAL_PATH, initialPath)
+                putExtra(AutofillBaseActivity.EXTRA_FILL_TARGET, fillTarget)
+                putFields()
+            }
+        val sender = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE)
+        return buildDataset("create entry", ids, sender, inlineSpec, filter = matchAnyText)
     }
 
     private fun buildDataset(
@@ -228,6 +265,7 @@ class PassAndroidAutofillService : AutofillService() {
         ids: List<AutofillId>,
         sender: PendingIntent,
         inlineSpec: InlinePresentationSpec?,
+        filter: Pattern? = null,
     ): android.service.autofill.Dataset {
         val presentation =
             RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
@@ -242,13 +280,19 @@ class PassAndroidAutofillService : AutofillService() {
         return android.service.autofill.Dataset
             .Builder()
             .apply {
+                // Field replaces these overloads in API 33. This app also supports earlier versions.
+                @Suppress("DEPRECATION")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && inlinePresentation != null) {
-                    // setValue(AutofillId, AutofillValue, RemoteViews, InlinePresentation) deprecated in API 33
-                    @Suppress("DEPRECATION")
-                    ids.forEach { setValue(it, AutofillValue.forText(""), presentation, inlinePresentation) }
+                    ids.forEach {
+                        if (filter == null) {
+                            setValue(it, AutofillValue.forText(""), presentation, inlinePresentation)
+                        } else {
+                            setValue(it, null, filter, presentation, inlinePresentation)
+                        }
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && filter != null) {
+                    ids.forEach { setValue(it, null, filter, presentation) }
                 } else {
-                    // setValue(AutofillId, AutofillValue, RemoteViews) deprecated in API 33; replacement requires minSdk 33
-                    @Suppress("DEPRECATION")
                     ids.forEach { setValue(it, AutofillValue.forText(""), presentation) }
                 }
                 setAuthentication(sender.intentSender)
@@ -362,4 +406,8 @@ class PassAndroidAutofillService : AutofillService() {
         { node -> classifyCardField(node.autofillHints, node.htmlAttributes()) == field }
 
     private fun AssistStructure.ViewNode.htmlAttributes(): List<Pair<String, String>>? = htmlInfo?.attributes?.map { it.first to it.second }
+
+    private companion object {
+        val matchAnyText: Pattern = Pattern.compile("(?s).*")
+    }
 }

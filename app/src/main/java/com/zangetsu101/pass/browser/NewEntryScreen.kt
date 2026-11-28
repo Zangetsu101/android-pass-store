@@ -66,7 +66,7 @@ internal fun NewEntryScreen(
     initialPath: String,
     viewModel: NewEntryViewModel,
     onBack: () -> Unit,
-    onOpenEntry: (String) -> Unit,
+    onOpenEntry: ((String) -> Unit)? = null,
     onSaved: (String) -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf(initialPath) }
@@ -92,11 +92,19 @@ internal fun NewEntryScreen(
             else -> entries.any { it.path == path.filePath }
         }
     val draft = viewModel.draft
-    val error = draft.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
+    val fromBrowser = draft.origin == NewEntryOrigin.Browser
+    val error =
+        draft.pathError(path, exists)?.takeIf { path.value.isNotEmpty() }
+            ?: (check as? InsertPathCheck.Unavailable)?.message
     val enabled = !viewModel.saving && viewModel.savedPath == null
-    val canSave = enabled && (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path)
+    val canSave =
+        enabled &&
+            (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path, exists)
     val noteLines = noteLineCount(draft.notes)
-    val suggestions = remember(options, path) { options.suggestions(path) }
+    val suggestions =
+        remember(options, path, fromBrowser) {
+            options.suggestions(path).filter { it.folder || fromBrowser }
+        }
     val card = draft.type == EntryType.Card
 
     val changed = draft.changed(input)
@@ -121,7 +129,7 @@ internal fun NewEntryScreen(
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
             EditorTopBar(title = "new entry", enabled = enabled, onBack = back) {
-                EntryTypeToggle(draft.type, enabled, viewModel::selectType)
+                if (fromBrowser) EntryTypeToggle(draft.type, enabled, viewModel::selectType)
             }
             HorizontalDivider(color = PassColorsDark.Border)
             Column(
@@ -140,7 +148,7 @@ internal fun NewEntryScreen(
                         if (suggestion.folder) {
                             changeInput("${suggestion.path}/")
                         } else {
-                            leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
+                            onOpenEntry?.let { open -> leave(edited || changed) { open("${suggestion.path}.gpg") } }
                         }
                     },
                     onChange = {
@@ -190,7 +198,7 @@ internal fun NewEntryScreen(
                 lineSummary = saveLineSummary(noteLines, draft.type),
                 enabled = canSave,
                 saving = viewModel.saving,
-                error = viewModel.error,
+                error = viewModel.error ?: draft.notesError,
                 showGlow = true,
                 onSave = {
                     val digest = (check as? InsertPathCheck.Existing)?.digest

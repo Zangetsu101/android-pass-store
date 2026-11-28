@@ -22,6 +22,7 @@ import com.zangetsu101.pass.browser.EntryBrowserScreen
 import com.zangetsu101.pass.browser.EntryBrowserViewModel
 import com.zangetsu101.pass.browser.EntryDetailScreen
 import com.zangetsu101.pass.browser.EntryDetailViewModel
+import com.zangetsu101.pass.browser.NewEntryOrigin
 import com.zangetsu101.pass.browser.NewEntryScreen
 import com.zangetsu101.pass.browser.NewEntryViewModel
 import com.zangetsu101.pass.keymanagement.session.SessionState
@@ -183,7 +184,7 @@ fun PassAndroidNavHost(
                 entry<NewEntry> {
                     val vm =
                         hiltViewModel<NewEntryViewModel, NewEntryViewModel.Factory>(
-                            creationCallback = { factory -> factory.create(it.initialPath) },
+                            creationCallback = { factory -> factory.create(it.initialPath, origin = NewEntryOrigin.Browser) },
                         )
                     val navVm: NavViewModel = hiltViewModel()
                     NewEntryScreen(

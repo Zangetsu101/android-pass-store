@@ -38,6 +38,19 @@ class PassStoreImplTest {
     }
 
     @Test
+    fun `readEntry finds a saved card before the index is built`() =
+        runBlocking {
+            createGpgFile("cards/visa/personal.gpg")
+            val entry = requireNotNull(store.readEntry("cards/visa/personal.gpg"))
+            assertTrue(entry.isCard)
+            assertEquals("visa", entry.domain)
+            assertEquals("personal", entry.username)
+            assertTrue(store.index.value.isEmpty())
+            assertNull(store.readEntry("cards/visa/missing.gpg"))
+            assertNull(store.readEntry("../outside.gpg"))
+        }
+
+    @Test
     fun `buildIndex parses two-level path correctly`() =
         runBlocking {
             createGpgFile("web/github.com/alice.gpg")
