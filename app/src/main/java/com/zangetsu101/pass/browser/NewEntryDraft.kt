@@ -14,11 +14,12 @@ internal data class NewEntryDraft(
     val passwordDraft: PasswordDraft,
     private val firstPassword: String = passwordDraft.password,
     private val inCardFolder: Boolean = EntryPath(initialPath).inCardFolder,
-    val type: EntryType = if (inCardFolder) EntryType.Card else EntryType.Login,
+    private val autofillType: EntryType? = null,
+    val type: EntryType = autofillType ?: if (inCardFolder) EntryType.Card else EntryType.Login,
     val cardNumber: String = "",
     val notes: String = "",
     val notesOpen: Boolean = type == EntryType.Card,
-    val copyAfterSave: Boolean = true,
+    val copyAfterSave: Boolean = autofillType == null,
 ) {
     val secret get() = if (type == EntryType.Card) cardNumber else passwordDraft.password
 
@@ -27,7 +28,8 @@ internal data class NewEntryDraft(
 
     fun canSave(path: EntryPath) = pathError(path) == null && secret.isNotEmpty()
 
-    fun selectType(value: EntryType) = copy(type = value, notesOpen = notesOpen || value == EntryType.Card)
+    fun selectType(value: EntryType) =
+        if (autofillType != null) this else copy(type = value, notesOpen = notesOpen || value == EntryType.Card)
 
     /** Nothing switches the type back to login by itself. */
     fun updatePath(path: EntryPath): NewEntryDraft {
@@ -37,7 +39,11 @@ internal data class NewEntryDraft(
     }
 
     fun pathError(path: EntryPath): String? =
-        path.error ?: "choose a folder for login entries".takeIf { type == EntryType.Login && path.inCardFolder }
+        path.error ?: when {
+            type == EntryType.Login && path.inCardFolder -> "choose a folder for login entries"
+            autofillType == EntryType.Card && !path.inCardFolder -> "choose a card folder"
+            else -> null
+        }
 
     /** A card outside a Card Folder saves as a login, so the form warns about it. */
     fun cardFolderWarning(path: EntryPath) = type == EntryType.Card && !path.inCardFolder && path.value.isNotEmpty()

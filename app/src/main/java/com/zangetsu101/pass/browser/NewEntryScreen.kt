@@ -66,7 +66,7 @@ internal fun NewEntryScreen(
     initialPath: String,
     viewModel: NewEntryViewModel,
     onBack: () -> Unit,
-    onOpenEntry: (String) -> Unit,
+    onOpenEntry: ((String) -> Unit)? = null,
     onSaved: (String) -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf(initialPath) }
@@ -92,11 +92,20 @@ internal fun NewEntryScreen(
             else -> entries.any { it.path == path.filePath }
         }
     val draft = viewModel.draft
-    val error = draft.pathError(path)?.takeIf { path.value.isNotEmpty() } ?: (check as? InsertPathCheck.Unavailable)?.message
+    val replacementBlocked = viewModel.autofillType != null && exists
+    val error =
+        draft.pathError(path)?.takeIf { path.value.isNotEmpty() }
+            ?: (check as? InsertPathCheck.Unavailable)?.message
+            ?: "entry already exists".takeIf { replacementBlocked }
     val enabled = !viewModel.saving && viewModel.savedPath == null
-    val canSave = enabled && (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path)
+    val canSave =
+        enabled && !replacementBlocked &&
+            (check == InsertPathCheck.Available || check is InsertPathCheck.Existing) && draft.canSave(path)
     val noteLines = noteLineCount(draft.notes)
-    val suggestions = remember(options, path) { options.suggestions(path) }
+    val suggestions =
+        remember(options, path, onOpenEntry != null) {
+            options.suggestions(path).filter { it.folder || onOpenEntry != null }
+        }
     val card = draft.type == EntryType.Card
 
     val changed = draft.changed(input)
@@ -121,7 +130,7 @@ internal fun NewEntryScreen(
     PassScaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         Column(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
             EditorTopBar(title = "new entry", enabled = enabled, onBack = back) {
-                EntryTypeToggle(draft.type, enabled, viewModel::selectType)
+                if (viewModel.autofillType == null) EntryTypeToggle(draft.type, enabled, viewModel::selectType)
             }
             HorizontalDivider(color = PassColorsDark.Border)
             Column(
@@ -140,7 +149,7 @@ internal fun NewEntryScreen(
                         if (suggestion.folder) {
                             changeInput("${suggestion.path}/")
                         } else {
-                            leave(edited || changed) { onOpenEntry("${suggestion.path}.gpg") }
+                            onOpenEntry?.let { open -> leave(edited || changed) { open("${suggestion.path}.gpg") } }
                         }
                     },
                     onChange = {
